@@ -8,6 +8,7 @@ import remarkStringify, {
 } from "remark-stringify";
 import matter from "gray-matter";
 import { visit, SKIP } from "unist-util-visit";
+import { type Root } from "mdast";
 
 type Text = { type: "text"; value: string };
 type Parent = { children: unknown[] };
@@ -16,10 +17,14 @@ const createParseProcessor = () =>
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter)
-    .use(remarkWikiLink);
-type Root = ReturnType<ReturnType<typeof createParseProcessor>["parse"]>;
+    .use(remarkWikiLink)
+    .use(remarkStringify, {
+      bullet: "*",
+      listItemIndent: "one",
+      rule: "-",
+      handlers: customHandlers,
+    });
 type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
-
 // ---------------------------------------------------------------------------
 // Obsidian embed wikilink support
 // ---------------------------------------------------------------------------
@@ -492,18 +497,10 @@ export function parseMarkdown(content: string): Root {
 }
 
 export function stringifyMarkdown(tree: Root): string {
+  const processor = createParseProcessor();
   protectObsidianEmbeds(tree);
   protectObsidianTags(tree);
   protectInertAsterisks(tree);
-  const processor = unified()
-    .use(remarkGfm)
-    .use(remarkWikiLink)
-    .use(remarkStringify, {
-      bullet: "*",
-      listItemIndent: "one",
-      rule: "-",
-      handlers: customHandlers,
-    });
   return processor.stringify(tree);
 }
 
