@@ -12,12 +12,22 @@ import { type Root } from "mdast";
 
 type Text = { type: "text"; value: string };
 type Parent = { children: unknown[] };
+
+function remarkObsidianProtections() {
+  return (tree: Root): void => {
+    protectObsidianEmbeds(tree);
+    protectObsidianTags(tree);
+    protectInertAsterisks(tree);
+  };
+}
+
 const createParseProcessor = () =>
   unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter)
     .use(remarkWikiLink)
+    .use(remarkObsidianProtections)
     .use(remarkStringify, {
       bullet: "*",
       listItemIndent: "one",
@@ -498,10 +508,8 @@ export function parseMarkdown(content: string): Root {
 
 export function stringifyMarkdown(tree: Root): string {
   const processor = createParseProcessor();
-  protectObsidianEmbeds(tree);
-  protectObsidianTags(tree);
-  protectInertAsterisks(tree);
-  return processor.stringify(tree);
+  const transformed = processor.runSync(tree) as Root;
+  return processor.stringify(transformed);
 }
 
 export function parseFrontmatter(raw: string): {
