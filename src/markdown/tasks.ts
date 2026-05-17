@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { visit } from "unist-util-visit";
-import type { WikiLinkNode, parseMarkdown } from "./parse.js";
+import type { parseMarkdown } from "./parse.js";
+import type { WikiLinkNode } from "./types.js";
 
 type Root = ReturnType<typeof parseMarkdown>;
 type List = Extract<Root["children"][number], { type: "list" }>;

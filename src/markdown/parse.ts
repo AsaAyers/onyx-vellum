@@ -3,15 +3,16 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
-import remarkStringify, {
-  type Options as RemarkStringifyOptions,
-} from "remark-stringify";
-import matter from "gray-matter";
+import remarkStringify from "remark-stringify";
 import { visit, SKIP } from "unist-util-visit";
-import { type Root } from "mdast";
-
-type Text = { type: "text"; value: string };
-type Parent = { children: unknown[] };
+import type { Root, Text, Parent } from "mdast";
+import type {
+  ObsidianEmbedNode,
+  WikiLinkNode,
+  Handlers,
+  ObsidianTagNode,
+  RawAsteriskNode,
+} from "./types.js";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -34,30 +35,6 @@ const createParseProcessor = () =>
       rule: "-",
       handlers: customHandlers,
     });
-type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
-// ---------------------------------------------------------------------------
-// Obsidian embed wikilink support
-// ---------------------------------------------------------------------------
-
-/**
- * `remark-wiki-link` handles standard Obsidian page links (`[[Page Name]]`)
- * but not embed wikilinks (`![[image.png]]`). We preserve embeds verbatim by
- * splitting text nodes containing embeds into `text` / `obsidianEmbed` nodes
- * just before stringification.
- */
-interface ObsidianEmbedNode {
-  type: "obsidianEmbed";
-  value: string;
-}
-
-export interface WikiLinkNode {
-  type: "wikiLink";
-  value: string;
-  data?: {
-    alias?: string;
-  };
-}
-
 const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 
 function splitObsidianEmbedText(
@@ -106,24 +83,6 @@ function protectObsidianEmbeds(tree: Root): void {
       return [SKIP, index + parts.length];
     },
   );
-}
-
-// ---------------------------------------------------------------------------
-// Obsidian hashtag protection
-// ---------------------------------------------------------------------------
-
-/**
- * Obsidian tag syntax: `#tagname` or `#parent/child`.
- * remark-stringify escapes `#` at the start of a line (the CommonMark
- * "atBreak" unsafe rule) because `# text` opens a heading.  However,
- * `#feeling/good` is not a heading — Obsidian tags follow `#` immediately
- * with a non-space character.  We protect them by splitting text nodes that
- * contain `#tags` into alternating `text` / `obsidianTag` nodes before
- * stringification so the raw value is emitted verbatim.
- */
-interface ObsidianTagNode {
-  type: "obsidianTag";
-  value: string;
 }
 
 /**
@@ -182,22 +141,6 @@ function protectObsidianTags(tree: Root): void {
       return [SKIP, index + parts.length];
     },
   );
-}
-
-// ---------------------------------------------------------------------------
-// Inert-asterisk protection
-// ---------------------------------------------------------------------------
-
-/**
- * remark-stringify escapes every `*` in phrasing context, even ones that can
- * never form emphasis.  We protect "inert" asterisks — those that cannot be
- * part of a valid emphasis pair — by splitting their text nodes into
- * `text` / `rawAsterisk` nodes before stringification.  The `rawAsterisk`
- * handler emits `*` verbatim, preserving constructs such as Templater's
- * `<%* … %>` and angle-bracket tags like `<* … *>`.
- */
-interface RawAsteriskNode {
-  type: "rawAsterisk";
 }
 
 // ASCII punctuation characters used by the CommonMark flanking-delimiter rules.
@@ -311,7 +254,7 @@ function protectInertAsterisks(tree: Root): void {
               value: node.value.slice(lastIdx, i),
             } as Text);
           }
-          parts.push({ type: "rawAsterisk" } as RawAsteriskNode);
+          parts.push({ type: "rawAsterisk", value: "*" } as RawAsteriskNode);
           lastIdx = i + 1;
         }
       }
@@ -510,22 +453,4 @@ export function stringifyMarkdown(tree: Root): string {
   const processor = createParseProcessor();
   const transformed = processor.runSync(tree) as Root;
   return processor.stringify(transformed);
-}
-
-export function parseFrontmatter(raw: string): {
-  data: Record<string, unknown>;
-  content: string;
-} {
-  const parsed = matter(raw);
-  return {
-    data: parsed.data as Record<string, unknown>,
-    content: parsed.content,
-  };
-}
-
-export function stringifyFrontmatter(
-  data: Record<string, unknown>,
-  content: string,
-): string {
-  return matter.stringify(content, data);
 }
