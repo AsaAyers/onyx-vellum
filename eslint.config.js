@@ -23,6 +23,13 @@ export default tseslint.config(
             "Barrel re-exports (export { X } from) are not allowed. Import directly from the source file.",
         },
       ],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
     },
   },
 

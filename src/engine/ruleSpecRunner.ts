@@ -2,13 +2,16 @@ import { join, relative } from "node:path";
 import { parseMarkdown, stringifyMarkdown } from "../markdown/parse.js";
 import { joinFrontmatter, splitFrontmatter } from "../markdown/frontmatter.js";
 import type { SplitFrontmatterResult } from "../markdown/frontmatter.js";
+import type { List, ListItem } from "mdast";
 import {
   extractTasks,
   insertTaskAfter,
   removeTask,
   setTaskChecked,
   updateTaskText,
+  getListItemText,
 } from "../markdown/tasks.js";
+import { visit } from "unist-util-visit";
 import type { Task } from "../markdown/tasks.js";
 import { getInlineField } from "../markdown/inlineFields.js";
 import { extractMarkdownLinks, matchesLinkQuery } from "../markdown/links.js";
@@ -261,6 +264,8 @@ function evaluatePredicate(
 // ---------------------------------------------------------------------------
 
 function applyAction(
+  item: ListItem | undefined,
+  parentList: List | undefined,
   taskText: string,
   action: Action,
   today: Date,
@@ -275,7 +280,11 @@ function applyAction(
     case "task.advanceRepeat":
       return applyAdvanceRepeat(taskText, action, today);
     case "task.rollover":
-      return applyRollover(taskText, action, today);
+      if (item && parentList) {
+        return applyRollover(item, parentList, action, today);
+      } else {
+        throw new Error("applyRollover requires ListItem and parent List");
+      }
     case "task.remove":
       return applyRemoveTask(taskText, action);
     case "custom":
@@ -414,8 +423,25 @@ async function runActions(
         let shouldUncheck = false;
         let insertDuplicateText: string | undefined;
         let shouldRemove = false;
+        let foundItem: ListItem | undefined = undefined;
+        let foundParent: List | undefined = undefined;
+        visit(tree, "list", (listNode: List) => {
+          const idx = listNode.children.findIndex((item: ListItem) => {
+            return getListItemText(item) === task.text;
+          });
+          if (idx !== -1) {
+            foundItem = listNode.children[idx];
+            foundParent = listNode;
+          }
+        });
         for (const action of actions) {
-          const outcome = applyAction(newText, action, today);
+          const outcome = applyAction(
+            foundItem,
+            foundParent,
+            newText,
+            action,
+            today,
+          );
           newText = outcome.text;
           if (outcome.uncheck) shouldUncheck = true;
           if (outcome.insertDuplicateAfter !== undefined)
@@ -475,6 +501,8 @@ async function runActions(
           };
           const beforeBody = currentBody;
           const outcome = applyAction(
+            undefined, // ListItem
+            undefined, // List
             currentBody,
             action,
             ctx.today,

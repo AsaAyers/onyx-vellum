@@ -2,12 +2,9 @@ import { z } from "zod";
 import { visit } from "unist-util-visit";
 import type { parseMarkdown } from "./parse.js";
 import type { WikiLinkNode } from "./types.js";
+import type { List, Text, Paragraph, ListItem } from "mdast";
 
 type Root = ReturnType<typeof parseMarkdown>;
-type List = Extract<Root["children"][number], { type: "list" }>;
-type ListItem = List["children"][number];
-type Paragraph = Extract<ListItem["children"][number], { type: "paragraph" }>;
-type Text = Extract<Paragraph["children"][number], { type: "text" }>;
 
 export const TaskInputSchema = z.object({
   text: z
@@ -95,7 +92,7 @@ function isWikiLinkNode(node: unknown): node is WikiLinkNode {
   return node.type === "wikiLink" && typeof node.value === "string";
 }
 
-function getListItemText(item: ListItem): string {
+export function getListItemText(item: ListItem): string {
   const parts: string[] = [];
   for (const child of item.children) {
     if (child.type === "paragraph") {

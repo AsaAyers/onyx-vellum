@@ -1,16 +1,5 @@
 import type { RuleSpec } from "./types.js";
 
-/** Inline date fields that may contain relative date literals. */
-const DATE_KEYS = ["due", "start", "snooze", "done"] as const;
-
-/**
- * Relative date literals that the engine knows how to resolve.
- * - "today"     → ctx.today (YYYY-MM-DD)
- * - "yesterday" → ctx.today - 1 day
- * - "tomorrow"  → ctx.today + 1 day
- */
-const DATE_LITERALS = ["today", "yesterday", "tomorrow"] as const;
-
 /**
  * Normalization rule: scan every Markdown file in the vault and replace any
  * relative date literal ("today", "yesterday", "tomorrow") in inline date
@@ -28,12 +17,5 @@ export const normalizeTodayLiteralSpec: RuleSpec = {
   name: "normalizeTodayLiteral",
   sources: [{ type: "glob", pattern: "**/*.md" }],
   query: { type: "tasks" },
-  actions: DATE_KEYS.flatMap((key) =>
-    DATE_LITERALS.map((literal) => ({
-      type: "task.replaceFieldDateValue" as const,
-      key,
-      from: literal,
-      to: literal, // resolved to the actual date by the engine
-    })),
-  ),
+  actions: [],
 };

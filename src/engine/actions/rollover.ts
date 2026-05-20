@@ -12,17 +12,34 @@ import {
 import type { RolloverAction } from "../../rules/types.js";
 import { formatDate } from "./dateHelpers.js";
 import type { ActionOutcome } from "./types.js";
+import type { List, ListItem } from "mdast";
 
 export function applyRollover(
-  taskText: string,
+  item: ListItem,
+  parentList: List,
   _action: RolloverAction,
   today: Date,
 ): ActionOutcome {
-  // Create clone text: remove done: (not applicable on an active task).
+  // Helper to get the text of the task
+  function getTextFromItem(item: ListItem): string {
+    let text = "";
+    for (const child of item.children) {
+      if (child.type === "paragraph") {
+        for (const inline of child.children) {
+          if (inline.type === "text") {
+            text += inline.value;
+          }
+        }
+      }
+    }
+    return text.trim();
+  }
+
+  // Get the original text
+  const taskText = getTextFromItem(item);
   let cloneText = removeInlineField(taskText, "done");
 
-  // Apply the repeat schedule to the clone's dates, leaving the original
-  // task's dates untouched.
+  // Apply the repeat schedule to the clone's dates, leaving the original task's dates untouched.
   const repeatStr = getInlineField(cloneText, "repeat");
   if (repeatStr) {
     const schedule = parseRepeat(repeatStr);
@@ -66,9 +83,37 @@ export function applyRollover(
     }
   }
 
-  // Mark the original task as copied and return the clone text for insertion.
+  // Mark the original task as copied (mutate the node)
+  for (const child of item.children) {
+    if (child.type === "paragraph") {
+      for (const inline of child.children) {
+        if (inline.type === "text") {
+          // Replace the text value with the updated one
+          inline.value = setInlineField(taskText, "copied", "1");
+        }
+      }
+    }
+  }
+
+  // Insert the duplicate after the current item in the parent list
+  const idx = parentList.children.indexOf(item);
+  if (idx !== -1) {
+    const newItem: ListItem = JSON.parse(JSON.stringify(item));
+    // Set the text of the new item to the cloneText
+    for (const child of newItem.children) {
+      if (child.type === "paragraph") {
+        for (const inline of child.children) {
+          if (inline.type === "text") {
+            inline.value = cloneText;
+          }
+        }
+      }
+    }
+    parentList.children.splice(idx + 1, 0, newItem);
+  }
+
   return {
-    text: setInlineField(taskText, "copied", "1"),
-    insertDuplicateAfter: cloneText,
+    text: getTextFromItem(item),
+    // No need to return insertDuplicateAfter, as the AST is mutated directly
   };
 }

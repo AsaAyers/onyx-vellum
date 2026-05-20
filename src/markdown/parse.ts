@@ -5,6 +5,9 @@ import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkStringify from "remark-stringify";
 import { visit, SKIP } from "unist-util-visit";
+import { inlineFields, inlineFieldsHandler } from "./inlineFieldsPlugin.js";
+import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
+import { rolloverPlugin } from "../rules/rolloverPlugin.js";
 import type { Root, Text, Parent } from "mdast";
 import type {
   ObsidianEmbedNode,
@@ -24,11 +27,21 @@ function remarkObsidianProtections() {
 
 const createParseProcessor = () =>
   unified()
+    .data({
+      settings: {
+        onyxVellum: {
+          today: "2025-04-01",
+        },
+      },
+    })
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter)
     .use(remarkWikiLink)
     .use(remarkObsidianProtections)
+    .use(inlineFields)
+    .use(normalizeTodayPlugin)
+    .use(rolloverPlugin)
     .use(remarkStringify, {
       bullet: "*",
       listItemIndent: "one",
@@ -424,6 +437,7 @@ linkHandler.peek = (node: any, _: any, state: any): string =>
 
 /** Emit custom nodes verbatim, without any escaping. */
 const customHandlers = {
+  text: inlineFieldsHandler,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wikiLink: (node: any) => {
     const wiki = node as WikiLinkNode;

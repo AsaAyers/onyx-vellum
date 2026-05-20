@@ -1,0 +1,22 @@
+// Central AST and unified type augmentations for the pipeline
+// This file should be imported by any plugin or code that needs the extended types
+
+// import type { ListItem } from "mdast";
+
+// Augment mdast ListItem data to include inlineFields
+// (This is required for type-safe access in plugins)
+declare module "mdast" {
+  interface ListItemData {
+    inlineFields?: Record<string, string>;
+  }
+}
+
+// Augment unified Settings to include onyxVellum config
+// (This is required for type-safe config access in plugins)
+declare module "unified" {
+  interface Settings {
+    onyxVellum?: {
+      today: `${number}-${number}-${number}`; // ISO date string
+    };
+  }
+}
