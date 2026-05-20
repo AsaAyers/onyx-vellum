@@ -6,15 +6,10 @@ import {
   formatDateStr,
 } from "./scheduleUtils.js";
 import type { Paragraph, Text, ListItem, Root } from "mdast";
-import type { Plugin, Processor } from "unified";
+import type { Plugin } from "unified";
 
-// Augment mdast Data to include inlineFields
-declare module "mdast" {
-  interface ListItemData {
-    inlineFields?: Record<string, string>;
-  }
-}
 import "../markdown/ast-augmentations.js";
+import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 
 /**
  * remark plugin to perform completed task rollover using inline field data.
@@ -23,15 +18,15 @@ import "../markdown/ast-augmentations.js";
  * - Inserts a fresh incomplete copy after it, with advanced date fields
  */
 export const rolloverPlugin: Plugin = function () {
-  return function (this: Processor, tree) {
-    const settings = this.data("settings");
+  const processor = this;
+  return function (tree, _file) {
+    const settings = processor.data("settings");
     const today = settings?.onyxVellum?.today;
     if (!today) return;
     // Tree needs to be passed "as Root" here in order to pick up the correct
     // type inferrence.
     visit(tree as Root, "listItem", (node, idx, parent) => {
-      const fields = node.data?.inlineFields;
-      if (!fields) return;
+      const fields = getInlineFields(node);
       if (!fields.repeat || !fields.done || fields.copied !== undefined) return;
 
       if (node.checked !== true) return;

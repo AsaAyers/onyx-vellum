@@ -24,12 +24,18 @@ export interface WikiLinkNode extends Literal {
   };
 }
 
+export interface InlineFieldsNode extends Literal {
+  type: "inlineFields";
+  data: { inlineFields?: Record<string, string> };
+}
+
 declare module "mdast" {
   interface PhrasingContentMap {
     obsidianEmbed: ObsidianEmbedNode;
     obsidianTag: ObsidianTagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
+    inlineFields: InlineFieldsNode;
   }
 
   interface RootContentMap {
@@ -37,6 +43,7 @@ declare module "mdast" {
     obsidianTag: ObsidianTagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
+    inlineFields: InlineFieldsNode;
   }
 }
 // ---------------------------------------------------------------------------

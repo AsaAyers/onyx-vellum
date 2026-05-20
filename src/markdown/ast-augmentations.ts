@@ -5,18 +5,19 @@
 
 // Augment mdast ListItem data to include inlineFields
 // (This is required for type-safe access in plugins)
-declare module "mdast" {
-  interface ListItemData {
-    inlineFields?: Record<string, string>;
-  }
-}
+declare module "mdast" {}
 
 // Augment unified Settings to include onyxVellum config
 // (This is required for type-safe config access in plugins)
 declare module "unified" {
+  interface Processor {
+    plugins?: Set<string>;
+  }
+
   interface Settings {
     onyxVellum?: {
       today: `${number}-${number}-${number}`; // ISO date string
+      vaultPath: string;
     };
   }
 }

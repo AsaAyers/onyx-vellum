@@ -8,10 +8,17 @@
  */
 import { describe, it, expect } from "vitest";
 import { parseMarkdown, stringifyMarkdown } from "../src/markdown/parse.js";
+import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
 
 /** Round-trips content and returns the result. */
 function roundTrip(content: string): string {
-  return stringifyMarkdown(parseMarkdown(content));
+  const vaultPath = process.cwd();
+  const config = EMPTY_CONFIG;
+  return stringifyMarkdown(
+    parseMarkdown(content, vaultPath, config),
+    vaultPath,
+    config,
+  );
 }
 
 // ---------------------------------------------------------------------------

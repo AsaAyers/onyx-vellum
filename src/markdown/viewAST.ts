@@ -1,4 +1,5 @@
-import { parseMarkdown } from "./parse.js";
+import { parseMarkdown, stringifyMarkdown } from "./parse.js";
+import { EMPTY_CONFIG } from "./defaultConfig.js";
 import fs from "node:fs/promises";
 
 async function main() {
@@ -9,9 +10,24 @@ async function main() {
   }
 
   const content = await fs.readFile(filename, "utf-8");
-  const ast = parseMarkdown(content);
+  // Use the file's directory as vaultPath for CLI/demo
+  const vaultPath = process.cwd();
+  const config = EMPTY_CONFIG;
+  const ast = parseMarkdown(content, vaultPath, config);
 
-  console.log(JSON.stringify(ast, null, 2));
+  console.log(
+    JSON.stringify(
+      ast,
+      (key, value) => {
+        if (key === "position") return undefined; // Omit position for readability
+
+        return value;
+      },
+      2,
+    ),
+  );
+  console.log("=======================");
+  console.log(stringifyMarkdown(ast, vaultPath, config));
 }
 
 main();

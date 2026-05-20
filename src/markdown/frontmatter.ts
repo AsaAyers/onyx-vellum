@@ -1,6 +1,7 @@
 import matter from "gray-matter";
 import { parseMarkdown, stringifyMarkdown } from "./parse.js";
 import { type Root } from "mdast";
+import type { Config } from "../config.js";
 
 export type SplitFrontmatterResult = {
   data: Record<string, unknown>;
@@ -32,8 +33,12 @@ function stringifyYamlData(data: Record<string, unknown>): string {
   return lines.slice(1, end).join("\n");
 }
 
-export function splitFrontmatter(raw: string): SplitFrontmatterResult {
-  const tree = parseMarkdown(raw);
+export function splitFrontmatter(
+  raw: string,
+  vaultPath: string = "",
+  config: Config,
+): SplitFrontmatterResult {
+  const tree = parseMarkdown(raw, vaultPath, config);
   const yaml = extractFrontmatterNode(tree);
   if (!yaml) {
     return { data: {}, bodyPrefix: "", body: raw };
@@ -41,7 +46,7 @@ export function splitFrontmatter(raw: string): SplitFrontmatterResult {
 
   const data = parseYamlData(yaml.value);
   tree.children.shift();
-  const body = stringifyMarkdown(tree);
+  const body = stringifyMarkdown(tree, vaultPath, config);
 
   return { data, bodyPrefix: "", body };
 }
@@ -49,11 +54,13 @@ export function splitFrontmatter(raw: string): SplitFrontmatterResult {
 export function joinFrontmatter(
   parts: SplitFrontmatterResult,
   body: string,
+  vaultPath: string = "",
+  config: Config,
 ): string {
   if (Object.keys(parts.data).length === 0) return body;
 
-  const tree = parseMarkdown(body);
+  const tree = parseMarkdown(body, vaultPath, config);
   const value = stringifyYamlData(parts.data);
   tree.children.unshift({ type: "yaml", value } as YamlNode);
-  return stringifyMarkdown(tree);
+  return stringifyMarkdown(tree, vaultPath, config);
 }

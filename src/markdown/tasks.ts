@@ -1,10 +1,8 @@
 import { z } from "zod";
 import { visit } from "unist-util-visit";
-import type { parseMarkdown } from "./parse.js";
 import type { WikiLinkNode } from "./types.js";
 import type { List, Text, Paragraph, ListItem } from "mdast";
-
-type Root = ReturnType<typeof parseMarkdown>;
+import type { Root } from "mdast";
 
 export const TaskInputSchema = z.object({
   text: z

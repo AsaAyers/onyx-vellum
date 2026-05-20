@@ -5,7 +5,7 @@ import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkStringify from "remark-stringify";
 import { visit, SKIP } from "unist-util-visit";
-import { inlineFields, inlineFieldsHandler } from "./inlineFieldsPlugin.js";
+import { inlineFields, inlineFieldsNodeHandler } from "./inlineFieldsPlugin.js";
 import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
 import { rolloverPlugin } from "../rules/rolloverPlugin.js";
 import type { Root, Text, Parent } from "mdast";
@@ -16,6 +16,7 @@ import type {
   ObsidianTagNode,
   RawAsteriskNode,
 } from "./types.js";
+import type { Config } from "../config.js";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -25,12 +26,13 @@ function remarkObsidianProtections() {
   };
 }
 
-const createParseProcessor = () =>
+export const createParseProcessor = (vaultPath: string, config: Config) =>
   unified()
     .data({
       settings: {
         onyxVellum: {
-          today: "2025-04-01",
+          vaultPath,
+          today: "2026-05-03",
         },
       },
     })
@@ -40,7 +42,7 @@ const createParseProcessor = () =>
     .use(remarkWikiLink)
     .use(remarkObsidianProtections)
     .use(inlineFields)
-    .use(normalizeTodayPlugin)
+    .use(normalizeTodayPlugin, config.rules["normalize-today"])
     .use(rolloverPlugin)
     .use(remarkStringify, {
       bullet: "*",
@@ -437,7 +439,6 @@ linkHandler.peek = (node: any, _: any, state: any): string =>
 
 /** Emit custom nodes verbatim, without any escaping. */
 const customHandlers = {
-  text: inlineFieldsHandler,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wikiLink: (node: any) => {
     const wiki = node as WikiLinkNode;
@@ -452,19 +453,29 @@ const customHandlers = {
   obsidianTag: (node: any) => (node as ObsidianTagNode).value,
   link: linkHandler,
   image: imageHandler,
+  inlineFields: inlineFieldsNodeHandler,
 } as Partial<Handlers>;
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export function parseMarkdown(content: string): Root {
-  const processor = createParseProcessor();
-  return processor.parse(content);
+export function parseMarkdown(
+  content: string,
+  vaultPath: string,
+  config: Config,
+): Root {
+  const processor = createParseProcessor(vaultPath, config);
+  const tree = processor.parse(content);
+  return processor.runSync(tree) as Root;
 }
 
-export function stringifyMarkdown(tree: Root): string {
-  const processor = createParseProcessor();
+export function stringifyMarkdown(
+  tree: Root,
+  vaultPath: string,
+  config: Config,
+): string {
+  const processor = createParseProcessor(vaultPath, config);
   const transformed = processor.runSync(tree) as Root;
   return processor.stringify(transformed);
 }

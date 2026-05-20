@@ -1,5 +1,7 @@
 import { parseMarkdown } from "./parse.js";
+import { EMPTY_CONFIG } from "./defaultConfig.js";
 
+import type { Config } from "../config.js";
 type Root = ReturnType<typeof parseMarkdown>;
 type RootContent = Root["children"][number];
 type Heading = Extract<RootContent, { type: "heading" }>;
@@ -66,7 +68,10 @@ export function appendUnderHeading(
 
   // Parse and collect nodes to append - parse together so consecutive list items merge into one list
   const combined = linesToAppend.join("\n");
-  const parsed = parseMarkdown(combined);
+  // For utility usage, default to cwd and empty config
+  const vaultPath = process.cwd();
+  const config: Config = EMPTY_CONFIG;
+  const parsed = parseMarkdown(combined, vaultPath, config);
   const newNodes: RootContent[] = [...parsed.children];
 
   // Insert new nodes at blockEnd position

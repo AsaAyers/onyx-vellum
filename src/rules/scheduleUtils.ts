@@ -57,7 +57,7 @@ export function parseRepeat(value: string): RepeatSchedule | null {
 }
 
 /** Format a Date to an ISO date string "YYYY-MM-DD". */
-export function formatDateStr(date: Date): string {
+export function formatDateStr(date: string | Date): string {
   return format(date, "yyyy-MM-dd");
 }
 

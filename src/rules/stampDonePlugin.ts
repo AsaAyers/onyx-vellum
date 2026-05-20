@@ -14,7 +14,7 @@ export const stampDonePlugin: Plugin = function () {
     if (!todayStr) return;
     visit(tree as Root, "listItem", (node) => {
       if (!node.checked) return;
-      if (!node.data || typeof node.data !== "object") return;
+      node.data ??= {};
       const fields = node.data.inlineFields ?? {};
       if (!fields.done) {
         fields.done = todayStr;
