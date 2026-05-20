@@ -10,6 +10,7 @@ import type { Plugin } from "unified";
 
 import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
+import type { Config } from "../config.js";
 
 /**
  * remark plugin to perform completed task rollover using inline field data.
@@ -17,7 +18,10 @@ import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
  * - Appends copied:1 to the completed task
  * - Inserts a fresh incomplete copy after it, with advanced date fields
  */
-export const rolloverPlugin: Plugin = function () {
+export const rolloverPlugin: Plugin<
+  [Config["rules"]["completedTaskRollover"]],
+  Root
+> = function () {
   const processor = this;
   return function (tree, _file) {
     const settings = processor.data("settings");

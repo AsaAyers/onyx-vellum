@@ -17,6 +17,9 @@ import type {
   RawAsteriskNode,
 } from "./types.js";
 import type { Config } from "../config.js";
+import { stampDonePlugin } from "../rules/stampDonePlugin.js";
+import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
+import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -42,8 +45,14 @@ export const createParseProcessor = (vaultPath: string, config: Config) =>
     .use(remarkWikiLink)
     .use(remarkObsidianProtections)
     .use(inlineFields)
-    .use(normalizeTodayPlugin, config.rules["normalize-today"])
-    .use(rolloverPlugin)
+    .use(stampDonePlugin, config.rules["stampDone"])
+    .use(normalizeTodayPlugin, config.rules["normalizeTodayLiteral"])
+    .use(rolloverPlugin, config.rules["completedTaskRollover"])
+    .use(
+      removeEphemeralOverdueTasksPlugin,
+      config.rules["removeEphemeralOverdueTasks"],
+    )
+    .use(sortTasksSpecPlugin, config.rules["sortTasks"])
     .use(remarkStringify, {
       bullet: "*",
       listItemIndent: "one",

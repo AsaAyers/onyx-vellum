@@ -18,7 +18,7 @@ const DATE_KEYS = ["due", "start", "snooze", "done"] as const;
  * - Finds any inline field with value 'today' and replaces it with the ISO date for today.
  */
 export const normalizeTodayPlugin: Plugin<
-  [Config["rules"]["normalize-today"]],
+  [Config["rules"]["normalizeTodayLiteral"]],
   Root
 > = function (this: Processor<Node | undefined>, config) {
   const processor = this;
@@ -40,6 +40,7 @@ export const normalizeTodayPlugin: Plugin<
    */
   return function (tree, file) {
     if (
+      file.path &&
       config?.sources &&
       !fileMatchesSources(file.path, config.sources, vaultPath)
     ) {

@@ -1,28 +1,26 @@
 import { visit } from "unist-util-visit";
 import type { Plugin, Processor } from "unified";
-import type { Root } from "mdast";
+import type { Root, List } from "mdast";
 import "../markdown/ast-augmentations.js";
-import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import type { Config } from "../config.js";
 import { fileMatchesSources } from "../engine/runner.js";
 import invariant from "tiny-invariant";
 import type { Node } from "mdast";
+import { sortTaskItems } from "./sortTasks.js";
 
 /**
- * remark plugin to stamp the current date into the `done` field of checked tasks that lack it.
- * - For each checked listItem, if there is no `done` field, set it to today.
+ * remark plugin to sort tasks within each list in a markdown file.
+ * - For each list, sort listItems by checked status (unchecked first), then by text (case-insensitive).
  */
-export const stampDonePlugin: Plugin<[Config["rules"]["stampDone"]], Root> =
+export const sortTasksSpecPlugin: Plugin<[Config["rules"]["sortTasks"]], Root> =
   function (this: Processor<Node | undefined>, config) {
     const processor = this;
-
     const settings = processor.data("settings");
     invariant(
       settings?.onyxVellum,
-      "onyxVellum settings must be provided for normalizeTodayPlugin",
+      "onyxVellum settings must be provided for sortTasksSpecPlugin",
     );
     const vaultPath = settings.onyxVellum.vaultPath;
-    const todayStr = settings?.onyxVellum?.today;
     return function (tree, file) {
       if (
         config?.sources &&
@@ -31,12 +29,10 @@ export const stampDonePlugin: Plugin<[Config["rules"]["stampDone"]], Root> =
       ) {
         return tree;
       }
-
-      if (!todayStr) return;
-      visit(tree as Root, "listItem", (node) => {
-        if (!node.checked) return;
-        const fields = getInlineFields(node);
-        fields.done ??= todayStr;
+      visit(tree as Root, "list", (listNode: List) => {
+        if (!Array.isArray(listNode.children)) return;
+        listNode.spread = false;
+        listNode.children = sortTaskItems(listNode.children);
       });
     };
   };
