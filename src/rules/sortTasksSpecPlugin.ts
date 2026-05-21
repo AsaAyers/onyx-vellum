@@ -21,6 +21,7 @@ export const sortTasksSpecPlugin: Plugin<[Config["rules"]["sortTasks"]], Root> =
       "onyxVellum settings must be provided for sortTasksSpecPlugin",
     );
     const vaultPath = settings.onyxVellum.vaultPath;
+    const timezone = settings.onyxVellum.timezone ?? "UTC";
     return function (tree, file) {
       if (
         config?.sources &&
@@ -32,7 +33,7 @@ export const sortTasksSpecPlugin: Plugin<[Config["rules"]["sortTasks"]], Root> =
       visit(tree as Root, "list", (listNode: List) => {
         if (!Array.isArray(listNode.children)) return;
         listNode.spread = false;
-        listNode.children = sortTaskItems(listNode.children);
+        listNode.children = sortTaskItems(listNode.children, timezone);
       });
     };
   };

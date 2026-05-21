@@ -21,8 +21,6 @@ import { stampDonePlugin } from "../rules/stampDonePlugin.js";
 import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
 import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
 import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
-import type { Compatible } from "vfile";
-import { format } from "date-fns";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -33,6 +31,7 @@ function remarkObsidianProtections() {
 }
 
 export type PluginContext = {
+  skipPlugins?: boolean;
   addTasks: Record<string /* filePath */, ListItem[]>;
   timezone?: string;
   today: string;
@@ -44,7 +43,7 @@ export const createParseProcessor = (
   config: Config,
   ctx: PluginContext,
 ) => {
-  return unified()
+  let processor = unified()
     .data({
       settings: {
         onyxVellum: {
@@ -59,22 +58,29 @@ export const createParseProcessor = (
     .use(remarkFrontmatter)
     .use(remarkWikiLink)
     .use(remarkObsidianProtections)
-    .use(inlineFields)
-    .use(stampDonePlugin, config.rules["stampDone"])
-    .use(normalizeTodayPlugin, config.rules["normalizeTodayLiteral"])
-    .use(rolloverPlugin, config.rules["completedTaskRollover"])
-    .use(
-      removeEphemeralOverdueTasksPlugin,
-      config.rules["removeEphemeralOverdueTasks"],
-    )
-    .use(moveDoneTasksPlugin, config.rules["moveDoneTasks"], ctx)
-    .use(sortTasksSpecPlugin, config.rules["sortTasks"])
-    .use(remarkStringify, {
-      bullet: "*",
-      listItemIndent: "one",
-      rule: "-",
-      handlers: customHandlers,
-    });
+    .use(inlineFields);
+
+  if (!ctx.skipPlugins) {
+    processor = processor
+      .use(stampDonePlugin, config.rules["stampDone"])
+      .use(normalizeTodayPlugin, config.rules["normalizeTodayLiteral"])
+      .use(rolloverPlugin, config.rules["completedTaskRollover"])
+      .use(
+        removeEphemeralOverdueTasksPlugin,
+        config.rules["removeEphemeralOverdueTasks"],
+      )
+      .use(moveDoneTasksPlugin, config.rules["moveDoneTasks"], ctx)
+      .use(sortTasksSpecPlugin, config.rules["sortTasks"]);
+  }
+
+  processor.use(remarkStringify, {
+    bullet: "*",
+    listItemIndent: "one",
+    rule: "-",
+    handlers: customHandlers,
+  });
+
+  return processor;
 };
 const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 
@@ -481,35 +487,3 @@ const customHandlers = {
   image: imageHandler,
   inlineFields: inlineFieldsNodeHandler,
 } as Partial<Handlers>;
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export function parseMarkdown(
-  content: Compatible,
-  vaultPath: string,
-  config: Config,
-): Root {
-  const ruleContext: PluginContext = {
-    today: format(new Date(), "yyyy-MM-dd"),
-    addTasks: {},
-  };
-  const processor = createParseProcessor(vaultPath, config, ruleContext);
-  const tree = processor.parse(content);
-  return processor.runSync(tree, content) as Root;
-}
-
-export function stringifyMarkdown(
-  tree: Root,
-  vaultPath: string,
-  config: Config,
-): string {
-  const ruleContext: PluginContext = {
-    today: format(new Date(), "yyyy-MM-dd"),
-    addTasks: {},
-  };
-  const processor = createParseProcessor(vaultPath, config, ruleContext);
-  const transformed = processor.runSync(tree) as Root;
-  return processor.stringify(transformed);
-}

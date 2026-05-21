@@ -7,19 +7,9 @@
  *  - Files with YAML frontmatter are handled correctly by normalizeFileContent.
  */
 import { describe, it, expect } from "vitest";
-import { parseMarkdown, stringifyMarkdown } from "../src/markdown/parse.js";
-import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
+import { normalizeFileContent } from "../src/engine/runner.js";
 
 /** Round-trips content and returns the result. */
-function roundTrip(content: string): string {
-  const vaultPath = process.cwd();
-  const config = EMPTY_CONFIG;
-  return stringifyMarkdown(
-    parseMarkdown(content, vaultPath, config),
-    vaultPath,
-    config,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Wikilinks
@@ -28,27 +18,27 @@ function roundTrip(content: string): string {
 describe("wikilink round-trip", () => {
   it("preserves inline image wikilink ![[file]]", () => {
     const src = "![[Projects/2022-05-07_09.18.50.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves page wikilink [[Page Name]]", () => {
     const src = "[[Some Link]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves wikilink with underscores in filename", () => {
     const src = "![[archive/meeting_notes_2024.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves wikilink inside a task", () => {
     const src = "* [ ] Review ![[diagram_v2.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves multiple wikilinks in a paragraph", () => {
     const src = "See [[Note 1]] and also [[Note 2]] for details.\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves nested list with wikilinks at each level", () => {
@@ -56,17 +46,17 @@ describe("wikilink round-trip", () => {
       "* Top level [[link]]\n" +
       "  * Nested [[link2]]\n" +
       "    * Deep [[link3]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves mixed wikilinks and regular text in same line", () => {
     const src = "Related to [[Project A]] and [[Project B]] both.\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves wikilink with path separator", () => {
     const src = "See [[Archive/Old Project]] for history.\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 });
 
@@ -77,12 +67,12 @@ describe("wikilink round-trip", () => {
 describe("nested list round-trip", () => {
   it("preserves 2-space nested unordered list", () => {
     const src = "* Item 1\n  * Nested 1\n  * Nested 2\n* Item 2\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves three-level nesting", () => {
     const src = "* Level 1\n  * Level 2\n    * Level 3\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves nested task lists", () => {
@@ -92,17 +82,17 @@ describe("nested list round-trip", () => {
       "    * [ ] Grandchild\n" +
       "  * [ ] Another child\n" +
       "* [ ] Second parent\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves ordered list nested inside unordered", () => {
     const src = "* Item\n  1. First\n  2. Second\n* Another item\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 
   it("preserves loose nested list (blank lines between items)", () => {
     const src = "* Item 1\n\n  * Nested 1\n\n  * Nested 2\n\n* Item 2\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 });
 
@@ -113,6 +103,6 @@ describe("nested list round-trip", () => {
 describe("thematic break round-trip", () => {
   it("preserves --- without converting to ***", () => {
     const src = "Above\n\n---\n\nBelow\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(normalizeFileContent(src)).toBe(src);
   });
 });

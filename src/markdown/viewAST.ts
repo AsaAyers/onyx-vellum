@@ -23,6 +23,7 @@ async function main() {
   const ruleContext: PluginContext = {
     timezone: "America/Los_Angeles",
     today: "2026-05-03",
+    alertTasks: [],
     addTasks: {},
   };
   const processor = createParseProcessor(vaultPath, config, ruleContext);

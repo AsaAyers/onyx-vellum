@@ -54,17 +54,21 @@ function taskText(item: ListItem): string {
   return parts.join("").trim();
 }
 
-function completionTime(item: ListItem): number {
+function completionTime(item: ListItem, timezone: string): number {
   const done = getInlineField(taskText(item), "done");
   if (!done) return Number.NEGATIVE_INFINITY;
-  const parsed = parseDateStr(done);
+  const parsed = parseDateStr(done, timezone);
   if (!parsed) return Number.NEGATIVE_INFINITY;
   return parsed.getTime();
 }
 
-export function sortTaskItems(items: ListItem[]): ListItem[] {
+export function sortTaskItems(items: ListItem[], timezone: string): ListItem[] {
   return items
-    .map((item, index) => ({ item, index, doneTime: completionTime(item) }))
+    .map((item, index) => ({
+      item,
+      index,
+      doneTime: completionTime(item, timezone),
+    }))
     .sort((a, b) => {
       // Do not sort bulletted lists, only checklist items.
       if (a.item.checked === null || b.item.checked === null) {

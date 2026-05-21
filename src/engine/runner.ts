@@ -1,6 +1,6 @@
 import { createPatch } from "diff";
 import { promises as fs } from "node:fs";
-import fsPath from "node:path";
+import fsPath, { relative } from "node:path";
 import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
 import { ruleSpecs } from "../rules/index.js";
 import { walkMarkdownFiles } from "./io.js";
@@ -211,7 +211,7 @@ export async function runAllRules(
     // Use the provided processor for normalization
     const tree = processor.parse(vfile);
     const processed = (await processor.run(tree, vfile)) as Root;
-    const normalized = processor.stringify(processed);
+    const normalized = String(processor.stringify(processed, vfile));
     if (normalized !== original) {
       changes.push({ path: filePath, content: normalized });
     }
@@ -230,7 +230,7 @@ export async function runAllRules(
     // Use the provided processor for normalization
     const tree = processor.parse(vfile);
     const processed = (await processor.run(tree, vfile)) as Root;
-    const normalized = processor.stringify(processed);
+    const normalized = String(processor.stringify(processed, vfile));
     if (normalized !== original) {
       changes.push({ path: filePath, content: normalized });
     }
@@ -277,7 +277,118 @@ function filePathRelative(base: string, file: string): string {
   return file;
 }
 
-export async function runInitPass(
-  _vaultPath: string,
-  _dryRun: boolean,
-): Promise<void> {}
+export async function runInitPass(vaultPath: string, dryRun: boolean) {
+  const changes: Array<{ path: string; original: string; content: string }> =
+    [];
+  const allFiles = await walkMarkdownFiles(vaultPath);
+  for (const filePath of allFiles) {
+    let rawBuffer: Buffer;
+    try {
+      rawBuffer = await fs.readFile(filePath);
+    } catch {
+      continue;
+    }
+
+    // Decode UTF-16 encoded files to UTF-8 strings so they can be processed by
+    // the remark pipeline.  The file will be written back as UTF-8, which is a
+    // lossless conversion.
+    //
+    // Recognised encodings:
+    //   FF FE …  — UTF-16 LE with BOM
+    //   FE FF …  — UTF-16 BE with BOM
+    //   <no BOM> — Heuristic: if every odd-indexed byte in the first 512 bytes
+    //              is 0x00, the file is almost certainly BOM-less UTF-16 LE.
+    //              Normal UTF-8 Markdown never contains embedded null bytes, so
+    //              false positives are not a practical concern.
+    let original: string;
+    let wasUtf16 = false;
+    if (rawBuffer[0] === 0xff && rawBuffer[1] === 0xfe) {
+      // UTF-16 LE with BOM: skip the 2-byte BOM, then decode the rest.
+      original = rawBuffer.slice(2).toString("utf16le");
+      wasUtf16 = true;
+    } else if (rawBuffer[0] === 0xfe && rawBuffer[1] === 0xff) {
+      // UTF-16 BE with BOM: swap bytes before decoding as UTF-16 LE.
+      const swapped = Buffer.alloc(rawBuffer.length - 2);
+      for (let i = 2; i < rawBuffer.length - 1; i += 2) {
+        swapped[i - 2] = rawBuffer[i + 1];
+        swapped[i - 1] = rawBuffer[i];
+      }
+      original = swapped.toString("utf16le");
+      wasUtf16 = true;
+    } else {
+      // Heuristic BOM-less UTF-16 LE detection: sample the first 512 bytes and
+      // check whether every byte at an odd index is 0x00.  Require at least 4
+      // bytes so a file that is just a single newline isn't mis-detected.
+      const sampleLen = Math.min(rawBuffer.length, 512);
+      let isBomlessUtf16Le = sampleLen >= 4;
+      for (let i = 1; i < sampleLen; i += 2) {
+        if (rawBuffer[i] !== 0x00) {
+          isBomlessUtf16Le = false;
+          break;
+        }
+      }
+      if (isBomlessUtf16Le) {
+        original = rawBuffer.toString("utf16le");
+        wasUtf16 = true;
+      } else {
+        original = rawBuffer.toString("utf-8");
+      }
+    }
+
+    const normalized = normalizeFileContent(original);
+    // Always record a change for UTF-16 files: even if the text is already
+    // normalized, the encoding itself needs to be converted to UTF-8.
+    if (normalized !== original || wasUtf16) {
+      changes.push({ path: filePath, original, content: normalized });
+    }
+  }
+  // Sort by path for deterministic output.
+  changes.sort((a, b) => a.path.localeCompare(b.path));
+
+  if (dryRun) {
+    if (changes.length > 0) {
+      for (const change of changes) {
+        console.log(
+          createPatch(
+            relative(vaultPath, change.path),
+            change.original,
+            change.content,
+          ),
+        );
+      }
+    } else {
+      console.log("No changes.");
+    }
+  } else {
+    for (const change of changes) {
+      await fs.writeFile(change.path, change.content, "utf-8");
+    }
+  }
+  return { changes };
+}
+
+/**
+ * Normalize a single file's raw content through the parse → stringify
+ * pipeline, preserving structured YAML frontmatter data.
+ */
+export function normalizeFileContent(raw: string): string {
+  const processor = createParseProcessor(
+    "",
+    {
+      rules: {},
+    },
+    {
+      skipPlugins: true,
+      today: "",
+      addTasks: {},
+      alertTasks: [],
+    },
+  );
+
+  const vfile = new VFile({ path: "tmp.md", value: raw });
+  const tree = processor.parse(vfile);
+  const processed = processor.runSync(tree, vfile) as Root;
+  const normalized = String(processor.stringify(processed, vfile));
+
+  return normalized;
+}

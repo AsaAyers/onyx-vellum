@@ -11,14 +11,12 @@ describe("inlineFieldsPlugin", () => {
     processor.runSync(tree);
     // Collect all listItems and their inlineFields
     const items: Array<{ text: string; fields: Record<string, string> }> = [];
-    function visitListItems(node: any) {
+    function visitListItems(node: ListItem) {
       if (node.type === "listItem") {
         const text = node.children
-          .flatMap((c: any) =>
+          .flatMap((c) =>
             c.type === "paragraph"
-              ? c.children
-                  .filter((n: any) => n.type === "text")
-                  .map((n: any) => n.value)
+              ? c.children.filter((n) => n.type === "text").map((n) => n.value)
               : [],
           )
           .join(" ");
