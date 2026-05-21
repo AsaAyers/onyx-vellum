@@ -8,7 +8,7 @@ import { visit, SKIP } from "unist-util-visit";
 import { inlineFields, inlineFieldsNodeHandler } from "./inlineFieldsPlugin.js";
 import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
 import { rolloverPlugin } from "../rules/rolloverPlugin.js";
-import type { Root, Text, Parent } from "mdast";
+import type { Root, Text, Parent, ListItem } from "mdast";
 import type {
   ObsidianEmbedNode,
   WikiLinkNode,
@@ -20,6 +20,9 @@ import type { Config } from "../config.js";
 import { stampDonePlugin } from "../rules/stampDonePlugin.js";
 import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
 import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
+import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
+import type { Compatible } from "vfile";
+import { format } from "date-fns";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -29,13 +32,24 @@ function remarkObsidianProtections() {
   };
 }
 
-export const createParseProcessor = (vaultPath: string, config: Config) =>
-  unified()
+export type PluginContext = {
+  timezone?: string;
+  today: string;
+  addTasks: Record<string /* file path */, ListItem[]>;
+};
+
+export const createParseProcessor = (
+  vaultPath: string,
+  config: Config,
+  ctx: PluginContext,
+) => {
+  return unified()
     .data({
       settings: {
         onyxVellum: {
           vaultPath,
-          today: "2026-05-03",
+          today: ctx.today,
+          timezone: ctx.timezone || "UTC",
         },
       },
     })
@@ -52,6 +66,7 @@ export const createParseProcessor = (vaultPath: string, config: Config) =>
       removeEphemeralOverdueTasksPlugin,
       config.rules["removeEphemeralOverdueTasks"],
     )
+    .use(moveDoneTasksPlugin, config.rules["moveDoneTasks"], ctx)
     .use(sortTasksSpecPlugin, config.rules["sortTasks"])
     .use(remarkStringify, {
       bullet: "*",
@@ -59,6 +74,7 @@ export const createParseProcessor = (vaultPath: string, config: Config) =>
       rule: "-",
       handlers: customHandlers,
     });
+};
 const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 
 function splitObsidianEmbedText(
@@ -470,13 +486,17 @@ const customHandlers = {
 // ---------------------------------------------------------------------------
 
 export function parseMarkdown(
-  content: string,
+  content: Compatible,
   vaultPath: string,
   config: Config,
 ): Root {
-  const processor = createParseProcessor(vaultPath, config);
+  const ruleContext: PluginContext = {
+    today: format(new Date(), "yyyy-MM-dd"),
+    addTasks: {},
+  };
+  const processor = createParseProcessor(vaultPath, config, ruleContext);
   const tree = processor.parse(content);
-  return processor.runSync(tree) as Root;
+  return processor.runSync(tree, content) as Root;
 }
 
 export function stringifyMarkdown(
@@ -484,7 +504,11 @@ export function stringifyMarkdown(
   vaultPath: string,
   config: Config,
 ): string {
-  const processor = createParseProcessor(vaultPath, config);
+  const ruleContext: PluginContext = {
+    today: format(new Date(), "yyyy-MM-dd"),
+    addTasks: {},
+  };
+  const processor = createParseProcessor(vaultPath, config, ruleContext);
   const transformed = processor.runSync(tree) as Root;
   return processor.stringify(transformed);
 }

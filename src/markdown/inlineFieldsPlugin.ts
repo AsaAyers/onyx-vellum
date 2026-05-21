@@ -83,12 +83,12 @@ export const inlineFields: Plugin<[], Root> = function (
 
 // Handler for remark-stringify to serialize inline fields from the nearest listItem
 const KNOWN_INLINE_FIELD_ORDER = [
-  "due",
-  "sleep",
   "start",
   "snooze",
-  "done",
+  "due",
   "repeat",
+  "sleep",
+  "done",
   "copied",
   "ephemeral",
 ];

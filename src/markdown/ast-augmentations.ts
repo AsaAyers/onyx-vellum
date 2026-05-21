@@ -16,7 +16,8 @@ declare module "unified" {
 
   interface Settings {
     onyxVellum?: {
-      today: `${number}-${number}-${number}`; // ISO date string
+      today: string; // ISO date string
+      timezone: string; // IANA timezone string
       vaultPath: string;
     };
   }

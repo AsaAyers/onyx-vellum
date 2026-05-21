@@ -9,6 +9,8 @@ import "../markdown/ast-augmentations.js";
 import invariant from "tiny-invariant";
 import type { Config } from "../config.js";
 import { fileMatchesSources } from "../engine/runner.js";
+import { toZonedTime, format as tzFormat } from "date-fns-tz";
+import { addDays } from "date-fns";
 
 /** Inline date fields that may contain relative date literals. */
 const DATE_KEYS = ["due", "start", "snooze", "done"] as const;
@@ -48,16 +50,17 @@ export const normalizeTodayPlugin: Plugin<
     }
 
     const todayStr = settings?.onyxVellum?.today;
+    const timezone = settings?.onyxVellum?.timezone || "UTC";
     if (!todayStr) return;
-    // Compute yesterday and tomorrow from todayStr
-    const todayDate = new Date(todayStr);
-    const pad = (n: number) => n.toString().padStart(2, "0");
+    // Use toZonedTime to get local midnight in the user's timezone
+    // todayStr is always in yyyy-MM-dd format
+    // This creates a Date at midnight in the target timezone
+    const baseDate = new Date(todayStr + "T00:00:00");
+    const todayDate = toZonedTime(baseDate, timezone);
     const toISO = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const yesterdayDate = new Date(todayDate);
-    yesterdayDate.setDate(todayDate.getDate() - 1);
-    const tomorrowDate = new Date(todayDate);
-    tomorrowDate.setDate(todayDate.getDate() + 1);
+      tzFormat(d, "yyyy-MM-dd", { timeZone: timezone });
+    const yesterdayDate = addDays(todayDate, -1);
+    const tomorrowDate = addDays(todayDate, 1);
     const yesterdayStr = toISO(yesterdayDate);
     const tomorrowStr = toISO(tomorrowDate);
     // Normalize all recognized date literals in DATE_KEYS only, on the inlineFields node

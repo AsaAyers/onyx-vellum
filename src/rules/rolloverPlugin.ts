@@ -5,7 +5,8 @@ import {
   parseDateStr,
   formatDateStr,
 } from "./scheduleUtils.js";
-import type { Paragraph, Text, ListItem, Root } from "mdast";
+import { addDays, differenceInCalendarDays } from "date-fns";
+import type { ListItem, Root } from "mdast";
 import type { Plugin } from "unified";
 
 import "../markdown/ast-augmentations.js";
@@ -25,62 +26,87 @@ export const rolloverPlugin: Plugin<
   const processor = this;
   return function (tree, _file) {
     const settings = processor.data("settings");
-    const today = settings?.onyxVellum?.today;
-    if (!today) return;
-    // Tree needs to be passed "as Root" here in order to pick up the correct
-    // type inferrence.
+    const todayStr = settings?.onyxVellum?.today;
+    const timezone = settings?.onyxVellum?.timezone || "UTC";
+    if (!todayStr) {
+      console.log("[rolloverPlugin] No today value in settings");
+      return;
+    }
     visit(tree as Root, "listItem", (node, idx, parent) => {
       const fields = getInlineFields(node);
-      if (!fields.repeat || !fields.done || fields.copied !== undefined) return;
-
-      if (node.checked !== true) return;
-      const doneDate = parseDateStr(fields.done);
-      if (!doneDate) return;
-      const todayStr = formatDateStr(today);
-      if (fields.done !== todayStr) return;
+      console.log(
+        "[rolloverPlugin] listItem fields:",
+        fields,
+        "checked:",
+        node.checked,
+      );
+      if (!fields.repeat || !fields.done || fields.copied !== undefined) {
+        console.log(
+          "[rolloverPlugin] Skipping: missing repeat/done or already copied",
+        );
+        return;
+      }
+      if (node.checked !== true) {
+        console.log("[rolloverPlugin] Skipping: not checked");
+        return;
+      }
+      const doneDate = parseDateStr(fields.done, timezone);
+      if (!doneDate) {
+        console.log(
+          "[rolloverPlugin] Skipping: done field not a valid date",
+          fields.done,
+        );
+        return;
+      }
+      // Compare using timezone-aware formatting
+      const todayIso = formatDateStr(doneDate, timezone);
+      if (todayIso !== todayStr) {
+        console.log(
+          "[rolloverPlugin] Skipping: done field does not match today (tz aware)",
+          todayIso,
+          todayStr,
+        );
+        return;
+      }
       fields.copied = "1";
       const repeat = parseRepeat(fields.repeat);
       if (!repeat) return;
       const newDue = computeNextDue(doneDate, repeat);
-      const newDueStr = formatDateStr(newDue);
+      const newDueStr = formatDateStr(newDue, timezone);
       const cloneFields = { ...fields };
       delete cloneFields.done;
       cloneFields.due = newDueStr;
+
+      // Compute delta in days between old and new due dates
+      let oldDueDate: Date | null = null;
+      if (fields.due) {
+        oldDueDate = parseDateStr(fields.due, timezone);
+      }
+      const oldDue = oldDueDate ?? doneDate;
+      const deltaDays = differenceInCalendarDays(newDue, oldDue);
+
       if (fields.start) {
-        const startDate = parseDateStr(fields.start);
+        const startDate = parseDateStr(fields.start, timezone);
         if (startDate) {
-          const delta =
-            (newDue.getTime() - doneDate.getTime()) / (1000 * 60 * 60 * 24);
-          const newStart = new Date(
-            startDate.getTime() + delta * 24 * 60 * 60 * 1000,
-          );
-          cloneFields.start = formatDateStr(newStart);
+          const newStart = addDays(startDate, deltaDays);
+          cloneFields.start = formatDateStr(newStart, timezone);
         }
       }
       if (fields.snooze) {
-        const snoozeDate = parseDateStr(fields.snooze);
+        const snoozeDate = parseDateStr(fields.snooze, timezone);
         if (snoozeDate) {
-          const delta =
-            (newDue.getTime() - doneDate.getTime()) / (1000 * 60 * 60 * 24);
-          const newSnooze = new Date(
-            snoozeDate.getTime() + delta * 24 * 60 * 60 * 1000,
-          );
-          cloneFields.snooze = formatDateStr(newSnooze);
+          const newSnooze = addDays(snoozeDate, deltaDays);
+          cloneFields.snooze = formatDateStr(newSnooze, timezone);
         }
       }
-      const origPara = node.children.find((c) => c.type === "paragraph");
-      const origText = origPara?.children.find((c) => c.type === "text");
-      const baseText = origText
-        ? origText.value.replace(/\s*([a-zA-Z][\w-]*):[^\s]+/g, "").trim()
-        : "";
-      const newText: Text = { type: "text", value: baseText };
-      const newPara: Paragraph = { type: "paragraph", children: [newText] };
-      const newListItem: ListItem = {
-        type: "listItem",
-        checked: false,
-        children: [newPara],
-        data: { inlineFields: cloneFields },
-      };
+
+      const newListItem: ListItem = JSON.parse(JSON.stringify(node));
+      newListItem.checked = false;
+      const newFields = getInlineFields(newListItem);
+      Object.assign(newFields, cloneFields);
+      delete newFields.done;
+      delete newFields.copied;
+
       if (typeof idx === "number" && parent) {
         parent.children.splice(idx + 1, 0, newListItem);
       } else {

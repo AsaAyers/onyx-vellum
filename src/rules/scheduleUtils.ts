@@ -1,4 +1,5 @@
-import { format, parse, addDays } from "date-fns";
+import { parse, addDays } from "date-fns";
+import { toZonedTime, format as tzFormat } from "date-fns-tz";
 
 /**
  * Weekday characters used in the `repeat:` inline field alphabet.
@@ -56,19 +57,29 @@ export function parseRepeat(value: string): RepeatSchedule | null {
   return { skipWeeks, days };
 }
 
-/** Format a Date to an ISO date string "YYYY-MM-DD". */
-export function formatDateStr(date: string | Date): string {
-  return format(date, "yyyy-MM-dd");
+/**
+ * Format a Date to an ISO date string "YYYY-MM-DD" in the given timezone.
+ * @param date - Date or date string
+ * @param timezone - IANA timezone string
+ */
+export function formatDateStr(date: string | Date, timezone: string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const zoned = toZonedTime(d, timezone);
+  return tzFormat(zoned, "yyyy-MM-dd", { timeZone: timezone });
 }
 
 /**
- * Parse an ISO date string "YYYY-MM-DD" into a Date (local midnight).
+ * Parse an ISO date string "YYYY-MM-DD" into a Date at local midnight in the given timezone.
  * Returns null if the string is not in the expected format.
  */
-export function parseDateStr(dateStr: string): Date | null {
+export function parseDateStr(dateStr: string, timezone: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const result = parse(dateStr, "yyyy-MM-dd", new Date());
-  return isNaN(result.getTime()) ? null : result;
+  // Parse as UTC then convert to the correct zone's midnight
+  const parsed = parse(dateStr, "yyyy-MM-dd", new Date());
+  const zoned = toZonedTime(parsed, timezone);
+  // Set to midnight in the target zone
+  zoned.setHours(0, 0, 0, 0);
+  return isNaN(zoned.getTime()) ? null : zoned;
 }
 
 /**

@@ -1,8 +1,7 @@
 import { createPatch } from "diff";
 import { promises as fs } from "node:fs";
 import fsPath from "node:path";
-import { createParseProcessor } from "../markdown/parse.js";
-import { joinFrontmatter, splitFrontmatter } from "../markdown/frontmatter.js";
+import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
 import { ruleSpecs } from "../rules/index.js";
 import { walkMarkdownFiles } from "./io.js";
 import type { RuleContext, RuleSpec, Source } from "../rules/types.js";
@@ -10,6 +9,8 @@ import { loadConfig, type Config } from "../config.js";
 import micromatch from "micromatch";
 import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
+import { VFile } from "vfile";
+import { format } from "date-fns";
 // Utility: Check if a file matches any of the sources (glob/path)
 
 export function fileMatchesSources(
@@ -175,7 +176,16 @@ export async function runAllRules(
     },
   );
 
-  const processor = createParseProcessor(baseCtx.vaultPath, config);
+  const ruleContext: PluginContext = {
+    timezone: config.timezone ?? "America/Los_Angeles",
+    today: format(baseCtx.today, "yyyy-MM-dd"),
+    addTasks: {},
+  };
+  const processor = createParseProcessor(
+    baseCtx.vaultPath,
+    config,
+    ruleContext,
+  );
   // Accepts array or single object for config.sources
   const globalGlobs: Source[] = Array.isArray(config.sources)
     ? config.sources
@@ -194,17 +204,13 @@ export async function runAllRules(
     } catch {
       continue;
     }
-    const parts = splitFrontmatter(original, baseCtx.vaultPath, config);
+
+    const vfile = new VFile({ path: filePath, value: original });
+
     // Use the provided processor for normalization
-    const tree = processor.parse(parts.body);
-    const processed = (await processor.run(tree)) as Root;
-    const normalizedBody = processor.stringify(processed);
-    const normalized = joinFrontmatter(
-      parts,
-      normalizedBody,
-      baseCtx.vaultPath,
-      config,
-    );
+    const tree = processor.parse(vfile);
+    const processed = (await processor.run(tree, vfile)) as Root;
+    const normalized = processor.stringify(processed);
     if (normalized !== original) {
       changes.push({ path: filePath, content: normalized });
     }

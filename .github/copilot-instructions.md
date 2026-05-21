@@ -15,6 +15,12 @@ Never use "import('...').anyType" syntax, use "import { anyType } from '...'" at
 
 All code that reads, writes, or serializes inline fields must use these helpers. This ensures type safety, consistent structure, and avoids runtime errors. If you see code that accesses `.data.inlineFields` directly, refactor it to use the utility functions.
 
+### Date math and manipulation
+
+**Always use date-fns utilities (e.g. `addDays`, `differenceInCalendarDays`) for all date arithmetic. Never add or subtract milliseconds or seconds directly to manipulate dates.**
+
+If you see code that does date math by adding or subtracting milliseconds, refactor it to use the appropriate date-fns function for clarity and correctness.
+
 # Copilot Instructions
 
 ## Testing
