@@ -97,12 +97,24 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
             `trimmed-${Math.random().toString(16).slice(2)}.m4a`,
           );
 
-          await writeFile("trimDeadAir");
-          await trimDeadAir({
-            input: job.audioPath,
-            output: trimmedFile,
-            thresholdDb: -40,
-          });
+          trimmedFile =
+            dirname(job.audioPath) +
+            "/" +
+            path.basename(job.audioPath, ".m4a") +
+            "-trimmed.m4a";
+
+          const trimmedFileExists = await fs
+            .access(trimmedFile)
+            .then(() => true)
+            .catch(() => false);
+          if (!trimmedFileExists) {
+            await writeFile("trimDeadAir");
+            await trimDeadAir({
+              input: job.audioPath,
+              output: trimmedFile,
+              thresholdDb: -35,
+            });
+          }
         }
 
         await writeFile("transcribing");
@@ -119,6 +131,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         await writeFile("done");
         await markDone(options.stateDir, job.id);
       } catch (err) {
+        console.error(err);
         const message = err instanceof Error ? err.message : String(err);
         await writeFile("fail", `lastStatus: ${lastStatus}\n\n${message}`);
         await markFailed(options.stateDir, job.id, message);

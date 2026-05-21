@@ -19,7 +19,7 @@ services:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - VAULT_PATH=/vault
       - STATE_DIR=/state
-      - FASTER_WHISPER_MODEL=large-v3
+      - FASTER_WHISPER_MODEL=medium.en
       - FASTER_WHISPER_DEVICE=cuda
       - FASTER_WHISPER_COMPUTE_TYPE=float16
       - FASTER_WHISPER_DOWNLOAD_ROOT=/state/faster-whisper-cache
