@@ -21,6 +21,7 @@ import { stampDonePlugin } from "../rules/stampDonePlugin.js";
 import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
 import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
 import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
+import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -31,6 +32,7 @@ function remarkObsidianProtections() {
 }
 
 export type PluginContext = {
+  jobIdFactory: (createdAt: Date) => string;
   skipPlugins?: boolean;
   addTasks: Record<string /* filePath */, ListItem[]>;
   timezone?: string;
@@ -69,6 +71,11 @@ export const createParseProcessor = (
         removeEphemeralOverdueTasksPlugin,
         config.rules["removeEphemeralOverdueTasks"],
       )
+      .use(
+        ensureAudioTranscriptsPlugin,
+        config.rules["ensureAudioTranscripts"],
+        ctx,
+      )
       .use(moveDoneTasksPlugin, config.rules["moveDoneTasks"], ctx)
       .use(sortTasksSpecPlugin, config.rules["sortTasks"]);
   }
@@ -98,7 +105,13 @@ function splitObsidianEmbedText(
         value: value.slice(lastIndex, match.index),
       } as Text);
     }
-    parts.push({ type: "obsidianEmbed", value: match[1] } as ObsidianEmbedNode);
+    const [target, alias] = match[1].slice(3, -2).trim().split("|");
+    parts.push({
+      type: "obsidianEmbed",
+      value: match[1],
+      target,
+      alias,
+    } satisfies ObsidianEmbedNode);
     lastIndex = match.index + match[1].length;
   }
   if (lastIndex < value.length) {
@@ -478,8 +491,13 @@ const customHandlers = {
     if (alias && alias !== wiki.value) return `[[${wiki.value}|${alias}]]`;
     return `[[${wiki.value}]]`;
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  obsidianEmbed: (node: any) => (node as ObsidianEmbedNode).value,
+
+  obsidianEmbed: (node) =>
+    `![[${(node as ObsidianEmbedNode).target}${
+      (node as ObsidianEmbedNode).alias
+        ? `|${(node as ObsidianEmbedNode).alias}`
+        : ""
+    }]]`,
   rawAsterisk: () => "*",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obsidianTag: (node: any) => (node as ObsidianTagNode).value,

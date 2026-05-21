@@ -15,6 +15,7 @@ import {
   type MarkdownLink,
 } from "../../markdown/links.js";
 import type { LinkActionContext } from "./types.js";
+import type { ObsidianEmbedNode } from "../../markdown/types.js";
 
 export type ResolvedTranscriptContext = {
   audioPath: string;
@@ -35,16 +36,17 @@ function isWithinVault(vaultPath: string, filePath: string): boolean {
 }
 
 export function resolveTranscriptContext(
-  link: MarkdownLink | undefined,
+  link: MarkdownLink | ObsidianEmbedNode | undefined,
   ctx: LinkActionContext | undefined,
 ): ResolvedTranscriptContext | undefined {
   if (!link || !ctx) return undefined;
+  const target = "value" in link ? link.value : link.target;
 
-  const audioPath = resolve(dirname(ctx.sourceNotePath), link.target);
+  const audioPath = resolve(dirname(ctx.sourceNotePath), target);
   if (!existsSync(audioPath)) return undefined;
   if (!isWithinVault(ctx.vaultPath, audioPath)) return undefined;
 
-  const transcriptTarget = deriveTranscriptTarget(link.target);
+  const transcriptTarget = deriveTranscriptTarget(target);
   const transcriptEmbed = buildMirroredTranscriptEmbed(link, transcriptTarget);
   const transcriptPath = resolve(
     dirname(audioPath),

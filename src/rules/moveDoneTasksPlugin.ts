@@ -28,7 +28,7 @@ export const moveDoneTasksPlugin: Plugin<
   const vaultPath = settings.onyxVellum.vaultPath;
   const dailyNotesFolder = config?.dailyNotesFolder;
 
-  return function (tree, file) {
+  return function (tree, file): Root | undefined {
     const filePath = file.path;
     invariant(filePath, "file.path must be defined for moveDoneTasksPlugin");
     if (!filePath) return;

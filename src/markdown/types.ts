@@ -14,6 +14,8 @@ export type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
 export interface ObsidianEmbedNode extends Literal {
   type: "obsidianEmbed";
   value: string;
+  target: string;
+  alias?: string;
 }
 
 export interface WikiLinkNode extends Literal {
