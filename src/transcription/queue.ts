@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import type { TranscriptionJob } from "./types.js";
+import type { Job } from "./types.js";
 
 const QUEUE_DIRS = ["pending", "processing", "done", "failed"] as const;
 
@@ -24,10 +24,7 @@ async function ensureQueueDirs(stateDir: string): Promise<void> {
   );
 }
 
-export async function enqueue(
-  stateDir: string,
-  job: TranscriptionJob,
-): Promise<void> {
+export async function enqueue(stateDir: string, job: Job): Promise<void> {
   await ensureQueueDirs(stateDir);
   await fs.writeFile(
     jobPath(stateDir, "pending", job.id),
@@ -36,9 +33,7 @@ export async function enqueue(
   );
 }
 
-export async function claimNext(
-  stateDir: string,
-): Promise<TranscriptionJob | null> {
+export async function claimNext(stateDir: string): Promise<Job | null> {
   await ensureQueueDirs(stateDir);
   const pendingPath = queuePath(stateDir, "pending");
   const files = (await fs.readdir(pendingPath))
@@ -57,7 +52,7 @@ export async function claimNext(
       throw err;
     }
     const raw = await fs.readFile(to, "utf-8");
-    return JSON.parse(raw) as TranscriptionJob;
+    return JSON.parse(raw) as Job;
   }
 
   return null;

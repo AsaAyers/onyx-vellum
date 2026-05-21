@@ -4,7 +4,7 @@ import type { RequestTranscriptionAction } from "../../rules/types.js";
 import type { ActionOutcome, LinkActionContext } from "./types.js";
 import { resolveTranscriptContext } from "./linkTranscriptionContext.js";
 import { formatTranscriptFile } from "../../transcription/format.js";
-import type { TranscriptionJob } from "../../transcription/types.js";
+import type { TranscriptionPipelineJob } from "../../transcription/types.js";
 
 export function buildJobId(createdAt: Date): string {
   const createdAtMs = createdAt.getTime();
@@ -28,7 +28,8 @@ export function applyRequestTranscription(
   }
 
   const createdAt = ctx.today.toISOString();
-  const job: TranscriptionJob = {
+  const job: TranscriptionPipelineJob = {
+    type: "transcription-pipeline",
     id: ctx.jobIdFactory(ctx.today),
     audioPath: transcript.audioPath,
     transcriptPath: transcript.transcriptPath,

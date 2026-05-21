@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { claimNext, enqueue } from "../src/transcription/queue.js";
 import { startWorker } from "../src/transcription/worker.js";
-import type { TranscriptionJob } from "../src/transcription/types.js";
+import type {
+  Job,
+  TranscriptionPipelineJob,
+} from "../src/transcription/types.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -14,7 +17,9 @@ async function createTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-async function runWorkerForSingleJob(job: TranscriptionJob): Promise<string> {
+async function runWorkerForSingleJob(
+  job: TranscriptionPipelineJob,
+): Promise<string> {
   const stateDir = await createTempDir("onyx-vellum-worker-state-");
   await enqueue(stateDir, job);
   return runWorkerForSingleStateDir(stateDir, job.transcriptPath);
@@ -63,6 +68,7 @@ describe("transcription worker", () => {
     await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
 
     const content = await runWorkerForSingleJob({
+      type: "transcription-pipeline",
       id: "01j-worker-a",
       audioPath,
       transcriptPath,
@@ -83,6 +89,7 @@ describe("transcription worker", () => {
     await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
 
     const content = await runWorkerForSingleJob({
+      type: "transcription-pipeline",
       id: "01j-worker-b",
       audioPath,
       transcriptPath,
@@ -102,7 +109,8 @@ describe("transcription worker", () => {
     const sourceNotePath = join(vaultDir, "daily.md");
     await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
 
-    const job = {
+    const job: Job = {
+      type: "transcription-pipeline",
       id: "01j-worker-c",
       audioPath,
       transcriptPath,

@@ -30,11 +30,15 @@ export async function processTranscript(
 ): Promise<TranscriptResult> {
   const model = process.env.OLLAMA_MODEL ?? "gemma3";
 
-  const response = await ollama.chat(
-    createCleanupRequest(model, rawTranscript, TranscriptResult),
-  );
+  const response = await ollama.chat({
+    ...createCleanupRequest(model, rawTranscript, TranscriptResult),
+    stream: true,
+  });
 
-  const content = response.message.content;
+  let content = "";
+  for await (const part of response) {
+    content += part.message.content;
+  }
 
   let parsed: unknown;
   try {
@@ -49,11 +53,15 @@ export async function processTranscript(
 export async function gatherTasks(cleanTranscript: string) {
   const model = process.env.OLLAMA_MODEL ?? "gemma3";
 
-  const response = await ollama.chat(
-    createTaskRequest(model, cleanTranscript, taskArraySchema),
-  );
+  const response = await ollama.chat({
+    ...createTaskRequest(model, cleanTranscript, taskArraySchema),
+    stream: true,
+  });
 
-  const content = response.message.content;
+  let content = "";
+  for await (const part of response) {
+    content += part.message.content;
+  }
 
   let parsed: unknown;
   try {
@@ -87,7 +95,8 @@ export function createCleanupRequest(
         role: "system",
         content: [
           "Return ONLY JSON data conforming to the provided schema.  No introductory or concluding text, no Markdown formatting, and no extraneous information.",
-          "Maintain original grammar and punctuation, correcting only errors.  Do not rephrase or rewrite the transcript’s meaning.",
+          "Clean up the transcript of a voice recording to improve grammar, punctuation, and readability while preserving the original meaning, decisions, speaker labels, and any uncertainty or ambiguity in the transcript.  Do not add any information that is not present in the original transcript.",
+          "Clean up newlines that got injected into the middle of sentences, but preserve newlines that represent actual pauses or speaker changes.",
           "File names should be lowercase kebab-case and end with .md.",
         ].join("\n"),
       },
