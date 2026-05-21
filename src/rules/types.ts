@@ -1,6 +1,6 @@
 import type { Task } from "../markdown/tasks.js";
 import type { Config } from "../config.js";
-import type { TranscriptionJob } from "../transcription/types.js";
+import type { Job } from "../transcription/types.js";
 
 export type RuleContext = {
   vaultPath: string;
@@ -258,7 +258,7 @@ export type LinkActionResult = {
   /** New files to create, keyed by absolute path. */
   newFiles?: Record<string, string>;
   /** Transcription jobs to enqueue. */
-  transcriptionJobs?: TranscriptionJob[];
+  transcriptionJobs?: Job[];
 };
 
 // --- RuleSpec ---------------------------------------------------------------

@@ -37,7 +37,7 @@ import type {
   Source,
   TaskPredicate,
 } from "../rules/types.js";
-import type { TranscriptionJob } from "../transcription/types.js";
+import type { Job } from "../transcription/types.js";
 
 // ---------------------------------------------------------------------------
 // Source resolution
@@ -394,10 +394,10 @@ async function runActions(
 ): Promise<{
   changes: FileChange[];
   summary: string;
-  transcriptionJobs: TranscriptionJob[];
+  transcriptionJobs: Job[];
 }> {
   const changes: FileChange[] = [];
-  const transcriptionJobs: TranscriptionJob[] = [];
+  const transcriptionJobs: Job[] = [];
   let totalTasksModified = 0;
   let totalLinksMatched = 0;
   let totalTranscriptionJobs = 0;
@@ -559,7 +559,7 @@ export async function runRuleSpec(
 ): Promise<{
   changes: FileChange[];
   summary: string;
-  transcriptionJobs: TranscriptionJob[];
+  transcriptionJobs: Job[];
 }> {
   const filePaths = await resolveEffectiveSourcePaths(
     spec.sources,

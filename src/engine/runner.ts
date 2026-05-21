@@ -12,7 +12,7 @@ import { buildJobId } from "./actions/requestTranscription.js";
 import { enqueue } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import type { RuleContext, RuleSpec } from "../rules/types.js";
-import type { TranscriptionJob } from "../transcription/types.js";
+import type { Job } from "../transcription/types.js";
 import { loadConfig, applyConfig } from "../config.js";
 
 /**
@@ -165,7 +165,7 @@ export async function runAllRules(
   };
 
   const summaries: string[] = [];
-  const transcriptionJobs: TranscriptionJob[] = [];
+  const transcriptionJobs: Job[] = [];
 
   // Load vault-level config and apply source overrides to all registered specs.
   const allSpecs = await loadConfig(ctx.vaultPath, ruleSpecs).then(

@@ -6,7 +6,7 @@ import { createFasterWhisperBackend } from "./fasterWhisperBackend.js";
 import { formatTranscriptFile, type TranscriptionStatus } from "./format.js";
 import { claimNext, markDone, markFailed } from "./queue.js";
 import { resolveStateDir } from "./runtime.js";
-import type { TranscriptionJob, WorkerOptions } from "./types.js";
+import type { TranscriptionPipelineJob, WorkerOptions } from "./types.js";
 import {
   gatherTasks,
   processTranscript,
@@ -18,7 +18,7 @@ import type z from "zod";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
-function buildSourceAudioWikilink(job: TranscriptionJob): string {
+function buildSourceAudioWikilink(job: TranscriptionPipelineJob): string {
   const sourceDir = dirname(job.sourceNotePath);
   const relTarget = relative(sourceDir, job.audioPath).replace(/\\/g, "/");
   return `[[${relTarget}]]`;
@@ -58,6 +58,12 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         await (options.sleep ?? sleep)(pollIntervalMs);
         continue;
       }
+
+      if (job.type !== "transcription-pipeline") {
+        logger.error(`Unknown job type: ${job.type}`);
+        continue;
+      }
+
       console.log(`Claimed job ${job.id} for audio ${job.audioPath}`);
 
       const sourceAudioWikilink = buildSourceAudioWikilink(job);
