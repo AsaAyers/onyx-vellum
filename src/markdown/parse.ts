@@ -33,9 +33,10 @@ function remarkObsidianProtections() {
 }
 
 export type PluginContext = {
+  addTasks: Record<string /* filePath */, ListItem[]>;
   timezone?: string;
   today: string;
-  addTasks: Record<string /* file path */, ListItem[]>;
+  alertTasks: Array<{ item: ListItem; filePath: string }>;
 };
 
 export const createParseProcessor = (

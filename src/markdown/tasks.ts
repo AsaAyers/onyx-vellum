@@ -1,3 +1,4 @@
+import { extractInlineFields } from "./inlineFieldsPlugin.js";
 import { z } from "zod";
 import { visit } from "unist-util-visit";
 import type { WikiLinkNode } from "./types.js";
@@ -91,27 +92,32 @@ function isWikiLinkNode(node: unknown): node is WikiLinkNode {
 }
 
 export function getListItemText(item: ListItem): string {
-  const parts: string[] = [];
+  let text = "";
   for (const child of item.children) {
     if (child.type === "paragraph") {
       for (const inline of (child as Paragraph).children) {
         if (inline.type === "text") {
-          parts.push((inline as Text).value);
-          continue;
-        }
-        const inlineNode: unknown = inline;
-        if (isWikiLinkNode(inlineNode)) {
-          const alias = inlineNode.data?.alias;
-          if (alias && alias !== inlineNode.value) {
-            parts.push(`[[${inlineNode.value}|${alias}]]`);
+          text += (inline as Text).value;
+        } else if (isWikiLinkNode(inline)) {
+          const alias = inline.data?.alias;
+          if (alias && alias !== inline.value) {
+            text += `[[${inline.value}|${alias}]]`;
           } else {
-            parts.push(`[[${inlineNode.value}]]`);
+            text += `[[${inline.value}]]`;
           }
+        } else if (inline.type === "obsidianEmbed") {
+          text += inline.value;
+        } else if (inline.type === "obsidianTag") {
+          text += inline.value;
+        } else if (inline.type === "rawAsterisk") {
+          text += "*";
+        } else if (inline.type === "inlineFields") {
+          // skip, handled elsewhere
         }
       }
     }
   }
-  return parts.join("").trim();
+  return text;
 }
 
 const KNOWN_INLINE_FIELD_ORDER = [
@@ -147,35 +153,16 @@ function splitKnownInlineFields(text: string): {
   title: string;
   fields: Partial<Record<KnownInlineFieldKey, string>>;
 } {
+  const { clean, fields: allFields } = extractInlineFields(text);
   const fields: Partial<Record<KnownInlineFieldKey, string>> = {};
-  const titleTokens: string[] = [];
-
-  const tokens = text
-    .trim()
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
-  for (const token of tokens) {
-    // Parse `key:value` tokens; unknown keys are preserved in title.
-    const match = token.match(/^([A-Za-z][A-Za-z0-9]*):(\S+)$/);
-    if (!match) {
-      titleTokens.push(token);
-      continue;
-    }
-
-    const knownKey = normalizeKnownFieldKey(match[1]);
-    if (!knownKey) {
-      titleTokens.push(token);
-      continue;
-    }
-
-    // First known value wins when duplicates appear (e.g. due:a due:b).
-    if (fields[knownKey] === undefined) {
-      fields[knownKey] = match[2];
+  for (const [key, value] of Object.entries(allFields)) {
+    const knownKey = normalizeKnownFieldKey(key);
+    if (knownKey && fields[knownKey] === undefined) {
+      fields[knownKey] = value;
     }
   }
-
   return {
-    title: titleTokens.join(" ").trim(),
+    title: clean.trimEnd(),
     fields,
   };
 }

@@ -179,6 +179,7 @@ export async function runAllRules(
   const ruleContext: PluginContext = {
     timezone: config.timezone ?? "America/Los_Angeles",
     today: format(baseCtx.today, "yyyy-MM-dd"),
+    alertTasks: [],
     addTasks: {},
   };
   const processor = createParseProcessor(
@@ -215,6 +216,26 @@ export async function runAllRules(
       changes.push({ path: filePath, content: normalized });
     }
   }
+
+  const files = Object.keys(ruleContext.addTasks);
+  for (const filePath of files) {
+    let original: string;
+    try {
+      original = await fs.readFile(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    const vfile = new VFile({ path: filePath, value: original });
+
+    // Use the provided processor for normalization
+    const tree = processor.parse(vfile);
+    const processed = (await processor.run(tree, vfile)) as Root;
+    const normalized = processor.stringify(processed);
+    if (normalized !== original) {
+      changes.push({ path: filePath, content: normalized });
+    }
+  }
+
   // Sort by path for deterministic output
   changes.sort((a, b) => a.path.localeCompare(b.path));
   if (baseCtx.dryRun) {

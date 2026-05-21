@@ -1,12 +1,14 @@
+import fs from "node:fs";
 import { visit } from "unist-util-visit";
 import type { Plugin, Processor } from "unified";
-import type { Root, List, ListItem } from "mdast";
+import type { Root, List } from "mdast";
 import "../markdown/ast-augmentations.js";
 import type { Config } from "../config.js";
 import { fileMatchesSources } from "../engine/runner.js";
 import invariant from "tiny-invariant";
 import type { Node } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
+import type { PluginContext } from "../markdown/parse.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -14,7 +16,7 @@ import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
  * - On subsequent runs, if ctx.addTasks has tasks for the current file, appends them to the end of the file and removes them from context.
  */
 export const moveDoneTasksPlugin: Plugin<
-  [Config["rules"]["moveDoneTasks"], { addTasks: Record<string, ListItem[]> }],
+  [Config["rules"]["moveDoneTasks"], PluginContext],
   Root
 > = function (this: Processor<Node | undefined>, config, ctx) {
   const processor = this;
@@ -25,6 +27,7 @@ export const moveDoneTasksPlugin: Plugin<
   );
   const vaultPath = settings.onyxVellum.vaultPath;
   const dailyNotesFolder = config?.dailyNotesFolder;
+
   return function (tree, file) {
     const filePath = file.path;
     invariant(filePath, "file.path must be defined for moveDoneTasksPlugin");
@@ -76,9 +79,13 @@ export const moveDoneTasksPlugin: Plugin<
             if (checked && fields.done) {
               const done = fields.done;
               const destPath = `${vaultPath}/${dailyNotesFolder}/${done}.md`;
-              ctx.addTasks[destPath] = ctx.addTasks[destPath] || [];
-              ctx.addTasks[destPath].push(item);
-              return false; // Remove from current file
+              const destExists = fs.existsSync(destPath);
+
+              if (destExists) {
+                ctx.addTasks[destPath] = ctx.addTasks[destPath] || [];
+                ctx.addTasks[destPath].push(item);
+                return false; // Remove from current file
+              }
             }
           }
           return true;

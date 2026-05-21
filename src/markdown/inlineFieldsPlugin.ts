@@ -47,11 +47,35 @@ export function extractInlineFields(text: string): {
   let match;
   let cleanText = text;
   const fields: Record<string, string> = {};
+  // Track the indexes to remove, so we can do it in one pass
+  const removals: { start: number; end: number }[] = [];
   while ((match = fieldPattern.exec(text)) !== null) {
-    fields[match[1]] = match[2];
-    cleanText = cleanText.replace(match[0], "");
+    const key = match[1];
+    const value = match[2];
+    fields[key] = value;
+    const start = match.index;
+    const end = match.index + match[0].length;
+    removals.push({ start, end });
   }
-  return { clean: cleanText.trim(), fields };
+  if (removals.length > 0) {
+    let result = "";
+    let last = 0;
+    for (let i = 0; i < removals.length; i++) {
+      const { start, end } = removals[i];
+      const before = cleanText.slice(last, start);
+      // If the match starts with a space and the previous char in result is a space, skip the extra space
+      if (before === " " && result.endsWith(" ")) {
+        // skip
+      } else {
+        result += before;
+      }
+      last = end;
+    }
+    result += cleanText.slice(last);
+    // Collapse all runs of 2+ spaces to a single space, but do not trim
+    cleanText = result.replace(/ {2,}/g, " ");
+  }
+  return { clean: cleanText, fields };
 }
 
 /**
