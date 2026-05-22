@@ -5,15 +5,9 @@ import {
   createAlertScheduler,
   normalizeAlertSchedule,
 } from "./engine/scheduler.js";
-import {
-  ALERT_RULE,
-  FAST_PATH_DEBOUNCE_MS,
-  selectWatchRuleSets,
-  createStopAll,
-} from "./engine/watchMode.js";
+import { ALERT_RULE, createStopAll } from "./engine/watchMode.js";
 import { toTimezoneDate } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
-import { ruleSpecs } from "./rules/index.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
 
 const args = process.argv.slice(2);
@@ -81,27 +75,9 @@ if (init) {
   const selectedRuleNames: string[] | "all" =
     positional.length === 1 && positional[0] === "all" ? "all" : positional;
 
-  // Validate rule names upfront before starting the pipeline.
-  if (selectedRuleNames !== "all") {
-    const knownNames = new Set(ruleSpecs.map((s) => s.name));
-    const unknown = selectedRuleNames.filter((n) => !knownNames.has(n));
-    if (unknown.length > 0) {
-      console.error(
-        `Error: unknown rule name(s): ${unknown.map((n) => `"${n}"`).join(", ")}`,
-      );
-      console.error(
-        `Available rules: ${ruleSpecs.map((s) => s.name).join(", ")}`,
-      );
-      process.exit(1);
-    }
-  }
-
   // Single shared entry-point for rule execution.  Closures in all parameters
   // so both the one-shot and watch paths use exactly the same runAllRules call.
-  const run = async (
-    glob?: string[],
-    timezone?: string,
-  ): Promise<void> => {
+  const run = async (glob?: string[], timezone?: string): Promise<void> => {
     await runAllRules({
       vaultPath,
       today: toTimezoneDate(new Date(), timezone),
@@ -115,7 +91,7 @@ if (init) {
 
   if (watch) {
     // Watch mode: load config to read the debounce and schedule settings.
-    loadConfig(vaultPath, ruleSpecs)
+    loadConfig(vaultPath)
       .then(async (config) => {
         const debounce = config.watch?.debounce ?? 60_000;
         // Mutable so the scheduler picks up changes when the config is reloaded.
@@ -144,12 +120,6 @@ if (init) {
         console.log(`Press Ctrl+C to stop.`);
         console.log("");
 
-        // Compute rule names for normal file-change processing and fast-path.
-        const { allFileChangeRuleNames, fastPathRuleNames } =
-          selectWatchRuleSets(
-            selectedRuleNames,
-            ruleSpecs.map((s) => s.name),
-          );
         const getNonConfigPaths = (relPaths: string[]): string[] =>
           relPaths.filter((p) => p !== CONFIG_FILENAME);
 
@@ -160,7 +130,6 @@ if (init) {
           dryRun,
           verbose,
           env: process.env,
-          selectedRuleNames: allFileChangeRuleNames,
         });
 
         const stop = startVaultWatcher(
@@ -170,7 +139,7 @@ if (init) {
             if (configChanged) {
               console.log(`[watch] Config changed, reloading...`);
               try {
-                const newConfig = await loadConfig(vaultPath, ruleSpecs);
+                const newConfig = await loadConfig(vaultPath);
                 const normalized = normalizeAlertSchedule(
                   newConfig.watch?.alertSchedule ?? [],
                 );
@@ -202,44 +171,18 @@ if (init) {
             if (targetPaths.length === 0) return;
 
             console.log(`[watch] Running rules for: ${targetPaths.join(", ")}`);
-            if (allFileChangeRuleNames.length > 0) {
-              await runAllRules({
-                vaultPath,
-                today: toTimezoneDate(new Date(), timezone),
-                dryRun,
-                verbose,
-                env: process.env,
-                selectedRuleNames: allFileChangeRuleNames,
-                onlyGlob: targetPaths,
-              });
-            }
+
+            await runAllRules({
+              vaultPath,
+              today: toTimezoneDate(new Date(), timezone),
+              dryRun,
+              verbose,
+              env: process.env,
+              onlyGlob: targetPaths,
+            });
           },
           { debounce, additionalFiles: [CONFIG_FILENAME] },
         );
-
-        const stopFastPath =
-          fastPathRuleNames.length > 0
-            ? startVaultWatcher(
-                vaultPath,
-                async (relPaths) => {
-                  const targetPaths = getNonConfigPaths(relPaths);
-                  if (targetPaths.length === 0) return;
-                  console.log(
-                    `[watch] Running fast-path rules for: ${targetPaths.join(", ")}`,
-                  );
-                  await runAllRules({
-                    vaultPath,
-                    today: toTimezoneDate(new Date(), timezone),
-                    dryRun,
-                    verbose,
-                    env: process.env,
-                    selectedRuleNames: fastPathRuleNames,
-                    onlyGlob: targetPaths,
-                  });
-                },
-                { debounce: FAST_PATH_DEBOUNCE_MS },
-              )
-            : () => undefined;
 
         // Run incompleteTaskAlert (and its transitive deps) on schedule only.
         const stopScheduler = createAlertScheduler(
@@ -258,7 +201,7 @@ if (init) {
           { getTimezone: () => timezone },
         );
 
-        const stopAll = createStopAll([stop, stopFastPath, stopScheduler]);
+        const stopAll = createStopAll([stop, stopScheduler]);
 
         process.on("SIGINT", () => {
           console.log("\n[watch] Stopping watcher...");
@@ -278,7 +221,7 @@ if (init) {
     }
     console.log("");
 
-    loadConfig(vaultPath, ruleSpecs)
+    loadConfig(vaultPath)
       .then((config) => run(onlyGlob, config.timezone))
       .catch((err: unknown) => {
         console.warn(

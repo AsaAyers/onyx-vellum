@@ -2,9 +2,8 @@ import { createPatch } from "diff";
 import { promises as fs } from "node:fs";
 import fsPath, { relative } from "node:path";
 import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
-import { ruleSpecs } from "../rules/index.js";
 import { walkMarkdownFiles } from "./io.js";
-import type { RuleContext, RuleSpec, Source } from "../rules/types.js";
+import type { RuleContext, Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../config.js";
 import micromatch from "micromatch";
 import type { Root } from "mdast";
@@ -43,104 +42,6 @@ export function fileMatchesSources(
 }
 
 /**
- * Sort `specs` so that every spec's dependencies appear before it in the
- * returned array.  Throws if a dependency name is unknown or if there is a
- * circular dependency.
- */
-export function sortRuleSpecs(specs: RuleSpec[]): RuleSpec[] {
-  // sortRuleSpecs validates that every declared dependency exists within the
-  // *same* `specs` array — callers are responsible for passing a complete set.
-  const specMap = new Map(specs.map((s) => [s.name, s]));
-
-  // Validate that every declared dependency actually exists in the set.
-  for (const spec of specs) {
-    for (const dep of spec.dependencies ?? []) {
-      if (!specMap.has(dep)) {
-        throw new Error(
-          `RuleSpec "${spec.name}" depends on unknown spec "${dep}"`,
-        );
-      }
-    }
-  }
-
-  // Kahn's algorithm: build an adjacency list (dep → dependents) and an
-  // in-degree counter, then process nodes with no remaining dependencies.
-  const inDegree = new Map(specs.map((s) => [s.name, 0]));
-  const adjList = new Map<string, string[]>(specs.map((s) => [s.name, []]));
-
-  for (const spec of specs) {
-    for (const dep of spec.dependencies ?? []) {
-      adjList.get(dep)!.push(spec.name);
-      inDegree.set(spec.name, (inDegree.get(spec.name) ?? 0) + 1);
-    }
-  }
-
-  const queue: string[] = [];
-  for (const [name, degree] of inDegree) {
-    if (degree === 0) queue.push(name);
-  }
-
-  const sorted: RuleSpec[] = [];
-  while (queue.length > 0) {
-    // shift() (FIFO) keeps the original registration order for independent
-    // specs, which is a useful stability property.  Spec lists are small, so
-    // the O(n) cost is negligible.
-    const name = queue.shift()!;
-    sorted.push(specMap.get(name)!);
-    for (const neighbor of adjList.get(name) ?? []) {
-      const newDegree = (inDegree.get(neighbor) ?? 0) - 1;
-      inDegree.set(neighbor, newDegree);
-      if (newDegree === 0) queue.push(neighbor);
-    }
-  }
-
-  if (sorted.length !== specs.length) {
-    throw new Error("Circular dependency detected among RuleSpecs");
-  }
-
-  return sorted;
-}
-
-/**
- * From all registered specs, select only those named in `selected` plus their
- * transitive dependencies, then return them topologically sorted.
- *
- * Throws if any name in `selected` does not correspond to a known spec.
- */
-export function selectRuleSpecs(
-  allSpecs: RuleSpec[],
-  selected: string[],
-): RuleSpec[] {
-  const specMap = new Map(allSpecs.map((s) => [s.name, s]));
-
-  // Validate that every explicitly requested name exists.
-  for (const name of selected) {
-    if (!specMap.has(name)) {
-      const available = allSpecs.map((s) => s.name).join(", ");
-      throw new Error(`Unknown rule: "${name}". Available rules: ${available}`);
-    }
-  }
-
-  // BFS to collect transitive dependencies of the selected specs.
-  const needed = new Set<string>(selected);
-  const bfsQueue = [...selected];
-  while (bfsQueue.length > 0) {
-    const name = bfsQueue.shift()!;
-    const spec = specMap.get(name)!;
-    for (const dep of spec.dependencies ?? []) {
-      if (!needed.has(dep)) {
-        needed.add(dep);
-        bfsQueue.push(dep);
-      }
-    }
-  }
-
-  // Filter the original list to preserve registration order, then sort.
-  const filteredSpecs = allSpecs.filter((s) => needed.has(s.name));
-  return sortRuleSpecs(filteredSpecs);
-}
-
-/**
  * Run all registered rules against the vault.
  *
  * A single FileWriteManager (transform queue) is shared across every rule:
@@ -170,7 +71,7 @@ export async function runAllRules(
     lines.push(msg);
   };
   // Load config
-  const config: Config = await loadConfig(baseCtx.vaultPath, ruleSpecs).catch(
+  const config: Config = await loadConfig(baseCtx.vaultPath).catch(
     (err: Error) => {
       log(
         `Warning: could not load vault config — ${err.message}. Using built-in defaults.`,

@@ -1,6 +1,5 @@
 import type { Task } from "../markdown/tasks.js";
 import type { Config } from "../config.js";
-import type { Job } from "../transcription/types.js";
 
 export type RuleContext = {
   vaultPath: string;
@@ -47,16 +46,6 @@ export type RuleContext = {
 export type FileChange = {
   path: string;
   content: string;
-};
-
-export type RuleResult = {
-  changes: FileChange[];
-  summary: string;
-};
-
-export type Rule = {
-  name: string;
-  run(ctx: RuleContext): Promise<RuleResult>;
 };
 
 // ---------------------------------------------------------------------------
@@ -116,13 +105,6 @@ export type TaskPredicate =
 
 // --- Queries ----------------------------------------------------------------
 
-/** Select GFM task-list items from the resolved sources. */
-export type TaskQuery = {
-  type: "tasks";
-  /** When omitted, all tasks are selected. */
-  predicate?: TaskPredicate;
-};
-
 /** Select Markdown links (including wikilinks) from the resolved sources. */
 export type LinkQuery = {
   type: "link";
@@ -131,8 +113,6 @@ export type LinkQuery = {
   /** When set, only match links whose target ends with this extension (e.g. ".m4a"). */
   extension?: string;
 };
-
-export type Query = TaskQuery | LinkQuery;
 
 // --- Actions ----------------------------------------------------------------
 
@@ -157,16 +137,6 @@ export type ReplaceFieldDateValueAction = {
   from: string;
   to: string;
 };
-
-/**
- * For a checked task with a `repeat:` field: compute the next due date from
- * the completion date and the repeat schedule, shift `start:` and `snooze:`
- * by the same delta, then uncheck the task to reschedule it.
- *
- * Falls back to `ctx.today` when the `done:` field is absent.
- * No-op when the task has no valid `repeat:` field.
- */
-export type AdvanceRepeatAction = { type: "task.advanceRepeat" };
 
 /**
  * Escape hatch for side effects that need the full set of matched tasks.
@@ -199,18 +169,6 @@ export type CustomAction = {
 };
 
 /**
- * For a checked task that has a `repeat:` field, whose `done:` field equals
- * today's date, and that does not yet carry a `copied:1` marker:
- *   1. Append `copied:1` to the original (completed) task.
- *   2. Insert a new incomplete task directly after it whose dates are advanced
- *      according to the task's `repeat:` schedule.
- *
- * Tasks without a `repeat:` field are never duplicated.
- * No-op when `copied` field already exists (idempotent).
- */
-export type RolloverAction = { type: "task.rollover" };
-
-/**
  * Remove the task from the document entirely.
  * Used by removeEphemeralOverdueTasks to delete ephemeral tasks that have
  * passed their due date without being completed.
@@ -233,49 +191,4 @@ export type EnsureSiblingTranscriptAction = {
  */
 export type RequestTranscriptionAction = {
   type: "link.requestTranscription";
-};
-
-export type Action =
-  | SetFieldDateIfMissingAction
-  | ReplaceFieldDateValueAction
-  | AdvanceRepeatAction
-  | CustomAction
-  | RolloverAction
-  | RemoveTaskAction
-  | EnsureSiblingTranscriptAction
-  | RequestTranscriptionAction;
-
-// --- Link action result model -----------------------------------------------
-
-/**
- * The result returned by a link action for a single matched link.
- * The runner accumulates results across all matching links and actions to
- * produce `FileChange` objects and stage any newly created files.
- */
-export type LinkActionResult = {
-  /** Updated body of the source note (if changed). */
-  updatedBody?: string;
-  /** New files to create, keyed by absolute path. */
-  newFiles?: Record<string, string>;
-  /** Transcription jobs to enqueue. */
-  transcriptionJobs?: Job[];
-};
-
-// --- RuleSpec ---------------------------------------------------------------
-
-/**
- * Declarative rule: the engine resolves sources, runs the query, then applies
- * each action to every selected task and writes changed files back.
- *
- * `dependencies` — names of other RuleSpecs that must run before this one.
- * The runner performs a topological sort so that ordering is enforced even
- * when specs are registered in arbitrary order.
- */
-export type RuleSpec = {
-  name: string;
-  sources: Source[];
-  query: Query;
-  actions: Action[];
-  /** Names of RuleSpecs that must complete before this spec runs. */
-  dependencies?: string[];
 };
