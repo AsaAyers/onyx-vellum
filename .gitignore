@@ -5,3 +5,4 @@ dist/
 .env
 tmp_alert.md
 coverage/
+tmp.md

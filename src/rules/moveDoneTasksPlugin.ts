@@ -1,38 +1,20 @@
 import fs from "node:fs";
 import { visit } from "unist-util-visit";
-import type { Plugin, Processor } from "unified";
 import type { Root, List } from "mdast";
 import "../markdown/ast-augmentations.js";
-import type { Config } from "../config.js";
-import { fileMatchesSources } from "../engine/runner.js";
 import invariant from "tiny-invariant";
-import type { Node } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
-import type { PluginContext } from "../markdown/parse.js";
+import { makePlugin } from "./makePlugin.js";
+import type { RuleConfig } from "../config.js";
+export type MoveDoneTasksConfig = RuleConfig & {
+  dailyNotesFolder?: string;
+};
 
-/**
- * remark plugin to move checked tasks with a done field to the context for writing to another file.
- * - Removes matching ListItems from the current file and adds them to ctx.addTasks[destinationPath].
- * - On subsequent runs, if ctx.addTasks has tasks for the current file, appends them to the end of the file and removes them from context.
- */
-export const moveDoneTasksPlugin: Plugin<
-  [Config["rules"]["moveDoneTasks"], PluginContext],
-  Root
-> = function (this: Processor<Node | undefined>, config, ctx) {
-  const processor = this;
-  const settings = processor.data("settings");
-  invariant(
-    settings?.onyxVellum,
-    "onyxVellum settings must be provided for moveDoneTasksPlugin",
-  );
-  const vaultPath = settings.onyxVellum.vaultPath;
-  const dailyNotesFolder = config?.dailyNotesFolder;
-
-  return function (tree, file): Root | undefined {
+export const writeTasksPlugin = makePlugin(
+  "writeTasks",
+  function ({ tree, file, ctx }) {
     const filePath = file.path;
     invariant(filePath, "file.path must be defined for moveDoneTasksPlugin");
-    if (!filePath) return;
-    // 1. If there are tasks to add to this file, append them and clear from context
     if (ctx?.addTasks?.[filePath]?.length) {
       // Find or create a root-level list at the end
       let lastList: List | undefined = undefined;
@@ -55,14 +37,18 @@ export const moveDoneTasksPlugin: Plugin<
       lastList.children.push(...ctx.addTasks[filePath]);
       delete ctx.addTasks[filePath];
     }
-    // 2. Remove checked+done tasks and add to context for their destination
-    if (
-      config?.sources &&
-      filePath &&
-      !fileMatchesSources(filePath, config.sources, vaultPath)
-    ) {
-      return tree;
-    }
+  },
+);
+/**
+ * remark plugin to move checked tasks with a done field to the context for writing to another file.
+ * - Removes matching ListItems from the current file and adds them to ctx.addTasks[destinationPath].
+ * - On subsequent runs, if ctx.addTasks has tasks for the current file, appends them to the end of the file and removes them from context.
+ */
+export const moveDoneTasksPlugin = makePlugin(
+  "moveDoneTasks",
+  function ({ tree, ctx, ruleConfig }) {
+    const { vaultPath } = ctx;
+    const dailyNotesFolder = ruleConfig?.dailyNotesFolder;
     if (dailyNotesFolder) {
       visit(tree as Root, "list", (listNode: List) => {
         if (!Array.isArray(listNode.children)) return;
@@ -93,5 +79,5 @@ export const moveDoneTasksPlugin: Plugin<
       });
     }
     return tree;
-  };
-};
+  },
+);

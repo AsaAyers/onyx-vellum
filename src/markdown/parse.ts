@@ -37,8 +37,10 @@ export type PluginContext = {
   jobIdFactory: (createdAt: Date) => string;
   skipPlugins?: boolean;
   addTasks: Record<string /* filePath */, ListItem[]>;
+  onlyGlob?: string[];
   timezone?: string;
-  today: string;
+  todayDate: Date;
+  vaultPath: string;
   alertTasks: Array<{ item: ListItem; filePath: string }>;
 };
 
@@ -51,9 +53,8 @@ export const createParseProcessor = (
     .data({
       settings: {
         onyxVellum: {
-          vaultPath,
-          today: ctx.today,
-          timezone: ctx.timezone || "UTC",
+          config,
+          ctx,
         },
       },
     })
@@ -66,20 +67,13 @@ export const createParseProcessor = (
 
   if (!ctx.skipPlugins) {
     processor = processor
-      .use(stampDonePlugin, config.rules["stampDone"])
-      .use(normalizeTodayPlugin, config.rules["normalizeTodayLiteral"])
-      .use(rolloverPlugin, config.rules["completedTaskRollover"])
-      .use(
-        removeEphemeralOverdueTasksPlugin,
-        config.rules["removeEphemeralOverdueTasks"],
-      )
-      .use(
-        ensureAudioTranscriptsPlugin,
-        config.rules["ensureAudioTranscripts"],
-        ctx,
-      )
-      .use(moveDoneTasksPlugin, config.rules["moveDoneTasks"], ctx)
-      .use(sortTasksSpecPlugin, config.rules["sortTasks"]);
+      .use(stampDonePlugin)
+      .use(normalizeTodayPlugin)
+      .use(rolloverPlugin)
+      .use(removeEphemeralOverdueTasksPlugin)
+      .use(ensureAudioTranscriptsPlugin)
+      .use(moveDoneTasksPlugin)
+      .use(sortTasksSpecPlugin);
   }
 
   processor.use(remarkStringify, {

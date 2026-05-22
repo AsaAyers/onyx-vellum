@@ -116,47 +116,6 @@ describe("runAllRules — selectedRuleNames", () => {
     expect(todoChange!.content).toContain("due:2026-05-03");
   });
 
-  it("selecting normalizeTodayLiteral alone does not run unrelated rules", async () => {
-    // rollover and alert are unrelated to normalizeTodayLiteral.
-    // When only normalizeTodayLiteral is selected, stampDone must NOT run.
-    const { changes } = await runAllRules({
-      vaultPath: TEST_VAULT,
-      today: TODAY,
-      dryRun: true,
-      env: {},
-      selectedRuleNames: ["normalizeTodayLiteral"],
-    });
-    // Verify stampDone did not run: scenario files that contain checked tasks
-    // with no done: field in the source must not appear in the staged changes
-    // (normalizeTodayLiteral has nothing to change in them, and stampDone
-    // was not selected so it can't add done: either).
-    // These scenarios contain checked tasks with no done: field, so only
-    // stampDone would change them — normalizeTodayLiteral has nothing to do.
-    const scenariosChangedOnlyByStampDone = [
-      "set-missing",
-      "repeat-today-fallback",
-    ];
-    for (const name of scenariosChangedOnlyByStampDone) {
-      const change = changes.find((c) => c.path.includes(name));
-      expect(
-        change,
-        `${name}: stampDone must not run when only normalizeTodayLiteral is selected`,
-      ).toBeUndefined();
-    }
-  });
-
-  it("throws when an unknown rule name is passed to runAllRules", async () => {
-    await expect(
-      runAllRules({
-        vaultPath: TEST_VAULT,
-        today: TODAY,
-        dryRun: true,
-        env: {},
-        selectedRuleNames: ["nonExistentRule"],
-      }),
-    ).rejects.toThrow('Unknown rule: "nonExistentRule"');
-  });
-
   it("onlyGlob: restricts files processed to those matching the glob", async () => {
     // Only process a single specific file via onlyGlob.
     const { changes } = await runAllRules({

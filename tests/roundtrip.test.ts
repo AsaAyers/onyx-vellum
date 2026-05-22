@@ -106,10 +106,13 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
     const stateDir = join(__dirname, "tmp", "roundtrip-test-state");
     await fs.mkdir(stateDir, { recursive: true });
 
+    const vaultPath = "";
+
     // The output representation may differ slightly but the rendered semantics
     // must be identical: the * characters must not form an emphasis node.
-    const tree = createParseProcessor("", EMPTY_CONFIG, {
-      today: "",
+    const tree = createParseProcessor(vaultPath, EMPTY_CONFIG, {
+      todayDate: new Date(),
+      vaultPath,
       addTasks: {},
       alertTasks: [],
       async queueJob() {},

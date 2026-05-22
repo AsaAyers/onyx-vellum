@@ -9,7 +9,6 @@ import micromatch from "micromatch";
 import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
-import { format } from "date-fns";
 import { buildJobId } from "./actions/requestTranscription.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
@@ -83,13 +82,15 @@ export async function runAllRules(
   const statDir = await resolveStateDir(process.env, baseCtx.vaultPath);
   const ruleContext: PluginContext = {
     timezone: config.timezone ?? "America/Los_Angeles",
-    today: format(baseCtx.today, "yyyy-MM-dd"),
+    todayDate: baseCtx.today,
     alertTasks: [],
     addTasks: {},
+    onlyGlob: baseCtx.onlyGlob,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     queueJob(job) {
       return enqueue(statDir, job);
     },
+    vaultPath: baseCtx.vaultPath,
   };
   const processor = createParseProcessor(
     baseCtx.vaultPath,
@@ -102,6 +103,13 @@ export async function runAllRules(
     : config.sources
       ? [config.sources]
       : [{ type: "glob", pattern: "**/*.md" }];
+
+  if (baseCtx.onlyGlob) {
+    globalGlobs.length = 0; // Clear config sources if onlyGlob is specified
+    globalGlobs.push(
+      ...baseCtx.onlyGlob.map((pattern): Source => ({ type: "glob", pattern })),
+    );
+  }
 
   // Walk all .md files in the vault
   const allFiles = await walkMarkdownFiles(baseCtx.vaultPath);
@@ -288,11 +296,12 @@ export function normalizeFileContent(raw: string): string {
     },
     {
       skipPlugins: true,
-      today: "",
       addTasks: {},
       alertTasks: [],
       queueJob: async () => {},
       jobIdFactory: buildJobId,
+      todayDate: new Date(),
+      vaultPath: "",
     },
   );
 

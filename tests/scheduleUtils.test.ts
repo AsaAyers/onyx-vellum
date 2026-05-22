@@ -152,8 +152,12 @@ describe("computeNextDue", () => {
 
 describe("date helpers", () => {
   it("formatDateStr formats correctly", () => {
-    expect(formatDateStr(new Date(2026, 4, 3), TEST_TIMEZONE)).toBe("2026-05-03");
-    expect(formatDateStr(new Date(2026, 0, 1), TEST_TIMEZONE)).toBe("2026-01-01");
+    expect(formatDateStr(new Date(2026, 4, 3), TEST_TIMEZONE)).toBe(
+      "2026-05-03",
+    );
+    expect(formatDateStr(new Date(2026, 0, 1), TEST_TIMEZONE)).toBe(
+      "2026-01-01",
+    );
   });
 
   it("parseDateStr parses YYYY-MM-DD", () => {

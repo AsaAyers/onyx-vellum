@@ -1,42 +1,24 @@
 import { visit } from "unist-util-visit";
-import type { Plugin, Processor } from "unified";
 import type { Root } from "mdast";
 import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
-import type { Config } from "../config.js";
-import { fileMatchesSources } from "../engine/runner.js";
-import invariant from "tiny-invariant";
-import type { Node } from "mdast";
+import { makePlugin } from "./makePlugin.js";
+import { format } from "date-fns-tz";
 
 /**
  * remark plugin to stamp the current date into the `done` field of checked tasks that lack it.
  * - For each checked listItem, if there is no `done` field, set it to today.
  */
-export const stampDonePlugin: Plugin<[Config["rules"]["stampDone"]], Root> =
-  function (this: Processor<Node | undefined>, config) {
-    const processor = this;
-
-    const settings = processor.data("settings");
-    invariant(
-      settings?.onyxVellum,
-      "onyxVellum settings must be provided for normalizeTodayPlugin",
-    );
-    const vaultPath = settings.onyxVellum.vaultPath;
-    const todayStr = settings?.onyxVellum?.today;
-    return function (tree, file) {
-      if (
-        config?.sources &&
-        file.path &&
-        !fileMatchesSources(file.path, config.sources, vaultPath)
-      ) {
-        return tree;
-      }
-
-      if (!todayStr) return;
-      visit(tree as Root, "listItem", (node) => {
-        if (!node.checked) return;
-        const fields = getInlineFields(node);
-        fields.done ??= todayStr;
-      });
-    };
-  };
+export const stampDonePlugin = makePlugin(
+  "stampDone",
+  function ({ tree, ctx }) {
+    const todayStr = format(ctx.todayDate, "yyyy-MM-dd", {
+      timeZone: ctx.timezone,
+    });
+    visit(tree as Root, "listItem", (node) => {
+      if (!node.checked) return;
+      const fields = getInlineFields(node);
+      fields.done ??= todayStr;
+    });
+  },
+);

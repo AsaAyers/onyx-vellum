@@ -1,5 +1,7 @@
 // Central AST and unified type augmentations for the pipeline
 // This file should be imported by any plugin or code that needs the extended types
+import type { Config } from "../config.js";
+import type { PluginContext } from "./parse.js";
 
 // import type { ListItem } from "mdast";
 
@@ -16,9 +18,8 @@ declare module "unified" {
 
   interface Settings {
     onyxVellum?: {
-      today: string; // ISO date string
-      timezone: string; // IANA timezone string
-      vaultPath: string;
+      ctx: PluginContext;
+      config: Config;
     };
   }
 }

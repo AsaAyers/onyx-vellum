@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { VFile } from "vfile";
 import type { Root } from "mdast";
 import { buildJobId } from "../engine/actions/requestTranscription.js";
+import { toZonedTime } from "date-fns-tz";
 
 async function main() {
   const filename = process.argv[2];
@@ -19,13 +20,15 @@ async function main() {
 
   const vfile = new VFile({ path: filename, value: contents });
 
+  const timezone = "America/Los_Angeles";
   const ruleContext: PluginContext = {
-    timezone: "America/Los_Angeles",
-    today: "2026-05-03",
+    timezone,
+    todayDate: toZonedTime(new Date(), timezone),
     alertTasks: [],
     addTasks: {},
     async queueJob() {},
     jobIdFactory: buildJobId,
+    vaultPath: "",
   };
   const processor = createParseProcessor(vaultPath, config, ruleContext);
 
