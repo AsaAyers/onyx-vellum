@@ -3,6 +3,7 @@ import { EMPTY_CONFIG } from "./defaultConfig.js";
 import fs from "node:fs/promises";
 import { VFile } from "vfile";
 import type { Root } from "mdast";
+import { buildJobId } from "../engine/actions/requestTranscription.js";
 
 async function main() {
   const filename = process.argv[2];
@@ -18,13 +19,13 @@ async function main() {
 
   const vfile = new VFile({ path: filename, value: contents });
 
-  // const ast = parseMarkdown(file, vaultPath, config);
-
   const ruleContext: PluginContext = {
     timezone: "America/Los_Angeles",
     today: "2026-05-03",
     alertTasks: [],
     addTasks: {},
+    async queueJob() {},
+    jobIdFactory: buildJobId,
   };
   const processor = createParseProcessor(vaultPath, config, ruleContext);
 

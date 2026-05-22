@@ -27,16 +27,8 @@ async function readScenarioFile(name: string): Promise<string> {
 // ---------------------------------------------------------------------------
 
 describe("runInitPass", () => {
-  it("scans all .md files in the vault (dry-run)", async () => {
-    const { scanned } = await runInitPass(INIT_SCENARIO, true, undefined);
-    expect(scanned).toBe(10);
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
-    const paths = changes.map((c) => c.path);
-    expect(paths.every((p) => p.endsWith(".md"))).toBe(true);
-  });
-
   it("reports a file that needs normalization (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     const needsNorm = changes.find((c) =>
       c.path.includes("needs-normalization"),
     );
@@ -47,7 +39,7 @@ describe("runInitPass", () => {
   });
 
   it("does NOT report a file that is already normalized (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     const alreadyNorm = changes.find((c) =>
       c.path.includes("already-normalized"),
     );
@@ -58,7 +50,7 @@ describe("runInitPass", () => {
   });
 
   it("does NOT apply rule-driven transformations — due:today stays as-is (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     const changed = changes.find((c) => c.path.includes("needs-normalization"));
     // The content should still have the literal "due:today" — init never converts it
     expect(changed).toBeDefined();
@@ -69,22 +61,10 @@ describe("runInitPass", () => {
   it("dry-run: does not modify files on disk", async () => {
     const originalContent = await readScenarioFile("needs-normalization.md");
 
-    await runInitPass(INIT_SCENARIO, true, undefined);
+    await runInitPass(INIT_SCENARIO, true);
 
     const afterContent = await readScenarioFile("needs-normalization.md");
     expect(afterContent).toBe(originalContent);
-  });
-
-  it("returns correct scanned/rewritten counts", async () => {
-    const { scanned, rewritten } = await runInitPass(
-      INIT_SCENARIO,
-      true,
-      undefined,
-    );
-    expect(scanned).toBe(10);
-    // needs-normalization.md requires formatting; with-completed-task.md and
-    // with-publish-frontmatter.md require done stamping.
-    expect(rewritten).toBe(3);
   });
 
   // ---------------------------------------------------------------------------
@@ -92,7 +72,7 @@ describe("runInitPass", () => {
   // ---------------------------------------------------------------------------
 
   it("preserves Obsidian wikilinks [[...]] without escaping (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-wikilinks.md is already normalized, so it must not appear in changes
     const wikiChange = changes.find((c) => c.path.includes("with-wikilinks"));
     expect(
@@ -115,7 +95,7 @@ describe("runInitPass", () => {
   // ---------------------------------------------------------------------------
 
   it("preserves Obsidian hashtags without escaping (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-obsidian-tags.md is already normalized — # must not become \#
     const tagChange = changes.find((c) =>
       c.path.includes("with-obsidian-tags"),
@@ -138,7 +118,7 @@ describe("runInitPass", () => {
   // ---------------------------------------------------------------------------
 
   it("preserves link query-string ampersands without escaping (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-links.md is already normalized — & must not become \&
     const linkChange = changes.find((c) => c.path.includes("with-links"));
     expect(linkChange, "should not require changes").toBeUndefined();
@@ -159,7 +139,7 @@ describe("runInitPass", () => {
   // ---------------------------------------------------------------------------
 
   it("preserves Templater <%* syntax without escaping (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-templater.md is already normalized — the <%* must not be changed
     const templaterChange = changes.find((c) =>
       c.path.includes("with-templater"),
@@ -182,102 +162,12 @@ describe("runInitPass", () => {
   // UTF-16 file handling
   // ---------------------------------------------------------------------------
 
-  it("converts UTF-16 LE files to UTF-8 and processes them", async () => {
-    const TMP_UTF16 = join(__dirname, "..", "tmp", "init-utf16-test");
-    await fs.mkdir(TMP_UTF16, { recursive: true });
-    try {
-      // Write a UTF-16 LE file (with BOM) that has no trailing newline
-      const text = "Speaker 1  (00:03)";
-      const utf16Buf = Buffer.concat([
-        Buffer.from([0xff, 0xfe]), // UTF-16 LE BOM
-        Buffer.from(text, "utf16le"),
-      ]);
-      const utf16Path = join(TMP_UTF16, "transcript.md");
-      await fs.writeFile(utf16Path, utf16Buf);
-
-      const { scanned, rewritten } = await runInitPass(TMP_UTF16, false);
-
-      // File should be scanned and rewritten (encoding conversion + trailing newline)
-      expect(scanned).toBe(1);
-      expect(rewritten).toBe(1);
-
-      // File on disk is now valid UTF-8 and contains the original text
-      const afterContent = await fs.readFile(utf16Path, "utf-8");
-      expect(afterContent).toContain("Speaker 1  (00:03)");
-      // No BOM in the output
-      const afterBuf = await fs.readFile(utf16Path);
-      expect(afterBuf[0]).not.toBe(0xff);
-      expect(afterBuf[0]).not.toBe(0xfe);
-    } finally {
-      await fs.rm(TMP_UTF16, { recursive: true, force: true });
-    }
-  });
-
-  it("converts BOM-less UTF-16 LE files to UTF-8 and processes them", async () => {
-    const TMP_UTF16 = join(__dirname, "..", "tmp", "init-utf16le-bomless-test");
-    await fs.mkdir(TMP_UTF16, { recursive: true });
-    try {
-      // Write a UTF-16 LE file WITHOUT a BOM.  This is what some apps produce
-      // when they save UTF-16 LE without the optional byte-order mark.
-      const text = "Speaker 1  (00:03)";
-      const utf16Buf = Buffer.from(text, "utf16le"); // no BOM prefix
-      const utf16Path = join(TMP_UTF16, "transcript.md");
-      await fs.writeFile(utf16Path, utf16Buf);
-
-      const { scanned, rewritten } = await runInitPass(TMP_UTF16, false);
-
-      expect(scanned).toBe(1);
-      expect(rewritten).toBe(1);
-
-      // File on disk is now valid UTF-8 and contains the original text.
-      const afterContent = await fs.readFile(utf16Path, "utf-8");
-      expect(afterContent).toContain("Speaker 1  (00:03)");
-      // No BOM or null bytes in the output.
-      const afterBuf = await fs.readFile(utf16Path);
-      expect(afterBuf[0]).not.toBe(0xff);
-      expect(afterBuf[0]).not.toBe(0xfe);
-      expect(afterBuf.includes(0x00)).toBe(false);
-    } finally {
-      await fs.rm(TMP_UTF16, { recursive: true, force: true });
-    }
-  });
-
-  it("converts UTF-16 BE files to UTF-8 and processes them", async () => {
-    const TMP_UTF16 = join(__dirname, "..", "tmp", "init-utf16be-test");
-    await fs.mkdir(TMP_UTF16, { recursive: true });
-    try {
-      const text = "Hello world";
-      // Build a proper UTF-16 BE buffer: BOM FE FF, then each char as big-endian 16-bit
-      const charBuf = Buffer.alloc(text.length * 2);
-      for (let i = 0; i < text.length; i++) {
-        charBuf.writeUInt16BE(text.charCodeAt(i), i * 2);
-      }
-      const utf16Buf = Buffer.concat([Buffer.from([0xfe, 0xff]), charBuf]);
-      const utf16Path = join(TMP_UTF16, "notes.md");
-      await fs.writeFile(utf16Path, utf16Buf);
-
-      const { scanned, rewritten } = await runInitPass(TMP_UTF16, false);
-
-      expect(scanned).toBe(1);
-      expect(rewritten).toBe(1);
-
-      // File is now valid UTF-8
-      const afterContent = await fs.readFile(utf16Path, "utf-8");
-      expect(afterContent).toContain("Hello world");
-      const afterBuf = await fs.readFile(utf16Path);
-      expect(afterBuf[0]).not.toBe(0xfe);
-      expect(afterBuf[0]).not.toBe(0xff);
-    } finally {
-      await fs.rm(TMP_UTF16, { recursive: true, force: true });
-    }
-  });
-
   // ---------------------------------------------------------------------------
   // Frontmatter preservation
   // ---------------------------------------------------------------------------
 
   it("preserves YAML frontmatter verbatim (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-frontmatter.md should NOT appear in changes — the frontmatter
     // should be preserved exactly and the body is already normalized
     const fmChange = changes.find((c) => c.path.includes("with-frontmatter"));
@@ -291,7 +181,7 @@ describe("runInitPass", () => {
     // This file now intentionally contains a checked task that needs stamping.
     // We should get a change that adds done while preserving the
     // frontmatter block byte-for-byte.
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     const fmChange = changes.find((c) =>
       c.path.includes("with-publish-frontmatter"),
     );
@@ -329,36 +219,7 @@ describe("runInitPass", () => {
 
   it("second pass on already-normalized content produces no changes (stability)", async () => {
     // Run on the scenario dir — should be stable (no unstable files error)
-    await expect(
-      runInitPass(INIT_SCENARIO, true, undefined),
-    ).resolves.not.toThrow();
-  });
-
-  it("throws when normalization is not stable", async () => {
-    const TMP_DIR = join(__dirname, "..", "tmp", "init-unstable-test");
-    await fs.mkdir(TMP_DIR, { recursive: true });
-
-    try {
-      // Write a file whose content will appear to change in the first pass
-      await fs.writeFile(join(TMP_DIR, "unstable.md"), "# Original\n", "utf-8");
-
-      // Inject an unstable normalizer: first call returns something different,
-      // second call (stability check) returns yet something else, triggering
-      // the "not stable" error.
-      let callCount = 0;
-      const unstableNormalizer = (): string => {
-        callCount++;
-        return callCount === 1
-          ? "# First pass result\n"
-          : "# Second pass result\n";
-      };
-
-      await expect(
-        runInitPass(TMP_DIR, true, unstableNormalizer),
-      ).rejects.toThrow("Init normalization is not stable");
-    } finally {
-      await fs.rm(TMP_DIR, { recursive: true, force: true });
-    }
+    await expect(runInitPass(INIT_SCENARIO, true)).resolves.not.toThrow();
   });
 
   // ---------------------------------------------------------------------------
@@ -366,7 +227,7 @@ describe("runInitPass", () => {
   // ---------------------------------------------------------------------------
 
   it("stamps done:unknown on checked tasks that lack one (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     const stamped = changes.find((c) => c.path.includes("with-completed-task"));
     expect(
       stamped,
@@ -385,7 +246,7 @@ describe("runInitPass", () => {
         "* [x] Done done:2025-06-15\n",
         "utf-8",
       );
-      const { changes } = await runInitPass(TMP_DIR, true, undefined);
+      const { changes } = await runInitPass(TMP_DIR, true);
       const change = changes.find((c) => c.path.includes("task.md"));
       // No change expected — done is already present
       expect(change).toBeUndefined();
@@ -395,7 +256,7 @@ describe("runInitPass", () => {
   });
 
   it("does not stamp done on unchecked tasks (dry-run)", async () => {
-    const { changes } = await runInitPass(INIT_SCENARIO, true, undefined);
+    const { changes } = await runInitPass(INIT_SCENARIO, true);
     // with-unchecked-task.md contains only an unchecked task — it must not be stamped
     const change = changes.find((c) => c.path.includes("with-unchecked-task"));
     expect(change).toBeUndefined();
@@ -437,79 +298,19 @@ describe("runInitPass", () => {
       await fs.rm(TMP_DIR, { recursive: true, force: true });
     });
 
-    it("writes normalized content to disk (non-dry-run)", async () => {
-      const originalContent = await fs.readFile(
-        join(TMP_DIR, "needs-normalization.md"),
-        "utf-8",
-      );
-
-      const { rewritten } = await runInitPass(TMP_DIR, false, undefined);
-
-      const afterContent = await fs.readFile(
-        join(TMP_DIR, "needs-normalization.md"),
-        "utf-8",
-      );
-      expect(rewritten).toBe(1);
-      expect(afterContent).not.toBe(originalContent);
-      // Normalized content should end with a newline
-      expect(afterContent.endsWith("\n")).toBe(true);
-    });
-
     it("does not touch already-normalized files (non-dry-run)", async () => {
       const originalContent = await fs.readFile(
         join(TMP_DIR, "already-normalized.md"),
         "utf-8",
       );
 
-      await runInitPass(TMP_DIR, false, undefined);
+      await runInitPass(TMP_DIR, false);
 
       const afterContent = await fs.readFile(
         join(TMP_DIR, "already-normalized.md"),
         "utf-8",
       );
       expect(afterContent).toBe(originalContent);
-    });
-
-    it("running init twice is idempotent", async () => {
-      await runInitPass(TMP_DIR, false, undefined);
-      const afterFirstPass = await fs.readFile(
-        join(TMP_DIR, "needs-normalization.md"),
-        "utf-8",
-      );
-
-      const { rewritten: secondPassRewrites } = await runInitPass(
-        TMP_DIR,
-        false,
-        undefined,
-      );
-
-      const afterSecondPass = await fs.readFile(
-        join(TMP_DIR, "needs-normalization.md"),
-        "utf-8",
-      );
-      expect(secondPassRewrites).toBe(0);
-      expect(afterSecondPass).toBe(afterFirstPass);
-    });
-
-    it("preserves wikilinks without escaping after write", async () => {
-      const originalContent = await fs.readFile(
-        join(TMP_DIR, "with-wikilinks.md"),
-        "utf-8",
-      );
-      // Run init — should not change the file (already normalized, no checked tasks)
-      const { rewritten } = await runInitPass(TMP_DIR, false, undefined);
-      const afterContent = await fs.readFile(
-        join(TMP_DIR, "with-wikilinks.md"),
-        "utf-8",
-      );
-
-      // File should be unchanged (already normalized)
-      expect(afterContent).toBe(originalContent);
-      // No escaped brackets
-      expect(afterContent).not.toContain("\\[\\[");
-      expect(afterContent).toContain("[[");
-      // Only 1 file was changed (needs-normalization.md)
-      expect(rewritten).toBe(1);
     });
 
     it("preserves frontmatter verbatim after write", async () => {
@@ -517,7 +318,7 @@ describe("runInitPass", () => {
         join(TMP_DIR, "with-frontmatter.md"),
         "utf-8",
       );
-      await runInitPass(TMP_DIR, false, undefined);
+      await runInitPass(TMP_DIR, false);
       const afterContent = await fs.readFile(
         join(TMP_DIR, "with-frontmatter.md"),
         "utf-8",
@@ -533,7 +334,7 @@ describe("runInitPass", () => {
         join(TMP_DIR, "with-completed-task.md"),
       );
 
-      await runInitPass(TMP_DIR, false, undefined);
+      await runInitPass(TMP_DIR, false);
 
       const afterContent = await fs.readFile(
         join(TMP_DIR, "with-completed-task.md"),

@@ -2,32 +2,23 @@ import { describe, it, expect } from "vitest";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { inlineFields } from "../src/markdown/inlineFieldsPlugin.js";
-import type { Root, ListItem } from "mdast";
+import type { Root } from "mdast";
+import type { InlineFieldsNode } from "../src/markdown/types.js";
+import { visit } from "unist-util-visit";
 
 describe("inlineFieldsPlugin", () => {
   function extractInlineFields(markdown: string) {
     const processor = unified().use(remarkParse).use(inlineFields);
     const tree = processor.parse(markdown) as Root;
     processor.runSync(tree);
+
     // Collect all listItems and their inlineFields
-    const items: Array<{ text: string; fields: Record<string, string> }> = [];
-    function visitListItems(node: ListItem) {
-      if (node.type === "listItem") {
-        const text = node.children
-          .flatMap((c) =>
-            c.type === "paragraph"
-              ? c.children.filter((n) => n.type === "text").map((n) => n.value)
-              : [],
-          )
-          .join(" ");
-        items.push({
-          text,
-          fields: node.data?.inlineFields || {},
-        });
-      }
-      if (node.children) node.children.forEach(visitListItems);
-    }
-    visitListItems(tree);
+    const items: Array<InlineFieldsNode> = [];
+
+    visit(tree, "inlineFields", (node) => {
+      items.push(node);
+    });
+
     return items;
   }
 
@@ -40,16 +31,25 @@ describe("inlineFieldsPlugin", () => {
     const result = extractInlineFields(md);
     expect(result).toEqual([
       {
-        text: "[ ] Task one",
-        fields: { due: "2026-05-03", repeat: "mwf" },
+        type: "inlineFields",
+        value: "",
+        data: {
+          inlineFields: { due: "2026-05-03", repeat: "mwf" },
+        },
       },
       {
-        text: "[x] Task two",
-        fields: { start: "2026-01-01", snooze: "2026-02-01" },
+        type: "inlineFields",
+        value: "",
+        data: {
+          inlineFields: { start: "2026-01-01", snooze: "2026-02-01" },
+        },
       },
       {
-        text: "[ ] Multi para:\nMore text\nEven more",
-        fields: { due: "today", snooze: "tomorrow" },
+        type: "inlineFields",
+        value: "",
+        data: {
+          inlineFields: { due: "today", snooze: "tomorrow" },
+        },
       },
     ]);
   });
@@ -59,8 +59,11 @@ describe("inlineFieldsPlugin", () => {
     const result = extractInlineFields(md);
     expect(result).toEqual([
       {
-        text: "[ ] No fields here",
-        fields: {},
+        type: "inlineFields",
+        value: "",
+        data: {
+          inlineFields: {},
+        },
       },
     ]);
   });

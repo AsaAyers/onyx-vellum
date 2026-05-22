@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+
+const TEST_TIMEZONE = "America/Los_Angeles";
 import { addDays, differenceInCalendarDays } from "date-fns";
 import {
   parseRepeat,
@@ -82,13 +84,13 @@ describe("computeNextDue", () => {
   it("daily repeat (skipWeeks=0, all days) — next day after completion", () => {
     const schedule = parseRepeat("smtwhfa")!;
     const next = computeNextDue(sunday, schedule);
-    expect(formatDateStr(next)).toBe("2026-05-04"); // Monday
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-04"); // Monday
   });
 
   it('"d" shorthand: same result as smtwhfa — next day after completion', () => {
     const schedule = parseRepeat("d")!;
     const next = computeNextDue(sunday, schedule);
-    expect(formatDateStr(next)).toBe("2026-05-04"); // Monday
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-04"); // Monday
   });
 
   it('"1d" shorthand on Tuesday: next due is Monday (1 week - 1 day out)', () => {
@@ -97,7 +99,7 @@ describe("computeNextDue", () => {
     const schedule = parseRepeat("1d")!;
     const next = computeNextDue(tuesday, schedule);
     // offset = 1*7-1 = 6; minDate = Tue May 5 + 6 = Mon May 11; first valid day = Mon May 11
-    expect(formatDateStr(next)).toBe("2026-05-11");
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-11");
   });
 
   it('"1d" shorthand on Monday: next due is Sunday (6 days out)', () => {
@@ -106,20 +108,20 @@ describe("computeNextDue", () => {
     const schedule = parseRepeat("1d")!;
     const next = computeNextDue(monday, schedule);
     // offset = 6; minDate = Mon May 4 + 6 = Sun May 10; first valid day = Sun May 10
-    expect(formatDateStr(next)).toBe("2026-05-10");
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-10");
   });
 
   it("weekly on Sunday (skipWeeks=0): next Sunday is 7 days away", () => {
     const schedule = parseRepeat("s")!;
     const next = computeNextDue(sunday, schedule);
-    expect(formatDateStr(next)).toBe("2026-05-10"); // +7 days, next Sunday
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-10"); // +7 days, next Sunday
   });
 
   it("skipWeeks=1 on Sunday: minDate is +6 days (Saturday), next Sunday is +7", () => {
     const schedule = parseRepeat("1s")!;
     const next = computeNextDue(sunday, schedule);
     // offset = 6; minDate = Sun May 3 + 6 = Sat May 9; next Sunday >= Sat = May 10
-    expect(formatDateStr(next)).toBe("2026-05-10"); // +7 days
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-10"); // +7 days
   });
 
   it("skipWeeks=1 on Saturday: minDate is +6 days (Friday), next Sunday is +8", () => {
@@ -128,7 +130,7 @@ describe("computeNextDue", () => {
     const schedule = parseRepeat("1s")!;
     const next = computeNextDue(saturday, schedule);
     // offset = 6; minDate = Sat May 2 + 6 = Fri May 8; next Sunday >= Fri = May 10
-    expect(formatDateStr(next)).toBe("2026-05-10"); // Sunday +8 days
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-10"); // Sunday +8 days
   });
 
   it("skipWeeks=0 Saturday (repeat:a): next Saturday is +7 days", () => {
@@ -136,7 +138,7 @@ describe("computeNextDue", () => {
     const saturday = new Date(2026, 4, 2);
     const schedule = parseRepeat("a")!;
     const next = computeNextDue(saturday, schedule);
-    expect(formatDateStr(next)).toBe("2026-05-09"); // +7 days
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-09"); // +7 days
   });
 
   it("weekday-only repeat (m–f): next weekday after a Friday", () => {
@@ -144,18 +146,18 @@ describe("computeNextDue", () => {
     const friday = new Date(2026, 4, 1);
     const schedule = parseRepeat("mtwhf")!;
     const next = computeNextDue(friday, schedule);
-    expect(formatDateStr(next)).toBe("2026-05-04"); // Monday (skips Sat+Sun)
+    expect(formatDateStr(next, TEST_TIMEZONE)).toBe("2026-05-04"); // Monday (skips Sat+Sun)
   });
 });
 
 describe("date helpers", () => {
   it("formatDateStr formats correctly", () => {
-    expect(formatDateStr(new Date(2026, 4, 3))).toBe("2026-05-03");
-    expect(formatDateStr(new Date(2026, 0, 1))).toBe("2026-01-01");
+    expect(formatDateStr(new Date(2026, 4, 3), TEST_TIMEZONE)).toBe("2026-05-03");
+    expect(formatDateStr(new Date(2026, 0, 1), TEST_TIMEZONE)).toBe("2026-01-01");
   });
 
   it("parseDateStr parses YYYY-MM-DD", () => {
-    const d = parseDateStr("2026-05-03");
+    const d = parseDateStr("2026-05-03", TEST_TIMEZONE);
     expect(d).not.toBeNull();
     expect(d!.getFullYear()).toBe(2026);
     expect(d!.getMonth()).toBe(4); // 0-indexed
@@ -163,14 +165,14 @@ describe("date helpers", () => {
   });
 
   it("parseDateStr returns null for invalid strings", () => {
-    expect(parseDateStr("not-a-date")).toBeNull();
-    expect(parseDateStr("2026/05/03")).toBeNull();
+    expect(parseDateStr("not-a-date", TEST_TIMEZONE)).toBeNull();
+    expect(parseDateStr("2026/05/03", TEST_TIMEZONE)).toBeNull();
   });
 
   it("addDays adds calendar days", () => {
     const d = new Date(2026, 4, 3);
-    expect(formatDateStr(addDays(d, 7))).toBe("2026-05-10");
-    expect(formatDateStr(addDays(d, -1))).toBe("2026-05-02");
+    expect(formatDateStr(addDays(d, 7), TEST_TIMEZONE)).toBe("2026-05-10");
+    expect(formatDateStr(addDays(d, -1), TEST_TIMEZONE)).toBe("2026-05-02");
   });
 
   it("differenceInCalendarDays computes the difference", () => {

@@ -22,6 +22,7 @@ import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverd
 import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
 import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
 import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
+import type { Job } from "../transcription/types.js";
 
 function remarkObsidianProtections() {
   return (tree: Root): void => {
@@ -32,6 +33,7 @@ function remarkObsidianProtections() {
 }
 
 export type PluginContext = {
+  queueJob: (job: Job) => Promise<void>;
   jobIdFactory: (createdAt: Date) => string;
   skipPlugins?: boolean;
   addTasks: Record<string /* filePath */, ListItem[]>;

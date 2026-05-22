@@ -9,7 +9,7 @@ import type { Node } from "mdast";
 import type { PluginContext } from "../markdown/parse.js";
 import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
 import { toZonedTime } from "date-fns-tz";
-import { enqueue } from "../transcription/queue.js";
+
 import type { TranscriptionPipelineJob } from "../transcription/types.js";
 
 /**
@@ -104,7 +104,7 @@ export const ensureAudioTranscriptsPlugin: Plugin<
           createdAt,
         };
 
-        enqueue(ctx.stateDir, job);
+        ctx.queueJob(job);
       }
     });
   };

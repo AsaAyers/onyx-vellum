@@ -22,7 +22,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createParseProcessor } from "../src/markdown/parse.js";
 import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
-import { Paragraph } from "mdast";
+import type { Paragraph } from "mdast";
+import { buildJobId } from "../src/engine/actions/requestTranscription.js";
 
 // Repro: bullet list with nested numbered list
 // (was de-indented and got an extra blank line in some remark-stringify versions)
@@ -94,17 +95,25 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
     expect(normalizeFileContent(src)).toBe(src);
   });
 
-  it("does NOT strip escaping from * that would form emphasis", () => {
+  it("does NOT strip escaping from * that would form emphasis", async () => {
     // \*foo\* in the source is literal text: the pipeline must keep it escaped
     // so that re-parsing still produces a text node, not <em>foo</em>.
     const src = "\\*foo\\* bar\n";
     const out = normalizeFileContent(src);
+
+    // make a temporary state directory in the operating system's temp area, which the parse processor may need for plugin context
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const stateDir = join(__dirname, "tmp", "roundtrip-test-state");
+    await fs.mkdir(stateDir, { recursive: true });
+
     // The output representation may differ slightly but the rendered semantics
     // must be identical: the * characters must not form an emphasis node.
     const tree = createParseProcessor("", EMPTY_CONFIG, {
       today: "",
       addTasks: {},
       alertTasks: [],
+      async queueJob() {},
+      jobIdFactory: buildJobId,
     }).parse(out);
     const para = tree.children[0] as Paragraph;
     // All children must be text — no emphasis node.

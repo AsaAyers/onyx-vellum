@@ -8,7 +8,7 @@ import {
   markDone,
   markFailed,
 } from "../src/transcription/queue.js";
-import type { TranscriptionJob } from "../src/transcription/types.js";
+import type { TranscriptionPipelineJob } from "../src/transcription/types.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -18,8 +18,9 @@ async function createStateDir(): Promise<string> {
   return stateDir;
 }
 
-function makeJob(id: string): TranscriptionJob {
+function makeJob(id: string): TranscriptionPipelineJob {
   return {
+    type: "transcription-pipeline",
     id,
     audioPath: `/vault/audio/${id}.m4a`,
     transcriptPath: `/vault/audio/${id}.transcript.md`,

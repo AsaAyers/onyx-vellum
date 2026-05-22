@@ -11,6 +11,9 @@ import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { format } from "date-fns";
+import { buildJobId } from "./actions/requestTranscription.js";
+import { resolveStateDir } from "../transcription/runtime.js";
+import { enqueue } from "../transcription/queue.js";
 // Utility: Check if a file matches any of the sources (glob/path)
 
 export function fileMatchesSources(
@@ -176,11 +179,16 @@ export async function runAllRules(
     },
   );
 
+  const statDir = await resolveStateDir(process.env, baseCtx.vaultPath);
   const ruleContext: PluginContext = {
     timezone: config.timezone ?? "America/Los_Angeles",
     today: format(baseCtx.today, "yyyy-MM-dd"),
     alertTasks: [],
     addTasks: {},
+    jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
+    queueJob(job) {
+      return enqueue(statDir, job);
+    },
   };
   const processor = createParseProcessor(
     baseCtx.vaultPath,
@@ -382,6 +390,8 @@ export function normalizeFileContent(raw: string): string {
       today: "",
       addTasks: {},
       alertTasks: [],
+      queueJob: async () => {},
+      jobIdFactory: buildJobId,
     },
   );
 
