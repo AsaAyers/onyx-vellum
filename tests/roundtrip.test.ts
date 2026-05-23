@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { createParseProcessor } from "../src/markdown/parse.js";
 import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
 import type { Paragraph } from "mdast";
-import { buildJobId } from "../src/engine/actions/requestTranscription.js";
+import { buildJobId } from "../src/transcription/queue.js";
 
 // Repro: bullet list with nested numbered list
 // (was de-indented and got an extra blank line in some remark-stringify versions)
@@ -117,6 +117,9 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
       alertTasks: [],
       async queueJob() {},
       jobIdFactory: buildJobId,
+      updateFile(_transcriptPath, _arg1) {
+        // no-op
+      },
     }).parse(out);
     const para = tree.children[0] as Paragraph;
     // All children must be text — no emphasis node.

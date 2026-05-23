@@ -4,6 +4,7 @@ import invariant from "tiny-invariant";
 import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
 import type { TranscriptionPipelineJob } from "../transcription/types.js";
 import { makePlugin } from "./makePlugin.js";
+import path from "node:path";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -41,7 +42,7 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 
       if (!hasTranscriptLink) {
         const newLink = JSON.parse(JSON.stringify(node)) as typeof node;
-        newLink.target = transcriptPath;
+        newLink.target = path.relative(vaultPath, transcriptPath);
         parent.children.splice(
           parent.children.indexOf(node) + 1,
           0,
@@ -65,6 +66,20 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
         };
 
         ctx.queueJob(job);
+
+        ctx.updateFile(transcriptPath, {
+          position: "start",
+          header: null,
+          frontmatter: {
+            jobId: job.id,
+            status: "pending",
+          },
+          content: `Source audio: [[${path.relative(vaultPath, audioPath)}]]
+
+> [!onyx]+ OnyxVellum: job status
+> Transcription is pending.
+`,
+        });
       }
     });
   },

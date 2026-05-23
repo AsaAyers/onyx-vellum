@@ -32,7 +32,18 @@ function remarkObsidianProtections() {
   };
 }
 
+export type FileOperation = {
+  position: "start" | "end";
+  header: null;
+  frontmatter?: {
+    jobId: string;
+    status: string;
+  };
+  content: string;
+};
+
 export type PluginContext = {
+  updateFile(transcriptPath: string, arg1: FileOperation): unknown;
   queueJob: (job: Job) => Promise<void>;
   jobIdFactory: (createdAt: Date) => string;
   skipPlugins?: boolean;

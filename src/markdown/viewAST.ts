@@ -3,7 +3,7 @@ import { EMPTY_CONFIG } from "./defaultConfig.js";
 import fs from "node:fs/promises";
 import { VFile } from "vfile";
 import type { Root } from "mdast";
-import { buildJobId } from "../engine/actions/requestTranscription.js";
+import { buildJobId } from "../transcription/queue.js";
 import { toZonedTime } from "date-fns-tz";
 
 async function main() {
@@ -29,6 +29,9 @@ async function main() {
     async queueJob() {},
     jobIdFactory: buildJobId,
     vaultPath: "",
+    updateFile(transcriptPath, arg1) {
+      console.log("updateFile called with:", transcriptPath, arg1);
+    },
   };
   const processor = createParseProcessor(vaultPath, config, ruleContext);
 

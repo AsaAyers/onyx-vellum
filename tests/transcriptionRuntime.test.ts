@@ -39,10 +39,11 @@ describe("transcription runtime", () => {
       today: TODAY,
       dryRun: false,
       env: { STATE_DIR: stateDir },
-      selectedRuleNames: ["ensureAudioTranscripts"],
     });
 
     const noteContent = await fs.readFile(join(vaultDir, "daily.md"), "utf-8");
+    expect(noteContent).toContain("![[audio/clip.transcript.md]]");
+
     const transcriptContent = await fs.readFile(
       join(vaultDir, "audio", "clip.transcript.md"),
       "utf-8",
@@ -56,7 +57,6 @@ describe("transcription runtime", () => {
       "utf-8",
     );
 
-    expect(noteContent).toContain("![[audio/clip.transcript.md]]");
     expect(transcriptContent).toContain("status: pending");
     expect(pendingJob).toContain(
       `"audioPath": "${join(vaultDir, "audio", "clip.m4a")}"`,

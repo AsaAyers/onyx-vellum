@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import type { Job } from "./types.js";
+import { randomUUID } from "crypto";
 
 const QUEUE_DIRS = ["pending", "processing", "done", "failed"] as const;
 
@@ -81,4 +82,9 @@ export async function markFailed(
     `${error}\n`,
     "utf-8",
   );
+}
+export function buildJobId(createdAt: Date): string {
+  const createdAtMs = createdAt.getTime();
+  const uuid = randomUUID();
+  return `${createdAtMs.toString(36)}-${uuid}`;
 }

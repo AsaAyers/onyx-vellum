@@ -36,17 +36,17 @@ function isWithinVault(vaultPath: string, filePath: string): boolean {
 }
 
 export function resolveTranscriptContext(
-  link: MarkdownLink | ObsidianEmbedNode | undefined,
+  link: ObsidianEmbedNode | undefined,
   ctx: LinkActionContext | undefined,
 ): ResolvedTranscriptContext | undefined {
   if (!link || !ctx) return undefined;
-  const target = "value" in link ? link.value : link.target;
 
-  const audioPath = resolve(dirname(ctx.sourceNotePath), target);
-  if (!existsSync(audioPath)) return undefined;
+  const audioPath = resolve(dirname(ctx.sourceNotePath), link.target);
+  const exists = existsSync(audioPath);
+  if (!exists) return undefined;
   if (!isWithinVault(ctx.vaultPath, audioPath)) return undefined;
 
-  const transcriptTarget = deriveTranscriptTarget(target);
+  const transcriptTarget = deriveTranscriptTarget(link.target);
   const transcriptEmbed = buildMirroredTranscriptEmbed(link, transcriptTarget);
   const transcriptPath = resolve(
     dirname(audioPath),
