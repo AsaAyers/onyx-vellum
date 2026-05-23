@@ -149,7 +149,6 @@ function protectObsidianCallouts(tree: Root): void {
   visitParents(tree, "text", (node, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     const grandparent = ancestors[ancestors.length - 2];
-    console.log(parent.type, grandparent?.type, node.value);
     if (parent.type === "paragraph" && grandparent.type === "blockquote") {
       const match = node.value.match(CALLOUT_REGEX);
       console.log({ match });

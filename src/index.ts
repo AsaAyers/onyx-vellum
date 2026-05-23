@@ -5,7 +5,7 @@ import {
   createAlertScheduler,
   normalizeAlertSchedule,
 } from "./engine/scheduler.js";
-import { ALERT_RULE, createStopAll } from "./engine/watchMode.js";
+import { createStopAll } from "./engine/watchMode.js";
 import { toTimezoneDate } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
@@ -72,9 +72,6 @@ if (init) {
     process.exit(1);
   }
 
-  const selectedRuleNames: string[] | "all" =
-    positional.length === 1 && positional[0] === "all" ? "all" : positional;
-
   // Single shared entry-point for rule execution.  Closures in all parameters
   // so both the one-shot and watch paths use exactly the same runAllRules call.
   const run = async (glob?: string[], timezone?: string): Promise<void> => {
@@ -84,7 +81,6 @@ if (init) {
       dryRun,
       verbose,
       env: process.env,
-      selectedRuleNames,
       onlyGlob: glob,
     });
   };
@@ -195,7 +191,6 @@ if (init) {
               dryRun,
               verbose,
               env: process.env,
-              selectedRuleNames: [ALERT_RULE],
             });
           },
           { getTimezone: () => timezone },

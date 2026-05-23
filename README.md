@@ -623,7 +623,7 @@ src/
     ├── removeEphemeralOverdueTasks.ts # Rule 5
     └── incompleteTaskAlert.ts  # Rule 4
 tests/
-├── cli.test.ts                 # --help text, selectedRuleNames behaviour
+├── cli.test.ts                 # --help text
 ├── config.test.ts              # vault-level config: create, merge, validation
 ├── tasks.test.ts               # extract tasks, toggle, remove, update
 ├── headings.test.ts            # append-under-heading with trim + create

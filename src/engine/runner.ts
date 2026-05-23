@@ -98,8 +98,10 @@ export async function runAllRules(
     addTasks: {},
     onlyGlob: baseCtx.onlyGlob,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
-    queueJob(job) {
-      return enqueue(statDir, job);
+    async queueJob(job) {
+      if (!baseCtx.dryRun) {
+        await enqueue(statDir, job);
+      }
     },
     vaultPath: baseCtx.vaultPath,
   };

@@ -27,12 +27,6 @@ export type RuleContext = {
    */
   log?: (msg: string) => void;
   /**
-   * Which rule specs to run.  `'all'` (default when omitted) runs every
-   * registered spec in dependency order.  An array of rule names runs only
-   * those rules plus their transitive dependencies.
-   */
-  selectedRuleNames?: string[] | "all";
-  /**
    * An array of glob patterns / relative file paths (relative to vaultPath)
    * that restricts which files each rule processes. When provided, every
    * rule's resolved source list is filtered to contain only files that match
