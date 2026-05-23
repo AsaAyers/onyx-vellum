@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "run": "node dist/index.js",
+    "run": "tsx src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "viewAST": "tsx src/markdown/viewAST.ts",
@@ -21,6 +21,7 @@
   "dependencies": {
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "debug": "^4.4.3",
     "diff": "^9.0.0",
     "execa": "^9.6.1",
     "gray-matter": "^4.0.3",

@@ -76,9 +76,11 @@ describe("test vault — .md.expected snapshots", () => {
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
-      updateFile: function () {},
+      mode: "all",
     });
-    pipelineOutputs = new Map(changes.map((c) => [c.path, c.content]));
+    pipelineOutputs = new Map(
+      changes.map((c) => [join(TEST_VAULT, c.path), c.content]),
+    );
   })();
 
   type DirTree = { [name: string]: DirTree | string };
@@ -129,10 +131,12 @@ describe("test vault — .md.expected snapshots", () => {
   });
 
   it("does not modify any committed markdown file on disk in dry-run mode", async () => {
-    const mdFiles = await walkMarkdownFiles(TEST_VAULT);
+    const mdFiles = await walkMarkdownFiles(TEST_VAULT, TEST_VAULT);
     const before = new Map(
       await Promise.all(
-        mdFiles.map(async (p) => [p, await fsp.readFile(p, "utf-8")] as const),
+        mdFiles
+          .map((path) => join(TEST_VAULT, path))
+          .map(async (p) => [p, await fsp.readFile(p, "utf-8")] as const),
       ),
     );
 
@@ -142,7 +146,7 @@ describe("test vault — .md.expected snapshots", () => {
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
-      updateFile: function () {},
+      mode: "all",
     });
 
     for (const [p, content] of before) {

@@ -41,7 +41,7 @@ describe("moveDoneTasks - config opt-in", () => {
       todayDate: TODAY,
       dryRun: false,
       env: {},
-      updateFile: function () {},
+      mode: "all",
     });
 
     const transcript = await fs.readFile(

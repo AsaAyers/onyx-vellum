@@ -1,5 +1,6 @@
 import { type Processor, unified } from "unified";
 import remarkParse from "remark-parse";
+import createDebug from "debug";
 import remarkGfm from "remark-gfm";
 import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
@@ -30,6 +31,8 @@ import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlu
 import type { Job } from "../transcription/types.js";
 import { makePlugin } from "../rules/makePlugin.js";
 
+const debug = createDebug("onyx:markdown:parse");
+
 const remarkObsidianProtections = makePlugin(
   "obsidianProtections",
   ({ tree }) => {
@@ -55,7 +58,7 @@ export type PluginContext = {
   queueJob: (job: Job) => Promise<void>;
   jobIdFactory: (createdAt: Date) => string;
   env: NodeJS.ProcessEnv;
-  skipPlugins?: boolean;
+  mode: "normalize" | "all" | "fast" | "alert";
   onlyGlob?: string[];
   timezone?: string;
   todayDate: Date;
@@ -86,16 +89,29 @@ export const createParseProcessor = (
     .use(remarkWikiLink)
     .use(remarkObsidianProtections);
 
-  if (!ctx.skipPlugins) {
+  if (ctx.mode === "normalize") {
+    debug("Creating processor in normalize mode");
+    // Skip adding rule plugins
+  } else if (ctx.mode === "fast") {
+    debug("Creating processor in fast mode");
     processor = processor
+      .use(inlineFieldsPlugin)
+      .use(normalizeTodayPlugin)
+      .use(ensureAudioTranscriptsPlugin);
+  } else if (ctx.mode === "all") {
+    debug("Creating processor");
+    processor = processor
+      .use(ensureAudioTranscriptsPlugin)
       .use(inlineFieldsPlugin)
       .use(stampDonePlugin)
       .use(normalizeTodayPlugin)
       .use(rolloverPlugin)
       .use(removeEphemeralOverdueTasksPlugin)
-      .use(ensureAudioTranscriptsPlugin)
       .use(moveDoneTasksPlugin)
       .use(sortTasksSpecPlugin);
+  } else if (ctx.mode === "alert") {
+    debug("Creating processor in alert mode");
+    // TODO
   }
 
   return processor.use(remarkStringify, {

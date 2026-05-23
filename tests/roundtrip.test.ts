@@ -115,11 +115,10 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
       vaultPath,
       async queueJob() {},
       jobIdFactory: buildJobId,
-      updateFile(_transcriptPath, _arg1) {
-        // no-op
-      },
       env: {},
       dryRun: true,
+      updateFile: function () {},
+      mode: "all",
     }).parse(out);
     const para = tree.children[0] as Paragraph;
     // All children must be text — no emphasis node.

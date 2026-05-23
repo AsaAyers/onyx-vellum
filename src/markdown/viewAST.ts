@@ -24,6 +24,7 @@ async function main() {
   const timezone = "America/Los_Angeles";
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
+    mode: "all",
     timezone,
     todayDate: toZonedTime(new Date(), timezone),
     async queueJob() {},

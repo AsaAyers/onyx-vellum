@@ -1,6 +1,6 @@
 import { createPatch } from "diff";
 import fs from "node:fs/promises";
-import fsPath, { relative } from "node:path";
+import fsPath, { join, relative } from "node:path";
 import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
 import { walkMarkdownFiles } from "./io.js";
 import type { Source } from "../rules/types.js";
@@ -13,7 +13,10 @@ import { buildJobId } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
 import { FileOperationExecutor } from "./FileOperationExecutor.js";
-// Utility: Check if a file matches any of the sources (glob/path)
+import createDebug from "debug";
+import path from "node:path";
+
+const debug = createDebug("onyx:runner");
 
 export function fileMatchesSources(
   filePath: string,
@@ -58,7 +61,10 @@ export function fileMatchesSources(
  *                 `report`  — everything printed to console during the run.
  */
 export async function runAllRules(
-  baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "queueJob"> & {
+  baseCtx: Omit<
+    PluginContext,
+    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
+  > & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
 ): Promise<{
@@ -105,19 +111,26 @@ export async function runAllRules(
   if (baseCtx.onlyGlob) {
     globalGlobs.length = 0; // Clear config sources if onlyGlob is specified
     globalGlobs.push(
-      ...baseCtx.onlyGlob.map((pattern): Source => ({ type: "glob", pattern })),
+      ...baseCtx.onlyGlob
+        .filter((path) => path.endsWith(".md"))
+        .map((value): Source => ({ type: "path", value })),
     );
   }
 
   // Filter all .md files in the vault
-  const matchingFiles = (await walkMarkdownFiles(baseCtx.vaultPath)).filter(
-    (filePath) => fileMatchesSources(filePath, globalGlobs, baseCtx.vaultPath),
+  const matchingFiles = (
+    await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
+  ).filter((filePath) =>
+    fileMatchesSources(filePath, globalGlobs, baseCtx.vaultPath),
   );
   const changes: Array<{ path: string; content: string }> = [];
   for (const filePath of matchingFiles) {
     let original: string;
     try {
-      original = await fs.readFile(filePath, "utf-8");
+      original = await fs.readFile(
+        path.join(baseCtx.vaultPath, filePath),
+        "utf-8",
+      );
     } catch {
       continue;
     }
@@ -154,8 +167,10 @@ export async function runAllRules(
     }
   } else {
     for (const change of changes) {
-      await fs.mkdir(fsPath.dirname(change.path), { recursive: true });
-      await fs.writeFile(change.path, change.content, "utf-8");
+      const fullPath = path.join(baseCtx.vaultPath, change.path);
+      await fs.mkdir(fsPath.dirname(fullPath), { recursive: true });
+      debug(`Writing file: ${fullPath}`);
+      await fs.writeFile(fullPath, change.content, "utf-8");
     }
     if (changes.length > 0) {
       log("\nFiles written:");
@@ -179,11 +194,12 @@ function filePathRelative(base: string, file: string): string {
 export async function runInitPass(vaultPath: string, dryRun: boolean) {
   const changes: Array<{ path: string; original: string; content: string }> =
     [];
-  const allFiles = await walkMarkdownFiles(vaultPath);
+  const allFiles = await walkMarkdownFiles(vaultPath, vaultPath);
   for (const filePath of allFiles) {
     let rawBuffer: Buffer;
     try {
-      rawBuffer = await fs.readFile(filePath);
+      const absolutePath = join(vaultPath, filePath);
+      rawBuffer = await fs.readFile(absolutePath);
     } catch {
       continue;
     }
@@ -260,7 +276,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
     }
   } else {
     for (const change of changes) {
-      await fs.writeFile(change.path, change.content, "utf-8");
+      await fs.writeFile(join(vaultPath, change.path), change.content, "utf-8");
     }
   }
   return { changes };
@@ -277,7 +293,7 @@ export async function normalizeFileContent(raw: string) {
       rules: {},
     },
     {
-      skipPlugins: true,
+      mode: "normalize",
       updateFile: fileOperations.updateFile,
       queueJob: async () => {},
       jobIdFactory: buildJobId,

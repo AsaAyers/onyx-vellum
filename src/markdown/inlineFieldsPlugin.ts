@@ -4,6 +4,9 @@ import type { PhrasingContent, ListItem, Root } from "mdast";
 import "../markdown/ast-augmentations.js";
 import type { Processor } from "unified";
 import type { VFile } from "vfile";
+import createDebug from "debug";
+
+const debug = createDebug("onyx:inlineFieldsPlugin");
 
 // Utility to get the inlineFields object from the last inlineFields node in a ListItem
 export function getInlineFields(i: ListItem): Record<string, string> {
@@ -36,6 +39,7 @@ export function getInlineFields(i: ListItem): Record<string, string> {
 // Utility to set a single inline field on a ListItem (mutates the last inlineFields node)
 export function setInlineField(i: ListItem, key: string, value: string): void {
   const fields = getInlineFields(i);
+  debug(`Setting inline field on list item: ${key}=${value}`);
   fields[key] = value;
 }
 
@@ -90,6 +94,7 @@ export const inlineFieldsPlugin = function (this: Processor) {
       const extractedFields: Record<string, string> = {};
       visit(listItemNode, "text", (textNode) => {
         const { clean, fields } = extractInlineFields(textNode.value);
+        debug("found fields", fields);
         Object.assign(extractedFields, fields);
         textNode.value = clean;
       });
