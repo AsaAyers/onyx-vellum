@@ -23,38 +23,19 @@ export const rolloverPlugin = makePlugin("rollover", function ({ tree, ctx }) {
 
   visit(tree as Root, "listItem", (node, idx, parent) => {
     const fields = getInlineFields(node);
-    console.log(
-      "[rolloverPlugin] listItem fields:",
-      fields,
-      "checked:",
-      node.checked,
-    );
     if (!fields.repeat || !fields.done || fields.copied !== undefined) {
-      console.log(
-        "[rolloverPlugin] Skipping: missing repeat/done or already copied",
-      );
       return;
     }
     if (node.checked !== true) {
-      console.log("[rolloverPlugin] Skipping: not checked");
       return;
     }
     const doneDate = parseDateStr(fields.done, timezone);
     if (!doneDate) {
-      console.log(
-        "[rolloverPlugin] Skipping: done field not a valid date",
-        fields.done,
-      );
       return;
     }
     // Compare using timezone-aware formatting
     const todayIso = formatDateStr(doneDate, timezone);
     if (todayIso !== todayStr) {
-      console.log(
-        "[rolloverPlugin] Skipping: done field does not match today (tz aware)",
-        todayIso,
-        todayStr,
-      );
       return;
     }
     fields.copied = "1";

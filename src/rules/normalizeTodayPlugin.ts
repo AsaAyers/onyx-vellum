@@ -38,21 +38,10 @@ export const normalizeTodayPlugin = makePlugin(
           const v = value.trim().toLowerCase();
           if (v === "today") {
             setInlineField(node, key, todayStr);
-            console.log("normalizeTodayPlugin updated field:", key, todayStr);
           } else if (v === "yesterday") {
             setInlineField(node, key, yesterdayStr);
-            console.log(
-              "normalizeTodayPlugin updated field:",
-              key,
-              yesterdayStr,
-            );
           } else if (v === "tomorrow") {
             setInlineField(node, key, tomorrowStr);
-            console.log(
-              "normalizeTodayPlugin updated field:",
-              key,
-              tomorrowStr,
-            );
           }
         }
       }

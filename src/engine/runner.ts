@@ -72,7 +72,7 @@ export async function runAllRules(
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
-    console.log(msg);
+    // console.log(msg);
     lines.push(msg);
   };
   // Load config

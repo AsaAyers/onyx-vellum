@@ -151,7 +151,6 @@ function protectObsidianCallouts(tree: Root): void {
     const grandparent = ancestors[ancestors.length - 2];
     if (parent.type === "paragraph" && grandparent.type === "blockquote") {
       const match = node.value.match(CALLOUT_REGEX);
-      console.log({ match });
       if (match) {
         const index = [...parent.children].indexOf(node);
         const calloutType = match[1];

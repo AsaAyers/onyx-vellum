@@ -75,10 +75,6 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 
         ctx.queueJob(job);
 
-        console.log({
-          absoluteTranscriptPath,
-          audioPath,
-        });
         ctx.updateFile(absoluteTranscriptPath, {
           position: "start",
           header: null,

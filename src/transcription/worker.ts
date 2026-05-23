@@ -78,7 +78,6 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         errorMessage?: string,
       ) => {
         lastStatus = status;
-        console.log("Writing file with status", status);
         await fs.writeFile(
           job.transcriptPath,
           formatTranscriptFile({

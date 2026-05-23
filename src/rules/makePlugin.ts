@@ -29,10 +29,7 @@ export function makePlugin<
 
     return function (tree: Root, file: VFile): Root | void {
       try {
-        invariant(
-          file.path,
-          "file.path must be defined for moveDoneTasksPlugin",
-        );
+        // invariant(file.path, "file.path must be defined");
         const vaultPath: string = ctx.vaultPath;
         if (
           ruleConfig?.sources &&
