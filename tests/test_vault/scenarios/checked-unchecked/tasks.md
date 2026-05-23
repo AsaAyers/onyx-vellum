@@ -1,2 +1,2 @@
-- [x] Done
-- [ ] Todo
+* [x] Done
+* [ ] Todo

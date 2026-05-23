@@ -1,1 +1,1 @@
-- [ ] Task without trailing newline due:today
+* [ ] Task without trailing newline due:today
