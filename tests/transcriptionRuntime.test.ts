@@ -36,9 +36,10 @@ describe("transcription runtime", () => {
 
     await runAllRules({
       vaultPath,
-      today: TODAY,
+      todayDate: TODAY,
       dryRun: false,
       env: { STATE_DIR: stateDir },
+      updateFile: function () {},
     });
 
     const noteContent = await fs.readFile(join(vaultPath, "daily.md"), "utf-8");

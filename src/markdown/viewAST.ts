@@ -5,6 +5,7 @@ import { VFile } from "vfile";
 import type { Root } from "mdast";
 import { buildJobId } from "../transcription/queue.js";
 import { toZonedTime } from "date-fns-tz";
+import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 
 async function main() {
   const filename = process.argv[2];
@@ -21,27 +22,26 @@ async function main() {
   const vfile = new VFile({ path: filename, value: contents });
 
   const timezone = "America/Los_Angeles";
+  const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     timezone,
     todayDate: toZonedTime(new Date(), timezone),
-    alertTasks: [],
-    addTasks: {},
     async queueJob() {},
     jobIdFactory: buildJobId,
     vaultPath,
-    updateFile(transcriptPath, arg1) {
-      console.log("updateFile called with:", transcriptPath, arg1);
-    },
+    updateFile: fileOperations.updateFile,
+    env: {},
+    dryRun: true,
   };
   const processor = createParseProcessor(config, ruleContext);
 
   console.log({ filename, contents });
-  const tree = processor.parse(vfile);
-  const processed = (await processor.run(tree, vfile)) as Root;
+  let tree = processor.parse(vfile);
+  tree = (await processor.run(tree, vfile)) as Root;
 
   console.log(
     JSON.stringify(
-      processed,
+      tree,
       (key, value) => {
         if (key === "position") return undefined; // Omit position for readability
 
@@ -51,7 +51,7 @@ async function main() {
     ),
   );
   console.log("=======================");
-  const normalized = processor.stringify(processed);
+  const normalized = processor.stringify(tree, vfile);
   console.log(normalized);
 }
 

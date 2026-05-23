@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
-import { inlineFields } from "../src/markdown/inlineFieldsPlugin.js";
+import { inlineFieldsPlugin } from "../src/markdown/inlineFieldsPlugin.js";
 import type { Root } from "mdast";
 import type { InlineFieldsNode } from "../src/markdown/types.js";
 import { visit } from "unist-util-visit";
 
 describe("inlineFieldsPlugin", () => {
   function extractInlineFields(markdown: string) {
-    const processor = unified().use(remarkParse).use(inlineFields);
+    const processor = unified().use(remarkParse).use(inlineFieldsPlugin);
     const tree = processor.parse(markdown) as Root;
     processor.runSync(tree);
 

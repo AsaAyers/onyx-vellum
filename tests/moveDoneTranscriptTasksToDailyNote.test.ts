@@ -36,7 +36,13 @@ describe("moveDoneTasks - config opt-in", () => {
       "utf-8",
     );
 
-    await runAllRules({ vaultPath, today: TODAY, dryRun: false, env: {} });
+    await runAllRules({
+      vaultPath,
+      todayDate: TODAY,
+      dryRun: false,
+      env: {},
+      updateFile: function () {},
+    });
 
     const transcript = await fs.readFile(
       join(vaultPath, "audio", "session.transcript.md"),

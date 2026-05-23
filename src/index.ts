@@ -77,11 +77,11 @@ if (init) {
   const run = async (glob?: string[], timezone?: string): Promise<void> => {
     await runAllRules({
       vaultPath,
-      today: toTimezoneDate(new Date(), timezone),
+      todayDate: toTimezoneDate(new Date(), timezone),
       dryRun,
-      verbose,
       env: process.env,
       onlyGlob: glob,
+      updateFile: function () {},
     });
   };
 
@@ -122,10 +122,10 @@ if (init) {
         console.log(`[watch] Running all rules on startup...`);
         await runAllRules({
           vaultPath,
-          today: toTimezoneDate(new Date(), timezone),
+          todayDate: toTimezoneDate(new Date(), timezone),
           dryRun,
-          verbose,
           env: process.env,
+          updateFile: function () {},
         });
 
         const stop = startVaultWatcher(
@@ -170,11 +170,13 @@ if (init) {
 
             await runAllRules({
               vaultPath,
-              today: toTimezoneDate(new Date(), timezone),
+              todayDate: toTimezoneDate(new Date(), timezone),
               dryRun,
-              verbose,
               env: process.env,
               onlyGlob: targetPaths,
+              updateFile: function () {
+                throw new Error("Function not implemented.");
+              },
             });
           },
           { debounce, additionalFiles: [CONFIG_FILENAME] },
@@ -187,10 +189,12 @@ if (init) {
             console.log("[watch] Running scheduled alert...");
             await runAllRules({
               vaultPath,
-              today: toTimezoneDate(new Date(), timezone),
+              todayDate: toTimezoneDate(new Date(), timezone),
               dryRun,
-              verbose,
               env: process.env,
+              updateFile: function () {
+                throw new Error("Function not implemented.");
+              },
             });
           },
           { getTimezone: () => timezone },

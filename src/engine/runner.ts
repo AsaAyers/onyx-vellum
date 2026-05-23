@@ -1,23 +1,18 @@
-import yaml from "js-yaml";
 import { createPatch } from "diff";
 import fs from "node:fs/promises";
 import fsPath, { relative } from "node:path";
-import {
-  createParseProcessor,
-  type PluginContext,
-  type FileOperation,
-} from "../markdown/parse.js";
+import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
 import { walkMarkdownFiles } from "./io.js";
-import type { RuleContext, Source } from "../rules/types.js";
+import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../config.js";
 import micromatch from "micromatch";
-import type { Root, RootContent } from "mdast";
+import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
-import type { Processor } from "unified";
+import { FileOperationExecutor } from "./FileOperationExecutor.js";
 // Utility: Check if a file matches any of the sources (glob/path)
 
 export function fileMatchesSources(
@@ -63,8 +58,8 @@ export function fileMatchesSources(
  *                 `report`  — everything printed to console during the run.
  */
 export async function runAllRules(
-  baseCtx: Omit<RuleContext, "readFile" | "jobIdFactory"> & {
-    jobIdFactory?: RuleContext["jobIdFactory"];
+  baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "queueJob"> & {
+    jobIdFactory?: PluginContext["jobIdFactory"];
   },
 ): Promise<{
   changes: Array<{ path: string; content: string }>;
@@ -86,17 +81,11 @@ export async function runAllRules(
   );
 
   const statDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
-  const fileOperations: Record<string, FileOperation[]> = {};
+
+  const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
-    timezone: config.timezone ?? "America/Los_Angeles",
-    updateFile(transcriptPath, fileOperation) {
-      fileOperations[transcriptPath] ??= [];
-      fileOperations[transcriptPath].push(fileOperation);
-    },
-    todayDate: baseCtx.today,
-    alertTasks: [],
-    addTasks: {},
-    onlyGlob: baseCtx.onlyGlob,
+    ...baseCtx,
+    updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     async queueJob(job) {
       if (!baseCtx.dryRun) {
@@ -144,42 +133,7 @@ export async function runAllRules(
     }
   }
 
-  for (const [filePath, ops] of Object.entries(fileOperations)) {
-    let original: string;
-    try {
-      original = await fs.readFile(filePath, "utf-8");
-    } catch {
-      // Create a new file
-      original = "";
-    }
-    const vfile = new VFile({ path: filePath, value: original });
-    let tree = processor.parse(vfile);
-    tree = (await processor.run(tree, vfile)) as Root;
-
-    await applyFileOperations(processor, tree, ops);
-    tree = (await processor.run(tree, vfile)) as Root;
-
-    const normalized = String(processor.stringify(tree, vfile));
-    if (normalized !== original) {
-      changes.push({ path: filePath, content: normalized });
-    }
-  }
-
-  for (const filePath of Object.keys(ruleContext.addTasks)) {
-    let original: string;
-    try {
-      original = await fs.readFile(filePath, "utf-8");
-    } catch {
-      continue;
-    }
-    const vfile = new VFile({ path: filePath, value: original });
-    const tree = processor.parse(vfile);
-    const processed = (await processor.run(tree, vfile)) as Root;
-    const normalized = String(processor.stringify(processed, vfile));
-    if (normalized !== original) {
-      changes.push({ path: filePath, content: normalized });
-    }
-  }
+  fileOperations.execute(processor, changes);
 
   // Sort by path for deterministic output
   changes.sort((a, b) => a.path.localeCompare(b.path));
@@ -280,7 +234,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
       }
     }
 
-    const normalized = normalizeFileContent(original);
+    const normalized = await normalizeFileContent(original);
     // Always record a change for UTF-16 files: even if the text is already
     // normalized, the encoding itself needs to be converted to UTF-8.
     if (normalized !== original || wasUtf16) {
@@ -316,129 +270,33 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
  * Normalize a single file's raw content through the parse → stringify
  * pipeline, preserving structured YAML frontmatter data.
  */
-export function normalizeFileContent(raw: string): string {
-  const updates: Record<string, FileOperation[]> = {};
+export async function normalizeFileContent(raw: string) {
+  const fileOperations = new FileOperationExecutor();
   const processor = createParseProcessor(
     {
       rules: {},
     },
     {
-      updateFile(transcriptPath, fileOperation) {
-        updates[transcriptPath] ??= [];
-        updates[transcriptPath].push(fileOperation);
-      },
       skipPlugins: true,
-      addTasks: {},
-      alertTasks: [],
+      updateFile: fileOperations.updateFile,
       queueJob: async () => {},
       jobIdFactory: buildJobId,
       todayDate: new Date(),
       vaultPath: "",
+      dryRun: true,
+      env: {},
     },
   );
 
+  /**
+   * Skip executing when normalizing single files.
+   */
+  // fileOperations.execute(processor, []);
+
   const vfile = new VFile({ path: "tmp.md", value: raw });
   const tree = processor.parse(vfile);
-  const processed = processor.runSync(tree, vfile) as Root;
+  const processed = (await processor.run(tree, vfile)) as Root;
   const normalized = String(processor.stringify(processed, vfile));
 
   return normalized;
-}
-
-/**
- * Determines where to apply a FileOperation in the AST.
- * For header: null, returns [parent, 0, i] where i is the index of the first heading node,
- * or [parent, 0, children.length] if no heading exists (replace whole file).
- * Returns null for unsupported scenarios.
- */
-function queryFileOperationTarget(
-  processed: Root,
-  op: FileOperation,
-): null | [typeof processed, number, number] {
-  if (op.header === null) {
-    // Find first heading node
-    const children = processed.children;
-
-    if (op.position === "start") {
-      const firstHeaderIdx = children.findIndex((n) => n.type === "heading");
-      const bodyStart = children.findIndex((n) => n.type !== "yaml") + 1;
-
-      if (firstHeaderIdx === -1) {
-        // No header: replace whole file
-        return [processed, bodyStart, children.length];
-      } else {
-        // Replace from top up to first header
-        return [processed, bodyStart, firstHeaderIdx];
-      }
-    } else if (op.position === "end") {
-      return [processed, children.length, 0];
-    }
-  }
-  // Not supported yet
-  return null;
-}
-
-/**
- * Applies FileOperations to the AST, using queryFileOperationTarget to find the region to replace.
- * Handles YAML frontmatter merging/creation, and parses op.content into AST nodes.
- */
-async function applyFileOperations(
-  processor: Processor<Root, Root, Root>,
-  processed: Root,
-  ops: FileOperation[],
-) {
-  for (const op of ops) {
-    const target = queryFileOperationTarget(processed, op);
-    if (!target) continue;
-    const [parent, childIndex, numDelete] = target;
-
-    // Prepare new nodes: YAML frontmatter + content
-    let existingFrontmatter: Record<string, unknown> = {};
-
-    const yamlNode: RootContent = parent.children.find(
-      (n) => n.type === "yaml",
-    ) ?? {
-      type: "yaml",
-      value: "",
-    };
-
-    if (yamlNode.type === "yaml") {
-      // Parse and merge
-      try {
-        existingFrontmatter = (yaml.load(yamlNode.value) || {}) as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        // skip invalid frontmatter
-      }
-    }
-    // Overwrite with op.frontmatter
-    if (op.frontmatter) {
-      yamlNode.value = yaml
-        .dump({ ...existingFrontmatter, ...op.frontmatter })
-        .trimEnd();
-    }
-
-    // Parse op.content into AST nodes
-    let contentNodes: RootContent[] = [];
-    if (op.content) {
-      if (typeof op.content === "string") {
-        // Use mdast-util-from-markdown to parse content
-        let parsed = processor.parse(op.content.trim());
-        parsed = (await processor.run(parsed)) as Root;
-        contentNodes = parsed.children;
-      } else {
-        contentNodes = [op.content];
-      }
-    }
-
-    parent.children.splice(childIndex, numDelete, ...contentNodes);
-    if (!parent.children.includes(yamlNode)) {
-      parent.children.unshift(yamlNode);
-    }
-    if (yamlNode.value === "") {
-      parent.children.splice(parent.children.indexOf(yamlNode), 1);
-    }
-  }
 }

@@ -16,47 +16,47 @@ import { normalizeFileContent } from "../src/engine/runner.js";
 // ---------------------------------------------------------------------------
 
 describe("wikilink round-trip", () => {
-  it("preserves inline image wikilink ![[file]]", () => {
+  it("preserves inline image wikilink ![[file]]", async () => {
     const src = "![[Projects/2022-05-07_09.18.50.png]]\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves page wikilink [[Page Name]]", () => {
+  it("preserves page wikilink [[Page Name]]", async () => {
     const src = "[[Some Link]]\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves wikilink with underscores in filename", () => {
+  it("preserves wikilink with underscores in filename", async () => {
     const src = "![[archive/meeting_notes_2024.png]]\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves wikilink inside a task", () => {
+  it("preserves wikilink inside a task", async () => {
     const src = "* [ ] Review ![[diagram_v2.png]]\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves multiple wikilinks in a paragraph", () => {
+  it("preserves multiple wikilinks in a paragraph", async () => {
     const src = "See [[Note 1]] and also [[Note 2]] for details.\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves nested list with wikilinks at each level", () => {
+  it("preserves nested list with wikilinks at each level", async () => {
     const src =
       "* Top level [[link]]\n" +
       "  * Nested [[link2]]\n" +
       "    * Deep [[link3]]\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves mixed wikilinks and regular text in same line", () => {
+  it("preserves mixed wikilinks and regular text in same line", async () => {
     const src = "Related to [[Project A]] and [[Project B]] both.\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves wikilink with path separator", () => {
+  it("preserves wikilink with path separator", async () => {
     const src = "See [[Archive/Old Project]] for history.\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 });
 
@@ -65,34 +65,34 @@ describe("wikilink round-trip", () => {
 // ---------------------------------------------------------------------------
 
 describe("nested list round-trip", () => {
-  it("preserves 2-space nested unordered list", () => {
+  it("preserves 2-space nested unordered list", async () => {
     const src = "* Item 1\n  * Nested 1\n  * Nested 2\n* Item 2\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves three-level nesting", () => {
+  it("preserves three-level nesting", async () => {
     const src = "* Level 1\n  * Level 2\n    * Level 3\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves nested task lists", () => {
+  it("preserves nested task lists", async () => {
     const src =
       "* [ ] Parent task\n" +
       "  * [ ] Child task\n" +
       "    * [ ] Grandchild\n" +
       "  * [ ] Another child\n" +
       "* [ ] Second parent\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves ordered list nested inside unordered", () => {
+  it("preserves ordered list nested inside unordered", async () => {
     const src = "* Item\n  1. First\n  2. Second\n* Another item\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 
-  it("preserves loose nested list (blank lines between items)", () => {
+  it("preserves loose nested list (blank lines between items)", async () => {
     const src = "* Item 1\n\n  * Nested 1\n\n  * Nested 2\n\n* Item 2\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 });
 
@@ -101,8 +101,8 @@ describe("nested list round-trip", () => {
 // ---------------------------------------------------------------------------
 
 describe("thematic break round-trip", () => {
-  it("preserves --- without converting to ***", () => {
+  it("preserves --- without converting to ***", async () => {
     const src = "Above\n\n---\n\nBelow\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(await normalizeFileContent(src)).toBe(src);
   });
 });

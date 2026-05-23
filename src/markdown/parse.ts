@@ -1,14 +1,18 @@
-import { unified } from "unified";
+import { type Processor, unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkStringify from "remark-stringify";
 import { visitParents, SKIP } from "unist-util-visit-parents";
-import { inlineFields, inlineFieldsNodeHandler } from "./inlineFieldsPlugin.js";
+
+import {
+  inlineFieldsPlugin,
+  inlineFieldsNodeHandler,
+} from "./inlineFieldsPlugin.js";
 import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
 import { rolloverPlugin } from "../rules/rolloverPlugin.js";
-import type { Root, Text, ListItem, RootContent } from "mdast";
+import type { Root, Text, RootContent, Node } from "mdast";
 import type {
   ObsidianEmbedNode,
   WikiLinkNode,
@@ -24,15 +28,17 @@ import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
 import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
 import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
 import type { Job } from "../transcription/types.js";
+import { makePlugin } from "../rules/makePlugin.js";
 
-function remarkObsidianProtections() {
-  return (tree: Root): void => {
+const remarkObsidianProtections = makePlugin(
+  "obsidianProtections",
+  ({ tree }) => {
     protectObsidianEmbeds(tree);
     protectObsidianCallouts(tree);
     protectObsidianTags(tree);
     protectInertAsterisks(tree);
-  };
-}
+  },
+);
 
 export type FileOperation = {
   position: "start" | "end";
@@ -48,17 +54,24 @@ export type PluginContext = {
   updateFile(transcriptPath: string, arg1: FileOperation): unknown;
   queueJob: (job: Job) => Promise<void>;
   jobIdFactory: (createdAt: Date) => string;
+  env: NodeJS.ProcessEnv;
   skipPlugins?: boolean;
-  addTasks: Record<string /* filePath */, ListItem[]>;
   onlyGlob?: string[];
   timezone?: string;
   todayDate: Date;
+  dryRun: boolean;
   vaultPath: string;
-  alertTasks: Array<{ item: ListItem; filePath: string }>;
 };
 
-export const createParseProcessor = (config: Config, ctx: PluginContext) => {
-  let processor = unified()
+type MarkdownProcessor<
+  CompileTree extends Node | undefined = undefined,
+  Result extends string | undefined = undefined,
+> = Processor<Root, Root, Root, CompileTree, Result>;
+export const createParseProcessor = (
+  config: Config,
+  ctx: PluginContext,
+): MarkdownProcessor<Root, string> => {
+  let processor: MarkdownProcessor = unified()
     .data({
       settings: {
         onyxVellum: {
@@ -71,11 +84,11 @@ export const createParseProcessor = (config: Config, ctx: PluginContext) => {
     .use(remarkGfm)
     .use(remarkFrontmatter)
     .use(remarkWikiLink)
-    .use(remarkObsidianProtections)
-    .use(inlineFields);
+    .use(remarkObsidianProtections);
 
   if (!ctx.skipPlugins) {
     processor = processor
+      .use(inlineFieldsPlugin)
       .use(stampDonePlugin)
       .use(normalizeTodayPlugin)
       .use(rolloverPlugin)
@@ -85,14 +98,12 @@ export const createParseProcessor = (config: Config, ctx: PluginContext) => {
       .use(sortTasksSpecPlugin);
   }
 
-  processor.use(remarkStringify, {
+  return processor.use(remarkStringify, {
     bullet: "*",
     listItemIndent: "one",
     rule: "-",
     handlers: customHandlers,
   });
-
-  return processor;
 };
 const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 

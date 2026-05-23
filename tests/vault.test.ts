@@ -72,10 +72,11 @@ describe("test vault — .md.expected snapshots", () => {
   const pipelineReady: Promise<void> = (async () => {
     const { changes } = await runAllRules({
       vaultPath: TEST_VAULT,
-      today: TODAY,
+      todayDate: TODAY,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
+      updateFile: function () {},
     });
     pipelineOutputs = new Map(changes.map((c) => [c.path, c.content]));
   })();
@@ -137,10 +138,11 @@ describe("test vault — .md.expected snapshots", () => {
 
     await runAllRules({
       vaultPath: TEST_VAULT,
-      today: TODAY,
+      todayDate: TODAY,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
+      updateFile: function () {},
     });
 
     for (const [p, content] of before) {

@@ -1,8 +1,9 @@
 import { visit, SKIP } from "unist-util-visit";
 import type { Handlers, InlineFieldsNode } from "./types.js";
-import type { Plugin, Processor } from "unified";
-import type { Root, Node, PhrasingContent, ListItem } from "mdast";
+import type { PhrasingContent, ListItem, Root } from "mdast";
 import "../markdown/ast-augmentations.js";
+import type { Processor } from "unified";
+import type { VFile } from "vfile";
 
 // Utility to get the inlineFields object from the last inlineFields node in a ListItem
 export function getInlineFields(i: ListItem): Record<string, string> {
@@ -83,14 +84,8 @@ export function extractInlineFields(text: string): {
  * Removes inline fields from the text node, so downstream plugins work with clean text and structured data.
  */
 
-export const inlineFields: Plugin<[], Root> = function (
-  this: Processor<Node | undefined>,
-) {
-  const processor = this;
-
-  processor.plugins ??= new Set();
-  processor.plugins.add("inlineFields");
-  return (tree: Root, _file) => {
+export const inlineFieldsPlugin = function (this: Processor) {
+  return function (tree: Root, _file: VFile): Root | void {
     visit(tree, "listItem", (listItemNode: ListItem) => {
       const extractedFields: Record<string, string> = {};
       visit(listItemNode, "text", (textNode) => {
