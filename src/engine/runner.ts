@@ -1,7 +1,6 @@
 import yaml from "js-yaml";
-import { fromMarkdown } from "mdast-util-from-markdown";
 import { createPatch } from "diff";
-import { promises as fs } from "node:fs";
+import fs from "node:fs/promises";
 import fsPath, { relative } from "node:path";
 import {
   createParseProcessor,
@@ -18,6 +17,7 @@ import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
+import type { Processor } from "unified";
 // Utility: Check if a file matches any of the sources (glob/path)
 
 export function fileMatchesSources(
@@ -103,11 +103,7 @@ export async function runAllRules(
     },
     vaultPath: baseCtx.vaultPath,
   };
-  const processor = createParseProcessor(
-    baseCtx.vaultPath,
-    config,
-    ruleContext,
-  );
+  const processor = createParseProcessor(config, ruleContext);
   // Accepts array or single object for config.sources
   const globalGlobs: Source[] = Array.isArray(config.sources)
     ? config.sources
@@ -155,12 +151,13 @@ export async function runAllRules(
       original = "";
     }
     const vfile = new VFile({ path: filePath, value: original });
-    const tree = processor.parse(vfile);
-    const processed = (await processor.run(tree, vfile)) as Root;
+    let tree = processor.parse(vfile);
+    tree = (await processor.run(tree, vfile)) as Root;
 
-    applyFileOperations(processed, ops);
+    await applyFileOperations(processor, tree, ops);
+    tree = (await processor.run(tree, vfile)) as Root;
 
-    const normalized = String(processor.stringify(processed, vfile));
+    const normalized = String(processor.stringify(tree, vfile));
     if (normalized !== original) {
       changes.push({ path: filePath, content: normalized });
     }
@@ -320,7 +317,6 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
 export function normalizeFileContent(raw: string): string {
   const updates: Record<string, FileOperation[]> = {};
   const processor = createParseProcessor(
-    "",
     {
       rules: {},
     },
@@ -360,15 +356,20 @@ function queryFileOperationTarget(
   if (op.header === null) {
     // Find first heading node
     const children = processed.children;
-    const firstHeaderIdx = children.findIndex((n) => n.type === "heading");
-    const bodyStart = children.findIndex((n) => n.type !== "yaml") + 1;
 
-    if (firstHeaderIdx === -1) {
-      // No header: replace whole file
-      return [processed, bodyStart, children.length];
-    } else {
-      // Replace from top up to first header
-      return [processed, bodyStart, firstHeaderIdx];
+    if (op.position === "start") {
+      const firstHeaderIdx = children.findIndex((n) => n.type === "heading");
+      const bodyStart = children.findIndex((n) => n.type !== "yaml") + 1;
+
+      if (firstHeaderIdx === -1) {
+        // No header: replace whole file
+        return [processed, bodyStart, children.length];
+      } else {
+        // Replace from top up to first header
+        return [processed, bodyStart, firstHeaderIdx];
+      }
+    } else if (op.position === "end") {
+      return [processed, children.length, 0];
     }
   }
   // Not supported yet
@@ -379,7 +380,11 @@ function queryFileOperationTarget(
  * Applies FileOperations to the AST, using queryFileOperationTarget to find the region to replace.
  * Handles YAML frontmatter merging/creation, and parses op.content into AST nodes.
  */
-function applyFileOperations(processed: Root, ops: FileOperation[]) {
+async function applyFileOperations(
+  processor: Processor<Root, Root, Root>,
+  processed: Root,
+  ops: FileOperation[],
+) {
   for (const op of ops) {
     const target = queryFileOperationTarget(processed, op);
     if (!target) continue;
@@ -403,7 +408,7 @@ function applyFileOperations(processed: Root, ops: FileOperation[]) {
           unknown
         >;
       } catch {
-        // skip
+        // skip invalid frontmatter
       }
     }
     // Overwrite with op.frontmatter
@@ -415,15 +420,23 @@ function applyFileOperations(processed: Root, ops: FileOperation[]) {
 
     // Parse op.content into AST nodes
     let contentNodes: RootContent[] = [];
-    if (op.content && op.content.trim()) {
-      // Use mdast-util-from-markdown to parse content
-      const parsed = fromMarkdown(op.content);
-      contentNodes = parsed.children;
+    if (op.content) {
+      if (typeof op.content === "string") {
+        // Use mdast-util-from-markdown to parse content
+        let parsed = processor.parse(op.content.trim());
+        parsed = (await processor.run(parsed)) as Root;
+        contentNodes = parsed.children;
+      } else {
+        contentNodes = [op.content];
+      }
     }
-    // Compose new nodes: yaml + content
-    const newNodes = [yamlNode, ...contentNodes];
 
-    // Replace region
-    parent.children.splice(childIndex, numDelete, ...newNodes);
+    parent.children.splice(childIndex, numDelete, ...contentNodes);
+    if (!parent.children.includes(yamlNode)) {
+      parent.children.unshift(yamlNode);
+    }
+    if (yamlNode.value === "") {
+      parent.children.splice(parent.children.indexOf(yamlNode), 1);
+    }
   }
 }

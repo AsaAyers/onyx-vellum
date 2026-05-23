@@ -73,8 +73,6 @@ export async function trimDeadAir({
   //   controller.abort();
   // }, 30_000);
 
-  console.log("====================================");
-
   const i = setInterval(() => {
     console.log("Working on dead air...");
   }, 1_000);
@@ -107,6 +105,4 @@ export async function trimDeadAir({
     },
   );
   clearInterval(i);
-
-  console.log("====================================");
 }

@@ -26,6 +26,15 @@ export interface WikiLinkNode extends Literal {
   };
 }
 
+export interface CalloutNode extends Literal {
+  type: "callout";
+  value: string;
+  data?: {
+    calloutType: string;
+    calloutTitle?: string;
+  };
+}
+
 export interface InlineFieldsNode extends Literal {
   type: "inlineFields";
   data: { inlineFields?: Record<string, string> };
@@ -38,6 +47,11 @@ declare module "mdast" {
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
     inlineFields: InlineFieldsNode;
+    callout: CalloutNode;
+  }
+
+  interface DefinitionContentMap {
+    callout: CalloutNode;
   }
 
   interface RootContentMap {

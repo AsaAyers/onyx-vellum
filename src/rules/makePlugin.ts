@@ -25,7 +25,7 @@ export function makePlugin<
     invariant(settings, `[${pluginName}] onyxVellum settings must be provided`);
 
     const { config, ctx } = settings;
-    const ruleConfig = config.rules[pluginName] as ThisRuleConfig | undefined;
+    const ruleConfig = config.rules?.[pluginName] as ThisRuleConfig | undefined;
 
     return function (tree: Root, file: VFile): Root | void {
       try {

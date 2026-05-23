@@ -28,12 +28,12 @@ async function main() {
     addTasks: {},
     async queueJob() {},
     jobIdFactory: buildJobId,
-    vaultPath: "",
+    vaultPath,
     updateFile(transcriptPath, arg1) {
       console.log("updateFile called with:", transcriptPath, arg1);
     },
   };
-  const processor = createParseProcessor(vaultPath, config, ruleContext);
+  const processor = createParseProcessor(config, ruleContext);
 
   console.log({ filename, contents });
   const tree = processor.parse(vfile);

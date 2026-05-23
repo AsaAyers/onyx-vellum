@@ -24,28 +24,28 @@ afterEach(async () => {
 
 describe("transcription runtime", () => {
   it("enqueues transcription jobs into STATE_DIR when rules run for real", async () => {
-    const vaultDir = await createTempDir("onyx-vellum-vault-");
+    const vaultPath = await createTempDir("onyx-vellum-vault-");
     const stateDir = await createTempDir("onyx-vellum-state-");
-    await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
+    await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
     await fs.writeFile(
-      join(vaultDir, "daily.md"),
+      join(vaultPath, "daily.md"),
       "# Daily\n\n![[audio/clip.m4a]]\n",
       "utf-8",
     );
-    await fs.writeFile(join(vaultDir, "audio", "clip.m4a"), "audio", "utf-8");
+    await fs.writeFile(join(vaultPath, "audio", "clip.m4a"), "audio", "utf-8");
 
     await runAllRules({
-      vaultPath: vaultDir,
+      vaultPath,
       today: TODAY,
       dryRun: false,
       env: { STATE_DIR: stateDir },
     });
 
-    const noteContent = await fs.readFile(join(vaultDir, "daily.md"), "utf-8");
+    const noteContent = await fs.readFile(join(vaultPath, "daily.md"), "utf-8");
     expect(noteContent).toContain("![[audio/clip.transcript.md]]");
 
     const transcriptContent = await fs.readFile(
-      join(vaultDir, "audio", "clip.transcript.md"),
+      join(vaultPath, "audio", "clip.transcript.md"),
       "utf-8",
     );
     const pendingFiles = await fs.readdir(join(stateDir, "pending"));
@@ -59,7 +59,7 @@ describe("transcription runtime", () => {
 
     expect(transcriptContent).toContain("status: pending");
     expect(pendingJob).toContain(
-      `"audioPath": "${join(vaultDir, "audio", "clip.m4a")}"`,
+      `"audioPath": "${join(vaultPath, "audio", "clip.m4a")}"`,
     );
   });
 

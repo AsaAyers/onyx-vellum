@@ -1,8 +1,9 @@
 ---
 status: pending
-trimmedAudio: no
 jobId: mopf7ts0-test-job-001
 ---
-Source audio: [[recordings/A1_transcription_failure_audio.m4a]]
 
+Source audio: [[A1_transcription_failure_audio.m4a]]
+
+> [!onyx]+ OnyxVellum: job status
 > Transcription is pending.

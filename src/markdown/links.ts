@@ -1,5 +1,4 @@
 import type { LinkQuery } from "../rules/types.js";
-import type { ObsidianEmbedNode } from "./types.js";
 
 /** A single link or embed found in the document body. */
 export type MarkdownLink = {
@@ -145,27 +144,6 @@ export function deriveTranscriptTarget(audioTarget: string): string {
   const dotIndex = audioTarget.lastIndexOf(".");
   const base = dotIndex >= 0 ? audioTarget.slice(0, dotIndex) : audioTarget;
   return `${base}.transcript.md`;
-}
-
-/**
- * Produces an embed string that mirrors the style of the source audio embed.
- *
- * | Source embed          | Generated transcript embed       |
- * | --------------------- | -------------------------------- |
- * | `![[rec.m4a]]`        | `![[rec.transcript.md]]`         |
- * | `![](rec.m4a)`        | `![](rec.transcript.md)`         |
- * | `![My note](rec.m4a)` | `![](rec.transcript.md)`         |
- */
-export function buildMirroredTranscriptEmbed(
-  link: MarkdownLink | ObsidianEmbedNode,
-  transcriptTarget: string,
-): string {
-  if ("value" in link) {
-    return `![[${transcriptTarget}]]`;
-  } else if (link.wikilink) {
-    return `![[${transcriptTarget}]]`;
-  }
-  return `![](${transcriptTarget})`;
 }
 
 /**

@@ -4,17 +4,18 @@ import remarkGfm from "remark-gfm";
 import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkStringify from "remark-stringify";
-import { visit, SKIP } from "unist-util-visit";
+import { visitParents, SKIP } from "unist-util-visit-parents";
 import { inlineFields, inlineFieldsNodeHandler } from "./inlineFieldsPlugin.js";
 import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
 import { rolloverPlugin } from "../rules/rolloverPlugin.js";
-import type { Root, Text, Parent, ListItem } from "mdast";
+import type { Root, Text, ListItem, RootContent } from "mdast";
 import type {
   ObsidianEmbedNode,
   WikiLinkNode,
   Handlers,
   ObsidianTagNode,
   RawAsteriskNode,
+  CalloutNode,
 } from "./types.js";
 import type { Config } from "../config.js";
 import { stampDonePlugin } from "../rules/stampDonePlugin.js";
@@ -27,6 +28,7 @@ import type { Job } from "../transcription/types.js";
 function remarkObsidianProtections() {
   return (tree: Root): void => {
     protectObsidianEmbeds(tree);
+    protectObsidianCallouts(tree);
     protectObsidianTags(tree);
     protectInertAsterisks(tree);
   };
@@ -34,12 +36,12 @@ function remarkObsidianProtections() {
 
 export type FileOperation = {
   position: "start" | "end";
-  header: null;
+  header: null | string;
   frontmatter?: {
     jobId: string;
     status: string;
   };
-  content: string;
+  content?: string | RootContent;
 };
 
 export type PluginContext = {
@@ -55,11 +57,7 @@ export type PluginContext = {
   alertTasks: Array<{ item: ListItem; filePath: string }>;
 };
 
-export const createParseProcessor = (
-  vaultPath: string,
-  config: Config,
-  ctx: PluginContext,
-) => {
+export const createParseProcessor = (config: Config, ctx: PluginContext) => {
   let processor = unified()
     .data({
       settings: {
@@ -134,22 +132,39 @@ function splitObsidianEmbedText(
  * Mutates `tree` in place — call just before stringification.
  */
 function protectObsidianEmbeds(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("![[")) return;
-      const parts = splitObsidianEmbedText(node.value);
-      if (parts.length === 1 && parts[0].type === "text") return;
-      (parent.children as Array<Text | ObsidianEmbedNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
+  visitParents(tree, "text", (node: Text, ancestors) => {
+    const parent = ancestors[ancestors.length - 1];
+    if (!parent) return;
+    if (!node.value.includes("![[")) return;
+    const parts = splitObsidianEmbedText(node.value);
+    if (parts.length === 1 && parts[0].type === "text") return;
+    const index = [...parent.children].indexOf(node);
+    parent.children.splice(index, 1, ...parts);
+    return [SKIP, index + parts.length];
+  });
+}
+
+const CALLOUT_REGEX = /^\[\!(\w+)\]\+?/g;
+function protectObsidianCallouts(tree: Root): void {
+  visitParents(tree, "text", (node, ancestors) => {
+    const parent = ancestors[ancestors.length - 1];
+    const grandparent = ancestors[ancestors.length - 2];
+    console.log(parent.type, grandparent?.type, node.value);
+    if (parent.type === "paragraph" && grandparent.type === "blockquote") {
+      const match = node.value.match(CALLOUT_REGEX);
+      console.log({ match });
+      if (match) {
+        const index = [...parent.children].indexOf(node);
+        const calloutType = match[1];
+        const calloutNode: CalloutNode = {
+          type: "callout",
+          value: node.value,
+          data: { calloutType },
+        };
+        parent.children[index] = calloutNode;
+      }
+    }
+  });
 }
 
 /**
@@ -188,26 +203,18 @@ function splitObsidianTagText(value: string): Array<Text | ObsidianTagNode> {
  * Mutates `tree` in place — call just before stringification.
  */
 function protectObsidianTags(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("#")) return;
-      const parts = splitObsidianTagText(node.value);
-      if (
-        parts.length === 0 ||
-        (parts.length === 1 && parts[0].type === "text")
-      )
-        return;
-      (parent.children as Array<Text | ObsidianTagNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
+  visitParents(tree, "text", (node: Text, ancestors) => {
+    const parent = ancestors[ancestors.length - 1];
+    if (!parent) return;
+    if (!node.value.includes("#")) return;
+    const parts = splitObsidianTagText(node.value);
+    if (parts.length === 0 || (parts.length === 1 && parts[0].type === "text"))
+      return;
+
+    const index = [...parent.children].indexOf(node);
+    parent.children.splice(index, 1, ...parts);
+    return [SKIP, index + parts.length];
+  });
 }
 
 // ASCII punctuation characters used by the CommonMark flanking-delimiter rules.
@@ -301,43 +308,37 @@ function inertAsteriskPositions(value: string): Set<number> {
  * Mutates `tree` in place — call just before stringification.
  */
 function protectInertAsterisks(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("*")) return;
+  visitParents(tree, "text", (node, ancestors) => {
+    const parent = ancestors[ancestors.length - 1];
+    if (!parent) return;
+    if (!node.value.includes("*")) return;
 
-      const inert = inertAsteriskPositions(node.value);
-      if (inert.size === 0) return;
+    const inert = inertAsteriskPositions(node.value);
+    if (inert.size === 0) return;
 
-      const parts: Array<Text | RawAsteriskNode> = [];
-      let lastIdx = 0;
-      for (let i = 0; i < node.value.length; i++) {
-        if (inert.has(i)) {
-          if (i > lastIdx) {
-            parts.push({
-              type: "text",
-              value: node.value.slice(lastIdx, i),
-            } as Text);
-          }
-          parts.push({ type: "rawAsterisk", value: "*" } as RawAsteriskNode);
-          lastIdx = i + 1;
+    const parts: Array<Text | RawAsteriskNode> = [];
+    let lastIdx = 0;
+    for (let i = 0; i < node.value.length; i++) {
+      if (inert.has(i)) {
+        if (i > lastIdx) {
+          parts.push({
+            type: "text",
+            value: node.value.slice(lastIdx, i),
+          } as Text);
         }
+        parts.push({ type: "rawAsterisk", value: "*" } as RawAsteriskNode);
+        lastIdx = i + 1;
       }
-      if (lastIdx < node.value.length) {
-        parts.push({ type: "text", value: node.value.slice(lastIdx) } as Text);
-      }
-      if (parts.length <= 1) return;
+    }
+    if (lastIdx < node.value.length) {
+      parts.push({ type: "text", value: node.value.slice(lastIdx) } as Text);
+    }
+    if (parts.length <= 1) return;
 
-      (parent.children as Array<Text | RawAsteriskNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
+    const index = [...parent.children].indexOf(node);
+    parent.children.splice(index, 1, ...parts);
+    return [SKIP, index + parts.length];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +490,10 @@ linkHandler.peek = (node: any, _: any, state: any): string =>
 // Markdown stringifier handlers
 // ---------------------------------------------------------------------------
 
+function rawHandler<T extends { value: string }>(node: T): string {
+  return node.value;
+}
+
 /** Emit custom nodes verbatim, without any escaping. */
 const customHandlers = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -499,6 +504,7 @@ const customHandlers = {
     return `[[${wiki.value}]]`;
   },
 
+  callout: rawHandler,
   obsidianEmbed: (node) =>
     `![[${(node as ObsidianEmbedNode).target}${
       (node as ObsidianEmbedNode).alias

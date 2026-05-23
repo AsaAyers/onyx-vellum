@@ -57,19 +57,17 @@ export const moveDoneTasksPlugin = makePlugin(
           if (item.type === "listItem") {
             const checked = item.checked;
             const fields = getInlineFields(item);
-            console.log("moveDoneTasksPlugin debug:", {
-              checked,
-              fields,
-              item,
-            });
             if (checked && fields.done) {
               const done = fields.done;
               const destPath = `${vaultPath}/${dailyNotesFolder}/${done}.md`;
               const destExists = fs.existsSync(destPath);
 
               if (destExists) {
-                ctx.addTasks[destPath] = ctx.addTasks[destPath] || [];
-                ctx.addTasks[destPath].push(item);
+                ctx.updateFile(destPath, {
+                  header: null,
+                  position: "end",
+                  content: item,
+                });
                 return false; // Remove from current file
               }
             }

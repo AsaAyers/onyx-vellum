@@ -5,6 +5,7 @@ import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionCon
 import type { TranscriptionPipelineJob } from "../transcription/types.js";
 import { makePlugin } from "./makePlugin.js";
 import path from "node:path";
+import type { ObsidianEmbedNode } from "../markdown/types.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -41,8 +42,11 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
       });
 
       if (!hasTranscriptLink) {
-        const newLink = JSON.parse(JSON.stringify(node)) as typeof node;
-        newLink.target = path.relative(vaultPath, transcriptPath);
+        const newLink: ObsidianEmbedNode = {
+          type: "obsidianEmbed",
+          target: transcriptPath,
+          value: `[[${transcriptPath}]]`,
+        };
         parent.children.splice(
           parent.children.indexOf(node) + 1,
           0,
@@ -56,25 +60,36 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 
       if (!transcriptExists) {
         const createdAt = todayDate.toISOString();
+        const absoluteTranscriptPath = path.join(
+          path.dirname(file.path),
+          transcriptPath,
+        );
         const job: TranscriptionPipelineJob = {
           type: "transcription-pipeline",
           id: ctx.jobIdFactory(todayDate),
           audioPath,
-          transcriptPath,
+          transcriptPath: absoluteTranscriptPath,
           sourceNotePath: file.path,
           createdAt,
         };
 
         ctx.queueJob(job);
 
-        ctx.updateFile(transcriptPath, {
+        console.log({
+          absoluteTranscriptPath,
+          audioPath,
+        });
+        ctx.updateFile(absoluteTranscriptPath, {
           position: "start",
           header: null,
           frontmatter: {
-            jobId: job.id,
             status: "pending",
+            jobId: job.id,
           },
-          content: `Source audio: [[${path.relative(vaultPath, audioPath)}]]
+          content: `Source audio: [[${path.relative(
+            path.dirname(absoluteTranscriptPath),
+            audioPath,
+          )}]]
 
 > [!onyx]+ OnyxVellum: job status
 > Transcription is pending.

@@ -1,15 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import {
-  basename,
-  dirname,
-  extname,
-  isAbsolute,
-  relative,
-  resolve,
-} from "node:path";
-import {
-  buildMirroredTranscriptEmbed,
-  deriveTranscriptTarget,
   hasEmbedAnywhere,
   insertEmbedBelowLine,
   type MarkdownLink,
@@ -41,23 +32,21 @@ export function resolveTranscriptContext(
 ): ResolvedTranscriptContext | undefined {
   if (!link || !ctx) return undefined;
 
+  const transcriptPath = link.target.replace(/\.m4a$/, ".transcript.md");
   const audioPath = resolve(dirname(ctx.sourceNotePath), link.target);
   const exists = existsSync(audioPath);
   if (!exists) return undefined;
   if (!isWithinVault(ctx.vaultPath, audioPath)) return undefined;
 
-  const transcriptTarget = deriveTranscriptTarget(link.target);
-  const transcriptEmbed = buildMirroredTranscriptEmbed(link, transcriptTarget);
-  const transcriptPath = resolve(
-    dirname(audioPath),
-    `${basename(audioPath, extname(audioPath))}.transcript.md`,
-  );
+  const transcriptEmbed = `![[${transcriptPath}]]`;
 
   return {
     audioPath,
     transcriptPath,
     transcriptEmbed,
-    transcriptExists: existsSync(transcriptPath),
+    transcriptExists: existsSync(
+      resolve(dirname(ctx.sourceNotePath), transcriptPath),
+    ),
   };
 }
 
