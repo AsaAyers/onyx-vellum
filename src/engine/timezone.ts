@@ -1,5 +1,5 @@
 import z from "zod";
-import { format, toZonedTime } from "date-fns-tz";
+import { format, toZonedTime, toDate } from "date-fns-tz";
 import { addDays } from "date-fns";
 import createDebug from "debug";
 
@@ -35,14 +35,15 @@ export const zUserLocalTime = zTimeInput
         const { strDate, tz } = input.data;
         const toISO = (d: Date) => format(d, "yyyy-MM-dd", { timeZone: tz });
 
-        const now = toZonedTime(new Date(), tz);
+        const now = toDate(new Date(), { timeZone: tz });
+        const dateInput = strDate ?? now;
+
+        const date = toZonedTime(dateInput, tz);
         if (strDate) {
           const [year, month, day] = strDate.split("-").map(Number);
-          now.setFullYear(year, month - 1, day);
+          date.setFullYear(year, month - 1, day);
+          date.setHours(12, 0, 0, 0);
         }
-
-        const dateInput = strDate ?? new Date();
-        const date = toZonedTime(dateInput, tz);
         const today = toISO(date);
         debug(
           "Parsed user local time",
@@ -55,7 +56,7 @@ export const zUserLocalTime = zTimeInput
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "Provided date is not today in the specified timezone",
-            params: { strDate, today },
+            params: { strDate, today, date },
           });
           return z.NEVER;
         }

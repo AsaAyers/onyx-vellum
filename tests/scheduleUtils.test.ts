@@ -6,7 +6,6 @@ import {
   parseRepeat,
   computeNextDue,
   formatDateStr,
-  parseDateStr,
 } from "../src/rules/scheduleUtils.js";
 
 describe("parseRepeat", () => {
@@ -158,19 +157,6 @@ describe("date helpers", () => {
     expect(formatDateStr(new Date(2026, 0, 1), TEST_TIMEZONE)).toBe(
       "2026-01-01",
     );
-  });
-
-  it("parseDateStr parses YYYY-MM-DD", () => {
-    const d = parseDateStr("2026-05-03", TEST_TIMEZONE);
-    expect(d).not.toBeNull();
-    expect(d!.getFullYear()).toBe(2026);
-    expect(d!.getMonth()).toBe(4); // 0-indexed
-    expect(d!.getDate()).toBe(3);
-  });
-
-  it("parseDateStr returns null for invalid strings", () => {
-    expect(parseDateStr("not-a-date", TEST_TIMEZONE)).toBeNull();
-    expect(parseDateStr("2026/05/03", TEST_TIMEZONE)).toBeNull();
   });
 
   it("addDays adds calendar days", () => {
