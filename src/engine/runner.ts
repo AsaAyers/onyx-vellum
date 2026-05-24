@@ -23,6 +23,7 @@ import {
   ALERT_FILE,
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
+import { zUserLocalTime } from "./timezone.js";
 
 export function fileMatchesSources(
   file: VaultFile,
@@ -73,6 +74,7 @@ export async function runAllRules(
 ): Promise<{
   changes: ChangesArray;
   report: string;
+  matchingFiles: VaultFile[];
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
@@ -116,8 +118,14 @@ export async function runAllRules(
     globalGlobs.push(
       ...baseCtx.onlyGlob
         .filter((path) => path.endsWith(".md"))
-        .map((value): Source => ({ type: "path", value })),
+        .map(
+          (value): Source =>
+            value.includes("*")
+              ? { type: "glob", pattern: value }
+              : { type: "path", value },
+        ),
     );
+    console.log({ globalGlobs });
   }
 
   // Filter all .md files in the vault
@@ -141,6 +149,9 @@ export async function runAllRules(
       original = await fileManager.read(vaultFile);
     } catch {
       continue;
+    }
+    if (!original) {
+      console.warn("Empty file:", vaultFile.relativePath);
     }
 
     const vfile = new VFile({ path: vaultFile.absolutePath, value: original });
@@ -218,7 +229,7 @@ export async function runAllRules(
     }
   }
 
-  return { changes, report: lines.join("\n") };
+  return { changes, report: lines.join("\n"), matchingFiles };
 }
 
 export async function runInitPass(vaultPath: string, dryRun: boolean) {
@@ -324,7 +335,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
  * Normalize a single file's raw content through the parse → stringify
  * pipeline, preserving structured YAML frontmatter data.
  */
-export async function normalizeFileContent(raw: string) {
+export async function normalizeFileContent(raw: string, tz: string = "UTC") {
   const fileOperations = new FileOperationExecutor();
   const processor = createParseProcessor(
     {
@@ -335,7 +346,7 @@ export async function normalizeFileContent(raw: string) {
       updateFile: fileOperations.updateFile,
       queueJob: async () => {},
       jobIdFactory: buildJobId,
-      todayDate: new Date(),
+      dates: zUserLocalTime.parse({ tz }),
       vaultPath: "",
       dryRun: true,
       env: {},

@@ -3,7 +3,6 @@ import type { Root } from "mdast";
 import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
-import { formatDateStr } from "./scheduleUtils.js";
 
 /**
  * remark plugin to remove unchecked ephemeral tasks that are overdue.
@@ -12,7 +11,7 @@ import { formatDateStr } from "./scheduleUtils.js";
 export const removeEphemeralOverdueTasksPlugin = makePlugin(
   "removeEphemeralOverdueTasks",
   function ({ tree, ctx }) {
-    const todayStr = formatDateStr(ctx.todayDate, ctx.timezone ?? "UTC");
+    const todayStr = ctx.dates.today;
     visit(tree as Root, "list", (listNode) => {
       // Remove matching listItems in-place
       if (!Array.isArray(listNode.children)) return;

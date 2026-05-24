@@ -6,7 +6,7 @@ import {
   normalizeAlertSchedule,
 } from "./engine/scheduler.js";
 import { createStopAll } from "./engine/watchMode.js";
-import { toTimezoneDate } from "./engine/timezone.js";
+import { zUserLocalTime } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
 import type { PluginContext } from "./markdown/parse.js";
@@ -72,7 +72,7 @@ if (init) {
     console.error("Run with --help for full usage information.");
     process.exit(1);
   }
-  const ruleContext: Omit<Parameters<typeof runAllRules>[0], "todayDate"> = {
+  const ruleContext: Omit<Parameters<typeof runAllRules>[0], "dates"> = {
     mode,
     vaultPath,
     dryRun,
@@ -87,10 +87,13 @@ if (init) {
     mode: PluginContext["mode"],
     glob?: string[],
   ): Promise<void> => {
+    const dates = zUserLocalTime.parse({
+      tz: config.timezone,
+    });
     const { report } = await runAllRules({
       ...ruleContext,
       mode,
-      todayDate: toTimezoneDate(new Date(), config.timezone),
+      dates,
       onlyGlob: glob,
     });
 
@@ -183,7 +186,7 @@ if (init) {
         await runAllRules({
           ...ruleContext,
           mode: "alert",
-          todayDate: toTimezoneDate(new Date(), timezone),
+          dates: zUserLocalTime.parse({ tz: timezone, noon: false }),
         });
       },
       { getTimezone: () => timezone },

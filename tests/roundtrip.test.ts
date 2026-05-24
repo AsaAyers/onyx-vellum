@@ -24,6 +24,7 @@ import { createParseProcessor } from "../src/markdown/parse.js";
 import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
 import type { Paragraph } from "mdast";
 import { buildJobId } from "../src/transcription/queue.js";
+import { testDate } from "./testDate.js";
 
 // Repro: bullet list with nested numbered list
 // (was de-indented and got an extra blank line in some remark-stringify versions)
@@ -111,7 +112,7 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
     // The output representation may differ slightly but the rendered semantics
     // must be identical: the * characters must not form an emphasis node.
     const tree = createParseProcessor(EMPTY_CONFIG, {
-      todayDate: new Date(),
+      dates: testDate,
       vaultPath,
       async queueJob() {},
       jobIdFactory: buildJobId,

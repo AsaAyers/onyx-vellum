@@ -4,9 +4,9 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runAllRules } from "../src/engine/runner.js";
 import { resolveStateDir } from "../src/transcription/runtime.js";
+import { testDate } from "./testDate.js";
 
 const CREATED_DIRS: string[] = [];
-const TODAY = new Date(2026, 4, 3);
 
 async function createTempDir(prefix: string): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), prefix));
@@ -36,7 +36,7 @@ describe("transcription runtime", () => {
 
     await runAllRules({
       vaultPath,
-      todayDate: TODAY,
+      dates: testDate,
       dryRun: false,
       env: { STATE_DIR: stateDir },
       mode: "all",

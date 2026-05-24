@@ -3,9 +3,9 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAllRules } from "../src/engine/runner.js";
+import { testDate } from "./testDate.js";
 
 const CREATED_DIRS: string[] = [];
-const TODAY = new Date(2026, 4, 3);
 
 async function createTempVault(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), "onyx-vellum-transcript-rule-"));
@@ -38,7 +38,7 @@ describe("moveDoneTasks - config opt-in", () => {
 
     await runAllRules({
       vaultPath,
-      todayDate: TODAY,
+      dates: testDate,
       dryRun: false,
       env: {},
       mode: "all",

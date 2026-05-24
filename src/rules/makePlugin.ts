@@ -7,6 +7,9 @@ import { fileMatchesSources } from "../engine/runner.js";
 import type { PluginContext } from "../markdown/parse.js";
 import { join } from "node:path";
 import { zVaultFile } from "../engine/io.js";
+import createDebug from "debug";
+
+const debugBase = createDebug("onyx:plugins");
 
 export function makePlugin<
   PluginName extends string,
@@ -19,8 +22,12 @@ export function makePlugin<
     ctx: PluginContext;
     ruleConfig?: ThisRuleConfig;
     config: Config;
+    debug: typeof debugBase;
   }) => Root | void,
 ): Plugin<[], Root> {
+  const debug = debugBase.extend(pluginName);
+
+  const debugMakePlugin = createDebug(`onyx:makePlugin:${pluginName}`);
   return function pluginFactory(this: Processor) {
     const processor = this;
     const settings = processor.data("settings")?.onyxVellum;
@@ -44,10 +51,19 @@ export function makePlugin<
           vaultFile &&
           !fileMatchesSources(vaultFile, ruleConfig.sources)
         ) {
+          debugMakePlugin(
+            `[${pluginName}] Skipping file ${vaultFile.relativePath} due to source filter`,
+          );
           return tree;
         }
 
-        return coreLogic({ tree, file, ctx, ruleConfig, config }) ?? tree;
+        debugMakePlugin(
+          `[${pluginName}] running plugin on file ${vaultFile?.relativePath ?? "unknown"}`,
+        );
+
+        return (
+          coreLogic({ tree, file, ctx, ruleConfig, config, debug }) ?? tree
+        );
       } catch (err) {
         console.error(`[${pluginName}] Plugin error:`, err);
         return tree;

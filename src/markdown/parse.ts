@@ -32,7 +32,7 @@ import type { Job } from "../transcription/types.js";
 import { makePlugin } from "../rules/makePlugin.js";
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
 import type { VaultFile } from "../engine/io.js";
-import { format } from "date-fns-tz";
+import type { UserNoon } from "../engine/timezone.js";
 
 const debug = createDebug("onyx:markdown:parse");
 
@@ -63,8 +63,7 @@ export type PluginContext = {
   env: NodeJS.ProcessEnv;
   mode: "normalize" | "all" | "fast" | "alert";
   onlyGlob?: string[];
-  timezone?: string;
-  todayDate: Date;
+  dates: UserNoon;
   dryRun: boolean;
   vaultPath: string;
 };
@@ -77,11 +76,7 @@ export const createParseProcessor = (
   config: Config,
   ctx: PluginContext,
 ): MarkdownProcessor<Root, string> => {
-  debug(
-    "Creating markdown processor with ruleContext:",
-    ctx,
-    format(ctx.todayDate, "yyyy-MM-dd", { timeZone: ctx.timezone || "UTC" }),
-  );
+  debug("Creating markdown processor with ruleContext:", ctx);
   let processor: MarkdownProcessor = unified()
     .data({
       settings: {

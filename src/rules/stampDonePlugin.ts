@@ -3,7 +3,6 @@ import type { Root } from "mdast";
 import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
-import { format } from "date-fns-tz";
 
 /**
  * remark plugin to stamp the current date into the `done` field of checked tasks that lack it.
@@ -12,13 +11,11 @@ import { format } from "date-fns-tz";
 export const stampDonePlugin = makePlugin(
   "stampDone",
   function ({ tree, ctx }) {
-    const todayStr = format(ctx.todayDate, "yyyy-MM-dd", {
-      timeZone: ctx.timezone,
-    });
+    const today = ctx.dates.today;
     visit(tree as Root, "listItem", (node) => {
       if (!node.checked) return;
       const fields = getInlineFields(node);
-      fields.done ??= todayStr;
+      fields.done ??= today;
     });
   },
 );

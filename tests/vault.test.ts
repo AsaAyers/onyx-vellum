@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { runAllRules } from "../src/engine/runner.js";
 import { walkMarkdownFiles } from "../src/engine/io.js";
 import fs, { promises as fsp } from "node:fs";
+import { testDate } from "./testDate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEST_VAULT = join(__dirname, "test_vault");
@@ -25,9 +26,6 @@ const WORKER_ONLY_EXPECTED_OUTPUTS = new Set([
     "A1_transcription_failure_audio.m4a",
   ),
 ]);
-
-// Pin the date so the test produces the same output regardless of when it runs.
-const TODAY = new Date(2026, 4, 3); // 2026-05-03
 
 const CREATED_DIRS: string[] = [];
 const deterministicJobIdFactory = (): string => `mopf7ts0-test-job-001`;
@@ -72,7 +70,7 @@ describe("test vault — .md.expected snapshots", () => {
   const pipelineReady: Promise<void> = (async () => {
     const { changes } = await runAllRules({
       vaultPath: TEST_VAULT,
-      todayDate: TODAY,
+      dates: testDate,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
@@ -141,7 +139,7 @@ describe("test vault — .md.expected snapshots", () => {
 
     await runAllRules({
       vaultPath: TEST_VAULT,
-      todayDate: TODAY,
+      dates: testDate,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,

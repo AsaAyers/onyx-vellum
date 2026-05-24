@@ -75,7 +75,7 @@ function queryFileOperationTarget(
       // Replace from top up to first header
       return [processed, bodyStart, preHeaderIndex - bodyStart, []];
     } else if (op.position === "end") {
-      return [processed, children.length - 1, 0, []];
+      return [processed, children.length, 0, []];
     }
   } else if (op.header !== null) {
     const startIdx = children.findIndex(

@@ -95,10 +95,7 @@ export function parseDateStr(dateStr: string, timezone: string): Date | null {
  * Example: repeat:1mwf completed on Monday → minDate is Sunday → next
  * Mon/Wed/Fri ≥ Sunday = Monday (same weekday, ~1 week later).
  */
-export function computeNextDue(
-  completionDate: Date,
-  schedule: RepeatSchedule,
-): Date {
+export function computeNextDue(completionDate: Date, schedule: RepeatSchedule) {
   const { skipWeeks, days } = schedule;
   const offset = skipWeeks === 0 ? 1 : skipWeeks * 7 - 1;
   const minDate = addDays(completionDate, offset);

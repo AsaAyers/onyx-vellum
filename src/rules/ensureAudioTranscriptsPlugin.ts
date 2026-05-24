@@ -22,7 +22,8 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
       }
       invariant(parent, "obsidianEmbed node must have a parent");
 
-      const { todayDate, vaultPath } = ctx;
+      const { dates, vaultPath } = ctx;
+      const todayDate = dates.date;
       const tmp = resolveTranscriptContext(node, {
         sourceNotePath: file.path,
         vaultPath,

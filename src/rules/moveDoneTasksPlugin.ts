@@ -7,6 +7,7 @@ import { makePlugin } from "./makePlugin.js";
 import type { RuleConfig } from "../config.js";
 import { join } from "node:path";
 import { zVaultFile } from "../engine/io.js";
+
 export type MoveDoneTasksConfig = RuleConfig & {
   dailyNotesFolder?: string;
 };
@@ -18,7 +19,7 @@ export type MoveDoneTasksConfig = RuleConfig & {
  */
 export const moveDoneTasksPlugin = makePlugin(
   "moveDoneTasks",
-  function ({ tree, ctx, ruleConfig }) {
+  function ({ tree, ctx, ruleConfig, debug }) {
     const { vaultPath } = ctx;
     const dailyNotesFolder = ruleConfig?.dailyNotesFolder;
     if (dailyNotesFolder) {
@@ -29,6 +30,7 @@ export const moveDoneTasksPlugin = makePlugin(
           if (item.type === "listItem") {
             const checked = item.checked;
             const fields = getInlineFields(item);
+            debug({ checked, done: fields.done });
             if (checked && fields.done) {
               const done = fields.done;
               const relativePath = join(dailyNotesFolder, `${done}.md`);
@@ -37,7 +39,10 @@ export const moveDoneTasksPlugin = makePlugin(
                 relativePath: relativePath,
               });
               const destExists = fs.existsSync(vaultFile.absolutePath);
-              console.log({ destExists });
+              debug(vaultFile.relativePath, {
+                destExists,
+                today: ctx.dates.today,
+              });
 
               if (destExists) {
                 ctx.updateFile(vaultFile, {

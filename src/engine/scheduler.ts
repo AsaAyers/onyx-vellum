@@ -1,5 +1,3 @@
-import { toTimezoneDate } from "./timezone.js";
-
 /**
  * Schedule-based alert runner for watch mode.
  *
@@ -8,6 +6,8 @@ import { toTimezoneDate } from "./timezone.js";
  * alert should fire. If the current local-clock HH:MM is in that list and has
  * not already fired in this minute window, `onAlert` is invoked.
  */
+
+import { zUserLocalTime } from "./timezone.js";
 
 /**
  * Start a recurring schedule check.
@@ -73,7 +73,9 @@ export function createAlertScheduler(
     const schedule = normalizeAlertSchedule(getSchedule()).valid;
     if (schedule.length === 0) return;
 
-    const now = toTimezoneDate(new Date(), getTimezone?.());
+    const now = zUserLocalTime.parse({
+      tz: getTimezone?.() ?? "UTC",
+    }).date;
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
     const currentMinute = `${hh}:${mm}`;

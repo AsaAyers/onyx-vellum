@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import { VFile } from "vfile";
 import type { Root } from "mdast";
 import { buildJobId } from "../transcription/queue.js";
-import { toZonedTime } from "date-fns-tz";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
+import { zUserLocalTime } from "../engine/timezone.js";
 
 async function main() {
   const filename = process.argv[2];
@@ -21,12 +21,11 @@ async function main() {
 
   const vfile = new VFile({ path: filename, value: contents });
 
-  const timezone = "America/Los_Angeles";
+  const tz = "America/Los_Angeles";
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     mode: "all",
-    timezone,
-    todayDate: toZonedTime(new Date(), timezone),
+    dates: zUserLocalTime.parse({ tz }),
     async queueJob() {},
     jobIdFactory: buildJobId,
     vaultPath,

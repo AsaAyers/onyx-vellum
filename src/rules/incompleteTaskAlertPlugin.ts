@@ -1,4 +1,3 @@
-import { toZonedTime } from "date-fns-tz";
 import type { Config } from "../config.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
@@ -19,7 +18,6 @@ export const incompleteTaskAlertPlugin = makePlugin(
       return;
     }
     if (file.path === ALERT_FILE) return;
-    const timezone = ctx.timezone || "UTC";
     const vaultFile = zVaultFile.parse({
       absolutePath: join(ctx.vaultPath, ALERT_FILE),
       relativePath: ALERT_FILE,
@@ -28,20 +26,11 @@ export const incompleteTaskAlertPlugin = makePlugin(
     visit(tree, "listItem", (node) => {
       if (node.checked === false) {
         const fields = getInlineFields(node);
-        const now = toZonedTime(new Date(), timezone);
-
-        if (fields.start) {
-          const startDate = toZonedTime(fields.start, timezone);
-          if (startDate > now) {
-            return; // Not started yet, skip alert
-          }
+        if (fields.start && fields.start > ctx.dates.today) {
+          return; // Not started yet, skip alert
         }
-
-        if (fields.snooze) {
-          const snoozeDate = toZonedTime(fields.snooze, timezone);
-          if (snoozeDate > now) {
-            return; // Snoozed, skip alert
-          }
+        if (fields.snooze && fields.snooze > ctx.dates.today) {
+          return; // Snoozed, skip alert
         }
 
         ctx.updateFile(vaultFile, {

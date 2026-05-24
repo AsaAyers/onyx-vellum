@@ -5,8 +5,6 @@ import {
 import { visit } from "unist-util-visit";
 import type { ListItem } from "mdast";
 import "../markdown/ast-augmentations.js";
-import { format } from "date-fns-tz";
-import { addDays } from "date-fns";
 import { makePlugin } from "./makePlugin.js";
 
 /** Inline date fields that may contain relative date literals. */
@@ -18,16 +16,9 @@ const DATE_KEYS = ["due", "start", "snooze", "done"] as const;
  */
 export const normalizeTodayPlugin = makePlugin(
   "normalizeTodayLiteral",
-  function ({ tree, ctx, file }) {
-    const { timezone, todayDate } = ctx;
+  function ({ tree, ctx }) {
+    const { today, yesterday, tomorrow } = ctx.dates;
 
-    const toISO = (d: Date) => format(d, "yyyy-MM-dd", { timeZone: timezone });
-
-    const todayStr = format(todayDate, "yyyy-MM-dd", { timeZone: timezone });
-    const yesterdayDate = addDays(todayDate, -1);
-    const tomorrowDate = addDays(todayDate, 1);
-    const yesterdayStr = toISO(yesterdayDate);
-    const tomorrowStr = toISO(tomorrowDate);
     // Normalize all recognized date literals in DATE_KEYS only, on the inlineFields node
     // ...existing code...
     visit(tree, "listItem", (node: ListItem) => {
@@ -37,11 +28,11 @@ export const normalizeTodayPlugin = makePlugin(
         if (typeof value === "string") {
           const v = value.trim().toLowerCase();
           if (v === "today") {
-            setInlineField(node, key, todayStr);
+            setInlineField(node, key, today);
           } else if (v === "yesterday") {
-            setInlineField(node, key, yesterdayStr);
+            setInlineField(node, key, yesterday);
           } else if (v === "tomorrow") {
-            setInlineField(node, key, tomorrowStr);
+            setInlineField(node, key, tomorrow);
           }
         }
       }
