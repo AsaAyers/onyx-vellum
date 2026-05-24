@@ -2,6 +2,7 @@ import type { Literal } from "mdast";
 import type { Options as RemarkStringifyOptions } from "remark-stringify";
 
 export type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
+export type Handle = Handlers[keyof Handlers];
 // ---------------------------------------------------------------------------
 // Obsidian embed wikilink support
 // ---------------------------------------------------------------------------

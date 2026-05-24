@@ -2,7 +2,6 @@ import { visit } from "unist-util-visit";
 import { parseRepeat, computeNextDue } from "./scheduleUtils.js";
 import { addDays, differenceInCalendarDays } from "date-fns";
 import type { ListItem, Root } from "mdast";
-import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { format } from "date-fns-tz";

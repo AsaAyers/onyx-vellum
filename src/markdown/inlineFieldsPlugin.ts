@@ -1,7 +1,6 @@
 import { visit, SKIP } from "unist-util-visit";
 import type { Handlers, InlineFieldsNode } from "./types.js";
 import type { PhrasingContent, ListItem, Root } from "mdast";
-import "../markdown/ast-augmentations.js";
 import type { Processor } from "unified";
 import type { VFile } from "vfile";
 import createDebug from "debug";
@@ -55,10 +54,12 @@ export function extractInlineFields(text: string): {
   while ((match = fieldPattern.exec(text)) !== null) {
     const key = match[1];
     const value = match[2];
-    fields[key] = value;
-    const start = match.index;
-    const end = match.index + match[0].length;
-    removals.push({ start, end });
+    if (KNOWN_INLINE_FIELD_ORDER.includes(key)) {
+      fields[key] = value;
+      const start = match.index;
+      const end = match.index + match[0].length;
+      removals.push({ start, end });
+    }
   }
   if (removals.length > 0) {
     let result = "";

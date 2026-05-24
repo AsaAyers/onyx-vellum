@@ -1,5 +1,4 @@
 import { visit } from "unist-util-visit";
-import "../markdown/ast-augmentations.js";
 import invariant from "tiny-invariant";
 import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
 import type { TranscriptionPipelineJob } from "../transcription/types.js";

@@ -23,7 +23,6 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { MoveDoneTasksConfig } from "./rules/moveDoneTasksPlugin.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -102,10 +101,6 @@ export const zConfig = z
     rules: zKnownRuleConfig,
   })
   .strict();
-
-export interface ConfiguredRules {
-  moveDoneTasks: MoveDoneTasksConfig;
-}
 
 // ---------------------------------------------------------------------------
 // Types

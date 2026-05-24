@@ -1,4 +1,5 @@
-import { createParseProcessor, type PluginContext } from "./parse.js";
+import { createParseProcessor } from "./parse.js";
+import { type PluginContext } from "./PluginContext.js";
 import { EMPTY_CONFIG } from "./defaultConfig.js";
 import fs from "node:fs/promises";
 import { VFile } from "vfile";

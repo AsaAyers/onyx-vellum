@@ -1,6 +1,5 @@
 import { visit } from "unist-util-visit";
 import type { Root } from "mdast";
-import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 

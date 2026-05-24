@@ -1,7 +1,8 @@
 import { createPatch } from "diff";
 import fs from "node:fs/promises";
 import { join } from "node:path";
-import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
+import { createParseProcessor } from "../markdown/parse.js";
+import { type PluginContext } from "../markdown/PluginContext.js";
 import {
   FileWriteManager,
   walkMarkdownFiles,
@@ -11,42 +12,21 @@ import {
 } from "./io.js";
 import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../config.js";
-import micromatch from "micromatch";
 import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
-import { FileOperationExecutor } from "./FileOperationExecutor.js";
+import {
+  fileMatchesSources,
+  FileOperationExecutor,
+} from "./FileOperationExecutor.js";
 import {
   ALERT_FILE,
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
 import { type UserLocalTime } from "./timezone.js";
-
-export function fileMatchesSources(
-  file: VaultFile,
-  sources: Source[],
-): boolean {
-  const relPath = file.relativePath;
-  for (const src of sources) {
-    if (src.type === "glob" && src.pattern) {
-      if (micromatch.isMatch(relPath, src.pattern)) {
-        if (
-          src.exclude &&
-          src.exclude.some((ex: string) => micromatch.isMatch(relPath, ex))
-        ) {
-          continue;
-        }
-        return true;
-      }
-    } else if (src.type === "path" && src.value) {
-      if (relPath === src.value) return true;
-    }
-  }
-  return false;
-}
 
 /**
  * Run all registered rules against the vault.

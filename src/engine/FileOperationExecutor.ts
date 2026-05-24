@@ -2,10 +2,11 @@ import yaml from "js-yaml";
 import type { Heading, Root, RootContent } from "mdast";
 import type { Processor } from "unified";
 import { VFile } from "vfile";
-import type { FileOperation } from "../markdown/parse.js";
 import createDebug from "debug";
 import { zVaultFile, type FileWriteManager, type VaultFile } from "./io.js";
 import { join } from "node:path";
+import micromatch from "micromatch";
+import type { Source } from "../rules/types.js";
 
 const debug = createDebug("onyx:fileOperationExecutor");
 
@@ -183,4 +184,35 @@ async function applyFileOperations(
       parent.children.splice(parent.children.indexOf(yamlNode), 1);
     }
   }
+}
+export type FileOperation = {
+  position: "start" | "end";
+  header: null | string;
+  frontmatter?: {
+    jobId: string;
+    status: string;
+  };
+  content?: string | RootContent;
+};
+export function fileMatchesSources(
+  file: VaultFile,
+  sources: Source[],
+): boolean {
+  const relPath = file.relativePath;
+  for (const src of sources) {
+    if (src.type === "glob" && src.pattern) {
+      if (micromatch.isMatch(relPath, src.pattern)) {
+        if (
+          src.exclude &&
+          src.exclude.some((ex: string) => micromatch.isMatch(relPath, ex))
+        ) {
+          continue;
+        }
+        return true;
+      }
+    } else if (src.type === "path" && src.value) {
+      if (relPath === src.value) return true;
+    }
+  }
+  return false;
 }

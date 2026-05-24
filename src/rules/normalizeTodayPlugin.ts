@@ -4,7 +4,6 @@ import {
 } from "../markdown/inlineFieldsPlugin.js";
 import { visit } from "unist-util-visit";
 import type { ListItem } from "mdast";
-import "../markdown/ast-augmentations.js";
 import { makePlugin } from "./makePlugin.js";
 
 /** Inline date fields that may contain relative date literals. */

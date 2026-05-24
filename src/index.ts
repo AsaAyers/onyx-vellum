@@ -9,7 +9,7 @@ import { createStopAll } from "./engine/watchMode.js";
 import { userLocalTime } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
-import type { PluginContext } from "./markdown/parse.js";
+import type { PluginContext } from "./markdown/PluginContext.js";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");

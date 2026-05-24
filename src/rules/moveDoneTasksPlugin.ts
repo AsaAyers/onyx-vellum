@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { visit } from "unist-util-visit";
 import type { Root, List } from "mdast";
-import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import type { RuleConfig } from "../config.js";
