@@ -27,7 +27,7 @@ function sortTaskItems(items: ListItem[]): ListItem[] {
       const fieldsA = getInlineFields(a.item);
       const fieldsB = getInlineFields(b.item);
       if (fieldsA.done && fieldsB.done) {
-        return fieldsA.done.localeCompare(fieldsB.done);
+        return fieldsB.done.localeCompare(fieldsA.done);
       }
       return 0;
     })
