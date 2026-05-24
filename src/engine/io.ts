@@ -120,7 +120,7 @@ export class FileWriteManager {
 
       if (!dryRun) {
         await fs.mkdir(dirname(vaultFile.absolutePath), { recursive: true });
-        await fs.writeFile(vaultFile.relativePath, content, "utf-8");
+        await fs.writeFile(vaultFile.absolutePath, content, "utf-8");
       }
       changes.push({ vaultFile, content });
     }

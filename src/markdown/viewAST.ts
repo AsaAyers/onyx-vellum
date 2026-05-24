@@ -5,7 +5,7 @@ import { VFile } from "vfile";
 import type { Root } from "mdast";
 import { buildJobId } from "../transcription/queue.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
-import { zUserLocalTime } from "../engine/timezone.js";
+import { userLocalTime } from "../engine/timezone.js";
 
 async function main() {
   const filename = process.argv[2];
@@ -25,7 +25,7 @@ async function main() {
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     mode: "all",
-    dates: zUserLocalTime.parse({ tz }),
+    dates: userLocalTime({ tz }),
     async queueJob() {},
     jobIdFactory: buildJobId,
     vaultPath,

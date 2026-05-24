@@ -1,4 +1,5 @@
 {
+  "timezone": "America/Los_Angeles",
   "watch": {
     "alertSchedule": ["09:00"]
   },

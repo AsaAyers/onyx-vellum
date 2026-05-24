@@ -6,7 +6,7 @@ import {
   normalizeAlertSchedule,
 } from "./engine/scheduler.js";
 import { createStopAll } from "./engine/watchMode.js";
-import { zUserLocalTime } from "./engine/timezone.js";
+import { userLocalTime } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
 import type { PluginContext } from "./markdown/parse.js";
@@ -87,8 +87,8 @@ if (init) {
     mode: PluginContext["mode"],
     glob?: string[],
   ): Promise<void> => {
-    const dates = zUserLocalTime.parse({
-      tz: config.timezone,
+    const dates = userLocalTime({
+      tz: config.timezone ?? "UTC",
     });
     const { report } = await runAllRules({
       ...ruleContext,
@@ -109,7 +109,7 @@ if (init) {
       config.watch?.alertSchedule ?? [],
     );
     let alertSchedule: string[] = initialSchedule.valid;
-    let timezone = config.timezone;
+    let timezone = config.timezone ?? "UTC";
 
     console.log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
     console.log(`Debounce: ${debounce}ms`);
@@ -149,7 +149,7 @@ if (init) {
               newConfig.watch?.alertSchedule ?? [],
             );
             alertSchedule = normalized.valid;
-            timezone = newConfig.timezone;
+            timezone = newConfig.timezone ?? "UTC";
             if (alertSchedule.length > 0) {
               console.log(
                 `[watch] Alert schedule updated: ${alertSchedule.join(", ")}`,
@@ -186,10 +186,10 @@ if (init) {
         await runAllRules({
           ...ruleContext,
           mode: "alert",
-          dates: zUserLocalTime.parse({ tz: timezone, noon: false }),
+          dates: userLocalTime({ tz: timezone, noon: false }),
         });
       },
-      { getTimezone: () => timezone },
+      timezone,
     );
 
     const stopAll = createStopAll([stop, stopScheduler]);

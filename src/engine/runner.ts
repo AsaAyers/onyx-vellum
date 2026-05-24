@@ -23,7 +23,7 @@ import {
   ALERT_FILE,
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
-import { zUserLocalTime } from "./timezone.js";
+import { userLocalTime } from "./timezone.js";
 
 export function fileMatchesSources(
   file: VaultFile,
@@ -346,7 +346,7 @@ export async function normalizeFileContent(raw: string, tz: string = "UTC") {
       updateFile: fileOperations.updateFile,
       queueJob: async () => {},
       jobIdFactory: buildJobId,
-      dates: zUserLocalTime.parse({ tz }),
+      dates: userLocalTime({ tz }),
       vaultPath: "",
       dryRun: true,
       env: {},
