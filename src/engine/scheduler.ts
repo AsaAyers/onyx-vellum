@@ -1,5 +1,3 @@
-import { toTimezoneDate } from "./timezone.js";
-
 /**
  * Schedule-based alert runner for watch mode.
  *
@@ -8,6 +6,11 @@ import { toTimezoneDate } from "./timezone.js";
  * alert should fire. If the current local-clock HH:MM is in that list and has
  * not already fired in this minute window, `onAlert` is invoked.
  */
+
+import { userLocalTime } from "./timezone.js";
+import createDebug from "debug";
+
+const debug = createDebug("onyx:scheduler");
 
 /**
  * Start a recurring schedule check.
@@ -58,26 +61,29 @@ export function normalizeAlertSchedule(schedule: string[]): {
 export function createAlertScheduler(
   getSchedule: () => string[],
   onAlert: () => Promise<void>,
+  tz: string,
   options?: {
     intervalMs?: number;
-    getTimezone?: () => string | undefined;
   },
 ): () => void {
   const intervalMs = options?.intervalMs ?? 60_000;
-  const getTimezone = options?.getTimezone;
   // Track the last fired "YYYY-MM-DDTHH:MM" to prevent double-firing within
   // the same minute window while still allowing the same time on a future day.
   let lastFiredKey = "";
 
   const check = (): void => {
     const schedule = normalizeAlertSchedule(getSchedule()).valid;
+    debug(`Current alert schedule: ${schedule.join(", ")}`);
     if (schedule.length === 0) return;
 
-    const now = toTimezoneDate(new Date(), getTimezone?.());
+    const now = userLocalTime({ tz }).date;
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
     const currentMinute = `${hh}:${mm}`;
 
+    debug(
+      `Checking alert schedule at ${currentMinute} (schedule: ${!schedule.includes(currentMinute)})`,
+    );
     if (!schedule.includes(currentMinute)) return;
 
     const yyyy = String(now.getFullYear());
@@ -85,6 +91,7 @@ export function createAlertScheduler(
     const dd = String(now.getDate()).padStart(2, "0");
     const firedKey = `${yyyy}-${mo}-${dd}T${currentMinute}`;
 
+    debug({ firedKey, lastFiredKey });
     if (firedKey !== lastFiredKey) {
       lastFiredKey = firedKey;
       console.log(`[watch] Alert schedule: firing at ${currentMinute}`);

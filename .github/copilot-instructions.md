@@ -1,3 +1,26 @@
+### No any
+
+This project has all the correct types. If you have to use an "as any" to make it work, then the solution is wrong. Don't do it.
+
+Never use "import('...').anyType" syntax, use "import { anyType } from '...'" at the top of the file.
+
+### Inline field access and mutation
+
+**Always use the provided utility functions for all access and mutation of inline fields on a ListItem node:**
+
+- Use `getInlineFields(listItem)` to read the inline fields object (returns a mutable object, always present).
+- Use `setInlineFields(listItem, key, value)` to set or update a field value.
+
+**Never access or mutate `listItem.data.inlineFields` directly.**
+
+All code that reads, writes, or serializes inline fields must use these helpers. This ensures type safety, consistent structure, and avoids runtime errors. If you see code that accesses `.data.inlineFields` directly, refactor it to use the utility functions.
+
+### Date math and manipulation
+
+**Always use date-fns utilities (e.g. `addDays`, `differenceInCalendarDays`) for all date arithmetic. Never add or subtract milliseconds or seconds directly to manipulate dates.**
+
+If you see code that does date math by adding or subtracting milliseconds, refactor it to use the appropriate date-fns function for clarity and correctness.
+
 # Copilot Instructions
 
 ## Testing

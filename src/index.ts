@@ -1,24 +1,18 @@
 #!/usr/bin/env node
 import { runAllRules, runInitPass } from "./engine/runner.js";
-import { startVaultWatcher } from "./engine/watcher.js";
+import { createGlobalDebouncer, startVaultWatcher } from "./engine/watcher.js";
 import {
   createAlertScheduler,
   normalizeAlertSchedule,
 } from "./engine/scheduler.js";
-import {
-  ALERT_RULE,
-  FAST_PATH_DEBOUNCE_MS,
-  selectWatchRuleSets,
-  createStopAll,
-} from "./engine/watchMode.js";
-import { toTimezoneDate } from "./engine/timezone.js";
+import { createStopAll } from "./engine/watchMode.js";
+import { userLocalTime } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
-import { ruleSpecs } from "./rules/index.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
+import type { PluginContext } from "./markdown/PluginContext.js";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
-const verbose = args.includes("--verbose");
 const init = args.includes("--init");
 const watch = args.includes("--watch");
 const help = args.includes("--help") || args.includes("-h");
@@ -66,229 +60,156 @@ if (init) {
     process.exit(1);
   });
 } else {
+  const mode = positional[0];
   // Rule selection is required: either "all" or one or more rule names.
-  if (positional.length === 0) {
-    console.error('Error: specify "all" or a list of rule names to run.');
+  if (positional.length !== 1 || (mode !== "all" && mode !== "alert")) {
+    console.error('Error: specify "all" or "alert".');
     console.error("");
     console.error("Examples:");
     console.error("  onyx-vellum all");
-    console.error("  onyx-vellum --dry-run stampDone");
+    console.error("  onyx-vellum --dry-run all");
     console.error("");
     console.error("Run with --help for full usage information.");
     process.exit(1);
   }
+  const ruleContext: Omit<Parameters<typeof runAllRules>[0], "dates"> = {
+    mode,
+    vaultPath,
+    dryRun,
+    env: process.env,
+  };
 
-  const selectedRuleNames: string[] | "all" =
-    positional.length === 1 && positional[0] === "all" ? "all" : positional;
-
-  // Validate rule names upfront before starting the pipeline.
-  if (selectedRuleNames !== "all") {
-    const knownNames = new Set(ruleSpecs.map((s) => s.name));
-    const unknown = selectedRuleNames.filter((n) => !knownNames.has(n));
-    if (unknown.length > 0) {
-      console.error(
-        `Error: unknown rule name(s): ${unknown.map((n) => `"${n}"`).join(", ")}`,
-      );
-      console.error(
-        `Available rules: ${ruleSpecs.map((s) => s.name).join(", ")}`,
-      );
-      process.exit(1);
-    }
-  }
+  const config = await loadConfig(vaultPath);
 
   // Single shared entry-point for rule execution.  Closures in all parameters
   // so both the one-shot and watch paths use exactly the same runAllRules call.
   const run = async (
+    mode: PluginContext["mode"],
     glob?: string[],
-    timezone?: string,
   ): Promise<void> => {
-    await runAllRules({
-      vaultPath,
-      today: toTimezoneDate(new Date(), timezone),
-      dryRun,
-      verbose,
-      env: process.env,
-      selectedRuleNames,
+    const dates = userLocalTime({
+      tz: config.timezone ?? "UTC",
+    });
+    const { report } = await runAllRules({
+      ...ruleContext,
+      mode,
+      dates,
       onlyGlob: glob,
     });
+
+    console.log(`=== Report ===`);
+    console.log(report);
   };
 
   if (watch) {
     // Watch mode: load config to read the debounce and schedule settings.
-    loadConfig(vaultPath, ruleSpecs)
-      .then(async (config) => {
-        const debounce = config.watch?.debounce ?? 60_000;
-        // Mutable so the scheduler picks up changes when the config is reloaded.
-        const initialSchedule = normalizeAlertSchedule(
-          config.watch?.alertSchedule ?? [],
-        );
-        let alertSchedule: string[] = initialSchedule.valid;
-        let timezone = config.timezone;
+    const debounce = config.watch?.debounce ?? 30_000;
+    // Mutable so the scheduler picks up changes when the config is reloaded.
+    const initialSchedule = normalizeAlertSchedule(
+      config.watch?.alertSchedule ?? [],
+    );
+    let alertSchedule: string[] = initialSchedule.valid;
+    let timezone = config.timezone ?? "UTC";
 
-        console.log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
-        console.log(`Debounce: ${debounce}ms`);
-        if (alertSchedule.length > 0) {
-          console.log(`Alert schedule: ${alertSchedule.join(", ")}`);
-        } else {
-          console.log(
-            `Alert schedule: (none configured — alert will not fire)`,
-          );
+    console.log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
+    console.log(`Debounce: ${debounce}ms`);
+    if (alertSchedule.length > 0) {
+      console.log(`Alert schedule: ${alertSchedule.join(", ")}`);
+    } else {
+      console.log(`Alert schedule: (none configured — alert will not fire)`);
+    }
+    if (initialSchedule.invalid.length > 0) {
+      console.warn(
+        `[watch] Ignoring invalid alert schedule entries: ${initialSchedule.invalid.join(", ")}`,
+      );
+    }
+    console.log("");
+    console.log(`Watching vault for markdown changes...`);
+    console.log(`Press Ctrl+C to stop.`);
+    console.log("");
+
+    console.log(`[watch] Running all rules on startup...`);
+    run("all");
+
+    const fastDebounce = 5_000;
+    const fullDebouncer = createGlobalDebouncer(
+      debounce - fastDebounce,
+      (relPaths) => run("all", relPaths),
+    );
+
+    const stop = startVaultWatcher(
+      vaultPath,
+      async (relPaths) => {
+        const configChanged = relPaths.includes(CONFIG_FILENAME);
+        if (configChanged) {
+          console.log(`[watch] Config changed, reloading...`);
+          try {
+            const newConfig = await loadConfig(vaultPath);
+            const normalized = normalizeAlertSchedule(
+              newConfig.watch?.alertSchedule ?? [],
+            );
+            alertSchedule = normalized.valid;
+            timezone = newConfig.timezone ?? "UTC";
+            if (alertSchedule.length > 0) {
+              console.log(
+                `[watch] Alert schedule updated: ${alertSchedule.join(", ")}`,
+              );
+            } else {
+              console.log(
+                `[watch] Alert schedule updated: (none — alert will not fire)`,
+              );
+            }
+            if (normalized.invalid.length > 0) {
+              console.warn(
+                `[watch] Ignoring invalid alert schedule entries: ${normalized.invalid.join(", ")}`,
+              );
+            }
+          } catch (err) {
+            console.error(
+              `[watch] Failed to reload config:`,
+              (err as Error).message,
+            );
+          }
         }
-        if (initialSchedule.invalid.length > 0) {
-          console.warn(
-            `[watch] Ignoring invalid alert schedule entries: ${initialSchedule.invalid.join(", ")}`,
-          );
-        }
-        console.log("");
-        console.log(`Watching vault for markdown changes...`);
-        console.log(`Press Ctrl+C to stop.`);
-        console.log("");
 
-        // Compute rule names for normal file-change processing and fast-path.
-        const { allFileChangeRuleNames, fastPathRuleNames } =
-          selectWatchRuleSets(
-            selectedRuleNames,
-            ruleSpecs.map((s) => s.name),
-          );
-        const getNonConfigPaths = (relPaths: string[]): string[] =>
-          relPaths.filter((p) => p !== CONFIG_FILENAME);
+        await run("fast", relPaths);
+        relPaths.forEach((p) => fullDebouncer.notify(p, "change"));
+      },
+      { debounce: fastDebounce, additionalFiles: [CONFIG_FILENAME] },
+    );
 
-        console.log(`[watch] Running all rules on startup...`);
+    // Run incompleteTaskAlert (and its transitive deps) on schedule only.
+    const stopScheduler = createAlertScheduler(
+      () => alertSchedule,
+      async () => {
+        console.log("[watch] Running scheduled alert...");
         await runAllRules({
-          vaultPath,
-          today: toTimezoneDate(new Date(), timezone),
-          dryRun,
-          verbose,
-          env: process.env,
-          selectedRuleNames: allFileChangeRuleNames,
+          ...ruleContext,
+          mode: "alert",
+          dates: userLocalTime({ tz: timezone }),
         });
+      },
+      timezone,
+    );
 
-        const stop = startVaultWatcher(
-          vaultPath,
-          async (relPaths) => {
-            const configChanged = relPaths.includes(CONFIG_FILENAME);
-            if (configChanged) {
-              console.log(`[watch] Config changed, reloading...`);
-              try {
-                const newConfig = await loadConfig(vaultPath, ruleSpecs);
-                const normalized = normalizeAlertSchedule(
-                  newConfig.watch?.alertSchedule ?? [],
-                );
-                alertSchedule = normalized.valid;
-                timezone = newConfig.timezone;
-                if (alertSchedule.length > 0) {
-                  console.log(
-                    `[watch] Alert schedule updated: ${alertSchedule.join(", ")}`,
-                  );
-                } else {
-                  console.log(
-                    `[watch] Alert schedule updated: (none — alert will not fire)`,
-                  );
-                }
-                if (normalized.invalid.length > 0) {
-                  console.warn(
-                    `[watch] Ignoring invalid alert schedule entries: ${normalized.invalid.join(", ")}`,
-                  );
-                }
-              } catch (err) {
-                console.error(
-                  `[watch] Failed to reload config:`,
-                  (err as Error).message,
-                );
-              }
-            }
+    const stopAll = createStopAll([stop, stopScheduler]);
 
-            const targetPaths = getNonConfigPaths(relPaths);
-            if (targetPaths.length === 0) return;
-
-            console.log(`[watch] Running rules for: ${targetPaths.join(", ")}`);
-            if (allFileChangeRuleNames.length > 0) {
-              await runAllRules({
-                vaultPath,
-                today: toTimezoneDate(new Date(), timezone),
-                dryRun,
-                verbose,
-                env: process.env,
-                selectedRuleNames: allFileChangeRuleNames,
-                onlyGlob: targetPaths,
-              });
-            }
-          },
-          { debounce, additionalFiles: [CONFIG_FILENAME] },
-        );
-
-        const stopFastPath =
-          fastPathRuleNames.length > 0
-            ? startVaultWatcher(
-                vaultPath,
-                async (relPaths) => {
-                  const targetPaths = getNonConfigPaths(relPaths);
-                  if (targetPaths.length === 0) return;
-                  console.log(
-                    `[watch] Running fast-path rules for: ${targetPaths.join(", ")}`,
-                  );
-                  await runAllRules({
-                    vaultPath,
-                    today: toTimezoneDate(new Date(), timezone),
-                    dryRun,
-                    verbose,
-                    env: process.env,
-                    selectedRuleNames: fastPathRuleNames,
-                    onlyGlob: targetPaths,
-                  });
-                },
-                { debounce: FAST_PATH_DEBOUNCE_MS },
-              )
-            : () => undefined;
-
-        // Run incompleteTaskAlert (and its transitive deps) on schedule only.
-        const stopScheduler = createAlertScheduler(
-          () => alertSchedule,
-          async () => {
-            console.log("[watch] Running scheduled alert...");
-            await runAllRules({
-              vaultPath,
-              today: toTimezoneDate(new Date(), timezone),
-              dryRun,
-              verbose,
-              env: process.env,
-              selectedRuleNames: [ALERT_RULE],
-            });
-          },
-          { getTimezone: () => timezone },
-        );
-
-        const stopAll = createStopAll([stop, stopFastPath, stopScheduler]);
-
-        process.on("SIGINT", () => {
-          console.log("\n[watch] Stopping watcher...");
-          stopAll();
-          process.exit(0);
-        });
-      })
-      .catch((err: unknown) => {
-        console.error("Fatal error:", (err as Error).message);
-        process.exit(1);
-      });
+    process.on("SIGINT", () => {
+      console.log("\n[watch] Stopping watcher...");
+      stopAll();
+      process.exit(0);
+    });
   } else {
     if (dryRun) {
-      console.log(`Dry run: true${verbose ? " (verbose)" : ""}`);
+      console.log(`Dry run: true`);
     } else {
       console.log(`Dry run: false`);
     }
     console.log("");
 
-    loadConfig(vaultPath, ruleSpecs)
-      .then((config) => run(onlyGlob, config.timezone))
-      .catch((err: unknown) => {
-        console.warn(
-          `Warning: could not load vault config — ${(err as Error).message}. Using built-in defaults and local server timezone.`,
-        );
-        return run(onlyGlob);
-      })
-      .catch((err: unknown) => {
-        console.error("Fatal error:", (err as Error).message);
-        process.exit(1);
-      });
+    await run(mode, onlyGlob).catch((err: unknown) => {
+      console.error("Fatal error:", (err as Error).message);
+      process.exit(1);
+    });
   }
 }

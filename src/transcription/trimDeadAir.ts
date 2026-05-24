@@ -56,26 +56,33 @@ export async function trimDeadAir({
   }
 
   const filter = [
-    "silenceremove=stop_periods=-1",
+    "silenceremove=start_periods=1",
+    "start_duration=0.1", // Fast trigger to catch the very first word
+    `start_threshold=${thresholdDb}dB`,
+    "stop_periods=-1",
     `stop_duration=${minSilenceSeconds}`,
     `stop_threshold=${thresholdDb}dB`,
-    `stop_silence=${keepSilenceSeconds}`,
-    "detection=rms",
-    "window=0.05,asetpts=N/SR/TB",
+    "stop_silence=0.3", // Keeps 0.3s of padding so words aren't cut off
+    "detection=peak", // Changed to 'peak' to catch sharp speech consonants
+    "window=0.02,asetpts=N/SR/TB", // Shortened window to 20ms for precise speech tracking
   ].join(":");
 
-  const controller = new AbortController();
-  const cancelSignal = controller.signal;
+  // const controller = new AbortController();
+  // const cancelSignal = controller.signal;
+  // setTimeout(() => {
+  //   controller.abort();
+  // }, 30_000);
 
-  setTimeout(() => {
-    controller.abort();
-  }, 30_000);
-
-  console.log("====================================");
-
+  const i = setInterval(() => {
+    console.log("Working on dead air...");
+  }, 1_000);
   await execa(
     ffmpegPath,
     [
+      "-nostdin",
+      "-stats",
+      "-stats_period",
+      "1",
       "-i",
       input,
       "-vn",
@@ -94,9 +101,8 @@ export async function trimDeadAir({
     {
       stdout: "inherit",
       stderr: "inherit",
-      cancelSignal,
+      // cancelSignal,
     },
   );
-
-  console.log("====================================");
+  clearInterval(i);
 }

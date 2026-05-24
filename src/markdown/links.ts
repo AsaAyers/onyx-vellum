@@ -2,6 +2,7 @@ import type { LinkQuery } from "../rules/types.js";
 
 /** A single link or embed found in the document body. */
 export type MarkdownLink = {
+  type?: "deprecatedMarkdownLink";
   /** Raw source string as it appears in the document, e.g. `![[foo.m4a]]`. */
   raw: string;
   /** The link target / path, e.g. `foo.m4a` or `audio/rec.m4a`. */
@@ -143,25 +144,6 @@ export function deriveTranscriptTarget(audioTarget: string): string {
   const dotIndex = audioTarget.lastIndexOf(".");
   const base = dotIndex >= 0 ? audioTarget.slice(0, dotIndex) : audioTarget;
   return `${base}.transcript.md`;
-}
-
-/**
- * Produces an embed string that mirrors the style of the source audio embed.
- *
- * | Source embed          | Generated transcript embed       |
- * | --------------------- | -------------------------------- |
- * | `![[rec.m4a]]`        | `![[rec.transcript.md]]`         |
- * | `![](rec.m4a)`        | `![](rec.transcript.md)`         |
- * | `![My note](rec.m4a)` | `![](rec.transcript.md)`         |
- */
-export function buildMirroredTranscriptEmbed(
-  link: MarkdownLink,
-  transcriptTarget: string,
-): string {
-  if (link.wikilink) {
-    return `![[${transcriptTarget}]]`;
-  }
-  return `![](${transcriptTarget})`;
 }
 
 /**

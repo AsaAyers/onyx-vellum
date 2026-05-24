@@ -5,3 +5,5 @@ dist/
 .env
 tmp_alert.md
 coverage/
+tmp.md
+tests/.onyx-vellum-state/

@@ -2,6 +2,7 @@ import type { Literal } from "mdast";
 import type { Options as RemarkStringifyOptions } from "remark-stringify";
 
 export type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
+export type Handle = Handlers[keyof Handlers];
 // ---------------------------------------------------------------------------
 // Obsidian embed wikilink support
 // ---------------------------------------------------------------------------
@@ -14,6 +15,8 @@ export type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
 export interface ObsidianEmbedNode extends Literal {
   type: "obsidianEmbed";
   value: string;
+  target: string;
+  alias?: string;
 }
 
 export interface WikiLinkNode extends Literal {
@@ -24,12 +27,32 @@ export interface WikiLinkNode extends Literal {
   };
 }
 
+export interface CalloutNode extends Literal {
+  type: "callout";
+  value: string;
+  data?: {
+    calloutType: string;
+    calloutTitle?: string;
+  };
+}
+
+export interface InlineFieldsNode extends Literal {
+  type: "inlineFields";
+  data: { inlineFields?: Record<string, string> };
+}
+
 declare module "mdast" {
   interface PhrasingContentMap {
     obsidianEmbed: ObsidianEmbedNode;
     obsidianTag: ObsidianTagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
+    inlineFields: InlineFieldsNode;
+    callout: CalloutNode;
+  }
+
+  interface DefinitionContentMap {
+    callout: CalloutNode;
   }
 
   interface RootContentMap {
@@ -37,6 +60,7 @@ declare module "mdast" {
     obsidianTag: ObsidianTagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
+    inlineFields: InlineFieldsNode;
   }
 }
 // ---------------------------------------------------------------------------

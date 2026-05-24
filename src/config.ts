@@ -23,7 +23,6 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import type { RuleSpec } from "./rules/types.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -42,6 +41,12 @@ const zPathSource = z.object({
 
 export const zSource = z.discriminatedUnion("type", [zGlobSource, zPathSource]);
 
+export const zAlertConfig = z.object({
+  sources: z.array(zSource).optional(),
+  alertUrl: z.string().optional(),
+  alertToken: z.string().optional(),
+});
+
 const zRuleConfig = z.object({
   sources: z.array(zSource).optional(),
   alertUrl: z.string().optional(),
@@ -59,7 +64,11 @@ const zWatchConfig = z.object({
    */
   alertSchedule: z.array(z.string()).optional(),
 });
-
+const zKnownRuleConfig = z
+  .object({
+    incompleteTaskAlert: zAlertConfig.optional(),
+  })
+  .catchall(zRuleConfig);
 /**
  * Full config schema:
  *   - optional top-level timezone (IANA timezone, used for date processing)
@@ -89,7 +98,7 @@ export const zConfig = z
       .optional(),
     sources: z.array(zSource).optional(),
     watch: zWatchConfig.optional(),
-    rules: z.record(z.string(), zRuleConfig),
+    rules: zKnownRuleConfig,
   })
   .strict();
 
@@ -119,17 +128,6 @@ export const DEFAULT_SOURCES: Array<z.infer<typeof zSource>> = [
 ];
 
 /**
- * Build the default rule configs from an array of RuleSpecs.
- * Each entry is an empty config object — sources are supplied by the top-level
- * `sources` array in the config so they don't need to be repeated per rule.
- * Returns a plain record (no `watch` key) so callers can iterate values as
- * `RuleConfig` without needing to handle the `WatchConfig` union member.
- */
-export function getDefaultConfig(specs: RuleSpec[]): Config["rules"] {
-  return Object.fromEntries(specs.map((s) => [s.name, {}]));
-}
-
-/**
  * Load (and if necessary create or augment) the vault-level config file.
  *
  * Behaviour:
@@ -146,13 +144,10 @@ export function getDefaultConfig(specs: RuleSpec[]): Config["rules"] {
  * @param specs      All registered RuleSpecs (used to derive defaults).
  * @returns          The validated (and possibly augmented) config.
  */
-export async function loadConfig(
-  vaultPath: string,
-  specs: RuleSpec[],
-): Promise<Config> {
+export async function loadConfig(vaultPath: string): Promise<Config> {
   const configPath = join(vaultPath, CONFIG_FILENAME);
-  const defaults = getDefaultConfig(specs);
-  const defaultConfig: Config = { sources: DEFAULT_SOURCES, rules: defaults };
+
+  const defaultConfig: Config = { sources: DEFAULT_SOURCES, rules: {} };
 
   let raw: string;
   try {
@@ -186,43 +181,9 @@ export async function loadConfig(
   }
 
   const stored = result.data;
-
-  // Merge in defaults for any rule not yet present in the file.
-  let needsWrite = false;
   const merged: Config = { ...stored, rules: { ...stored.rules } };
-  for (const [name] of Object.entries(defaults)) {
-    if (!(name in merged.rules)) {
-      merged.rules[name] = {};
-      needsWrite = true;
-    }
-  }
-
-  if (needsWrite) {
-    await fs.writeFile(configPath, serializeConfig(merged), "utf-8");
-  }
 
   return merged;
-}
-
-/**
- * Apply a loaded Config to a set of RuleSpecs by resolving each spec's
- * effective `sources` array using the following priority:
- *   1. Per-rule `sources` from the config (highest priority).
- *   2. Top-level `sources` from the config (shared default for all rules).
- *   3. The spec's own built-in `sources` (fallback when neither is set).
- * Returns new spec objects; the originals are not mutated.
- */
-export function applyConfig(specs: RuleSpec[], config: Config): RuleSpec[] {
-  return specs.map((spec) => {
-    const entry = config.rules[spec.name];
-    if (entry?.sources !== undefined) {
-      return { ...spec, sources: entry.sources };
-    }
-    if (config.sources !== undefined) {
-      return { ...spec, sources: config.sources };
-    }
-    return spec;
-  });
 }
 
 function serializeConfig(config: Config): string {

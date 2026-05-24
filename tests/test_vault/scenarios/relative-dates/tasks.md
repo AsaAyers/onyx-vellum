@@ -1,2 +1,2 @@
-- [ ] Task A due:yesterday
-- [ ] Task B start:tomorrow
+* [ ] Task A due:yesterday
+* [ ] Task B start:tomorrow

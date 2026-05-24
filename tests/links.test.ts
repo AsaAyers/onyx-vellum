@@ -14,7 +14,6 @@ import {
   extractMarkdownLinks,
   matchesLinkQuery,
   deriveTranscriptTarget,
-  buildMirroredTranscriptEmbed,
   hasEmbedAnywhere,
   insertEmbedBelowLine,
 } from "../src/markdown/links.js";
@@ -199,33 +198,6 @@ describe("deriveTranscriptTarget", () => {
 
   it("handles filename with multiple dots (replaces last extension only)", () => {
     expect(deriveTranscriptTarget("a.b.m4a")).toBe("a.b.transcript.md");
-  });
-});
-
-// ---------------------------------------------------------------------------
-// buildMirroredTranscriptEmbed
-// ---------------------------------------------------------------------------
-
-describe("buildMirroredTranscriptEmbed", () => {
-  it("mirrors wikilink embed style", () => {
-    const link = extractMarkdownLinks("![[rec.m4a]]")[0]!;
-    expect(buildMirroredTranscriptEmbed(link, "rec.transcript.md")).toBe(
-      "![[rec.transcript.md]]",
-    );
-  });
-
-  it("mirrors standard markdown embed style (no alt)", () => {
-    const link = extractMarkdownLinks("![](rec.m4a)")[0]!;
-    expect(buildMirroredTranscriptEmbed(link, "rec.transcript.md")).toBe(
-      "![](rec.transcript.md)",
-    );
-  });
-
-  it("does not mirror alt text from standard markdown embed", () => {
-    const link = extractMarkdownLinks("![My note](rec.m4a)")[0]!;
-    expect(buildMirroredTranscriptEmbed(link, "rec.transcript.md")).toBe(
-      "![](rec.transcript.md)",
-    );
   });
 });
 

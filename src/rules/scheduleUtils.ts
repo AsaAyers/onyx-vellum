@@ -1,4 +1,4 @@
-import { format, parse, addDays } from "date-fns";
+import { addDays, format } from "date-fns";
 
 /**
  * Weekday characters used in the `repeat:` inline field alphabet.
@@ -56,19 +56,14 @@ export function parseRepeat(value: string): RepeatSchedule | null {
   return { skipWeeks, days };
 }
 
-/** Format a Date to an ISO date string "YYYY-MM-DD". */
-export function formatDateStr(date: Date): string {
-  return format(date, "yyyy-MM-dd");
-}
-
 /**
- * Parse an ISO date string "YYYY-MM-DD" into a Date (local midnight).
- * Returns null if the string is not in the expected format.
+ * Format a Date to an ISO date string "YYYY-MM-DD" in the given timezone.
+ * @param date - Date or date string
+ * @param timezone - IANA timezone string
  */
-export function parseDateStr(dateStr: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const result = parse(dateStr, "yyyy-MM-dd", new Date());
-  return isNaN(result.getTime()) ? null : result;
+export function formatDateStr(date: string | Date, _timezone?: string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return format(d, "yyyy-MM-dd");
 }
 
 /**
@@ -84,10 +79,7 @@ export function parseDateStr(dateStr: string): Date | null {
  * Example: repeat:1mwf completed on Monday → minDate is Sunday → next
  * Mon/Wed/Fri ≥ Sunday = Monday (same weekday, ~1 week later).
  */
-export function computeNextDue(
-  completionDate: Date,
-  schedule: RepeatSchedule,
-): Date {
+export function computeNextDue(completionDate: Date, schedule: RepeatSchedule) {
   const { skipWeeks, days } = schedule;
   const offset = skipWeeks === 0 ? 1 : skipWeeks * 7 - 1;
   const minDate = addDays(completionDate, offset);

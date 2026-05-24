@@ -1,4 +1,4 @@
-import type { TranscriptionJob } from "../../transcription/types.js";
+import type { Job } from "../../transcription/types.js";
 
 export type LinkActionContext = {
   vaultPath: string;
@@ -21,5 +21,5 @@ export type ActionOutcome = {
   /** New files to create, keyed by absolute path (link actions only). */
   newFiles?: Record<string, string>;
   /** Transcription jobs to enqueue (link actions only). */
-  transcriptionJobs?: TranscriptionJob[];
+  transcriptionJobs?: Job[];
 };

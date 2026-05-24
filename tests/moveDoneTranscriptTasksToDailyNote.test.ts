@@ -3,9 +3,9 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAllRules } from "../src/engine/runner.js";
+import { testDate } from "./testDate.js";
 
 const CREATED_DIRS: string[] = [];
-const TODAY = new Date(2026, 4, 3);
 
 async function createTempVault(): Promise<string> {
   const dir = await fs.mkdtemp(join(tmpdir(), "onyx-vellum-transcript-rule-"));
@@ -36,7 +36,13 @@ describe("moveDoneTasks - config opt-in", () => {
       "utf-8",
     );
 
-    await runAllRules({ vaultPath, today: TODAY, dryRun: false, env: {} });
+    await runAllRules({
+      vaultPath,
+      dates: testDate,
+      dryRun: false,
+      env: {},
+      mode: "all",
+    });
 
     const transcript = await fs.readFile(
       join(vaultPath, "audio", "session.transcript.md"),

@@ -1,2 +1,2 @@
-- [x] Done
-- [ ] Todo due:today
+* [x] Done
+* [ ] Todo due:today

@@ -1,1 +1,1 @@
-- [x] Water plants repeat:s
+* [x] Water plants repeat:s

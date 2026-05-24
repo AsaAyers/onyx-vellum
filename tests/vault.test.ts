@@ -8,11 +8,12 @@
  * even when the `.md` input file does not yet exist on disk.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { promises as fs } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAllRules } from "../src/engine/runner.js";
 import { walkMarkdownFiles } from "../src/engine/io.js";
+import fs, { promises as fsp } from "node:fs";
+import { testDate } from "./testDate.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEST_VAULT = join(__dirname, "test_vault");
@@ -26,32 +27,12 @@ const WORKER_ONLY_EXPECTED_OUTPUTS = new Set([
   ),
 ]);
 
-// Pin the date so the test produces the same output regardless of when it runs.
-const TODAY = new Date(2026, 4, 3); // 2026-05-03
-
 const CREATED_DIRS: string[] = [];
 const deterministicJobIdFactory = (): string => `mopf7ts0-test-job-001`;
 
-async function walkExpectedFiles(dir: string): Promise<string[]> {
-  const expectedFiles: string[] = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  entries.sort((a, b) => a.name.localeCompare(b.name));
-
-  for (const entry of entries) {
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory() && !entry.name.startsWith(".")) {
-      expectedFiles.push(...(await walkExpectedFiles(fullPath)));
-    } else if (entry.isFile() && entry.name.endsWith(".md.expected")) {
-      expectedFiles.push(fullPath);
-    }
-  }
-
-  return expectedFiles;
-}
-
 async function readOptionalFile(path: string): Promise<string | undefined> {
   try {
-    return await fs.readFile(path, "utf-8");
+    return await fsp.readFile(path, "utf-8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw err;
@@ -61,71 +42,112 @@ async function readOptionalFile(path: string): Promise<string | undefined> {
 afterEach(async () => {
   await Promise.all(
     CREATED_DIRS.splice(0).map((dir) =>
-      fs.rm(dir, { recursive: true, force: true }),
+      fsp.rm(dir, { recursive: true, force: true }),
     ),
   );
 });
 
+// ...existing setup code...
+
+function walkExpectedFilesSync(dir: string): string[] {
+  const expectedFiles: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name);
+    if (entry.isDirectory() && !entry.name.startsWith(".")) {
+      expectedFiles.push(...walkExpectedFilesSync(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith(".md.expected")) {
+      expectedFiles.push(fullPath);
+    }
+  }
+  return expectedFiles;
+}
+
 describe("test vault — .md.expected snapshots", () => {
-  it("matches every committed .md.expected snapshot in dry-run mode", async () => {
+  let pipelineOutputs: Map<string, string>;
+  const expectedFiles = walkExpectedFilesSync(TEST_VAULT);
+  const pipelineReady: Promise<void> = (async () => {
     const { changes } = await runAllRules({
       vaultPath: TEST_VAULT,
-      today: TODAY,
+      dates: testDate,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
+      mode: "all",
     });
+    pipelineOutputs = new Map(
+      changes.map((c) => [c.vaultFile.absolutePath, c.content]),
+    );
+  })();
 
-    const pipelineOutputs = new Map(changes.map((c) => [c.path, c.content]));
-    const expectedFiles = await walkExpectedFiles(TEST_VAULT);
-    const failures: string[] = [];
-    const toEqual: string[] = [];
-
-    for (const expectedPath of expectedFiles) {
-      const actualPath = expectedPath.slice(0, -".expected".length);
-      const relPath = relative(TEST_VAULT, actualPath);
-
-      if (WORKER_ONLY_EXPECTED_OUTPUTS.has(actualPath)) {
-        continue;
+  type DirTree = { [name: string]: DirTree | string };
+  function buildTree(files: string[]): DirTree {
+    const tree: DirTree = {};
+    for (const file of files) {
+      const rel = relative(TEST_VAULT, file);
+      const parts = rel.split("/");
+      let node: DirTree = tree;
+      for (let i = 0; i < parts.length - 1; ++i) {
+        if (!node[parts[i]]) node[parts[i]] = {};
+        node = node[parts[i]] as DirTree;
       }
+      node[parts[parts.length - 1]] = file;
+    }
+    return tree;
+  }
 
-      const expectedContent = await fs.readFile(expectedPath, "utf-8");
-      const actualContent =
-        pipelineOutputs.get(actualPath) ?? (await readOptionalFile(actualPath));
-
-      if (actualContent === undefined) {
-        failures.push(`${relPath}: expected output file was not produced`);
-        toEqual.push("");
-        continue;
-      }
-
-      if (actualContent !== expectedContent) {
-        failures.push(`Actual: ${relPath}\n${actualContent}`);
-        toEqual.push(`Expected: ${relPath}\n${expectedContent}`);
+  function defineTests(node: DirTree, pathArr: string[] = []) {
+    for (const [fileName, expectedPath] of Object.entries(node)) {
+      if (typeof expectedPath === "string") {
+        const absolutePath = expectedPath.slice(0, -".expected".length);
+        const relPath = relative(TEST_VAULT, absolutePath);
+        if (WORKER_ONLY_EXPECTED_OUTPUTS.has(absolutePath)) continue;
+        it(basename(relPath), async () => {
+          await pipelineReady;
+          const expectedContent = await fsp.readFile(expectedPath, "utf-8");
+          const actualContent =
+            pipelineOutputs.get(absolutePath) ??
+            (await readOptionalFile(absolutePath));
+          if (actualContent === undefined) {
+            throw new Error(`expected output file was not produced`);
+          }
+          expect(actualContent, relPath).toBe(expectedContent);
+        });
+      } else {
+        describe(fileName, () => {
+          defineTests(expectedPath, pathArr.concat(fileName));
+        });
       }
     }
+  }
 
-    expect(failures, `${failures.length} file failures`).toEqual(toEqual);
+  describe("vault", () => {
+    const tree = buildTree(expectedFiles);
+    defineTests(tree);
   });
 
   it("does not modify any committed markdown file on disk in dry-run mode", async () => {
-    const mdFiles = await walkMarkdownFiles(TEST_VAULT);
+    const mdFiles = await walkMarkdownFiles(TEST_VAULT, TEST_VAULT);
     const before = new Map(
       await Promise.all(
-        mdFiles.map(async (p) => [p, await fs.readFile(p, "utf-8")] as const),
+        mdFiles
+          .map((path) => path.absolutePath)
+          .map(async (p) => [p, await fsp.readFile(p, "utf-8")] as const),
       ),
     );
 
     await runAllRules({
       vaultPath: TEST_VAULT,
-      today: TODAY,
+      dates: testDate,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
+      mode: "all",
     });
 
     for (const [p, content] of before) {
-      const after = await fs.readFile(p, "utf-8");
+      const after = await fsp.readFile(p, "utf-8");
       expect(
         after,
         `${relative(TEST_VAULT, p)} was modified on disk in dry-run mode`,

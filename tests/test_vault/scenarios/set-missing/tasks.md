@@ -1,1 +1,1 @@
-- [x] Finished task
+* [x] Finished task

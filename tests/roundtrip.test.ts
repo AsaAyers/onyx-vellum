@@ -15,14 +15,16 @@
  *  - Escaped asterisks that must remain escaped  \*literal\*
  */
 import { describe, it, expect } from "vitest";
-import { parseMarkdown, stringifyMarkdown } from "../src/markdown/parse.js";
-
-type Root = ReturnType<typeof parseMarkdown>;
-type Paragraph = Extract<Root["children"][number], { type: "paragraph" }>;
-
-function roundTrip(content: string): string {
-  return stringifyMarkdown(parseMarkdown(content));
-}
+import { runInitPass } from "../src/engine/runner.js";
+import fs from "node:fs/promises";
+import { normalizeFileContent } from "../src/engine/runner.js";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createParseProcessor } from "../src/markdown/parse.js";
+import { EMPTY_CONFIG } from "../src/markdown/defaultConfig.js";
+import type { Paragraph } from "mdast";
+import { buildJobId } from "../src/transcription/queue.js";
+import { testDate } from "./testDate.js";
 
 // Repro: bullet list with nested numbered list
 // (was de-indented and got an extra blank line in some remark-stringify versions)
@@ -33,41 +35,56 @@ const NESTED_ORDERED_IN_UNORDERED =
 // Wikilinks
 // ---------------------------------------------------------------------------
 
+const vaultPath = "/tmp/fake-vault";
 describe("round-trip: wikilinks", () => {
-  it("preserves page wikilink [[Page Name]]", () => {
+  it("preserves page wikilink [[Page Name]]", async () => {
     const src = "[[Some Link]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves inline image wikilink ![[file.png]]", () => {
+  it("preserves inline image wikilink ![[file.png]]", async () => {
     const src = "![[Projects/2022-05-07_09.18.50.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves wikilink with underscores in filename", () => {
+  it("preserves wikilink with underscores in filename", async () => {
     const src = "![[archive/meeting_notes_2024.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves wikilink inside a task list item", () => {
+  it("preserves wikilink inside a task list item", async () => {
     const src = "* [ ] Review ![[diagram_v2.png]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves multiple wikilinks on the same line", () => {
+  it("preserves multiple wikilinks on the same line", async () => {
     const src = "See [[Note 1]] and also [[Note 2]] for details.\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves nested list with wikilinks at each level", () => {
+  it("preserves nested list with wikilinks at each level", async () => {
     const src =
       "* Top level [[link]]\n  * Nested [[link2]]\n    * Deep [[link3]]\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves wikilink with path separator", () => {
+  it("preserves wikilink with path separator", async () => {
     const src = "See [[Archive/Old Project]] for history.\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 });
 
@@ -76,32 +93,57 @@ describe("round-trip: wikilinks", () => {
 // ---------------------------------------------------------------------------
 
 describe("round-trip: asterisks in non-emphasis contexts", () => {
-  it("preserves <* … *> angle-bracket tag syntax", () => {
+  it("preserves <* … *> angle-bracket tag syntax", async () => {
     // Both * are inert: the first is not left-flanking (followed by space),
     // the second is not right-flanking (preceded by space).
     const src = "<* something *>\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves Templater <%* … %> block syntax", () => {
+  it("preserves Templater <%* … %> block syntax", async () => {
     // The * in <%* is not left-flanking (followed by space).
     const src = "<%* const title = tp.file.title; %>\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves Templater <%* in a task", () => {
+  it("preserves Templater <%* in a task", async () => {
     const src = "* [ ] Generated by <%* tR += tp.file.title %>\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("does NOT strip escaping from * that would form emphasis", () => {
+  it("does NOT strip escaping from * that would form emphasis", async () => {
     // \*foo\* in the source is literal text: the pipeline must keep it escaped
     // so that re-parsing still produces a text node, not <em>foo</em>.
     const src = "\\*foo\\* bar\n";
-    const out = roundTrip(src);
+    const out = await normalizeFileContent({
+      content: src,
+      vaultPath,
+      dates: testDate,
+    });
+
+    // make a temporary state directory in the operating system's temp area, which the parse processor may need for plugin context
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const stateDir = join(__dirname, "tmp", "roundtrip-test-state");
+    await fs.mkdir(stateDir, { recursive: true });
+
     // The output representation may differ slightly but the rendered semantics
     // must be identical: the * characters must not form an emphasis node.
-    const tree = parseMarkdown(out);
+    const tree = createParseProcessor(EMPTY_CONFIG, {
+      dates: testDate,
+      vaultPath,
+      async queueJob() {},
+      jobIdFactory: buildJobId,
+      env: {},
+      dryRun: true,
+      updateFile: function () {},
+      mode: "all",
+    }).parse(out);
     const para = tree.children[0] as Paragraph;
     // All children must be text — no emphasis node.
     for (const child of para.children) {
@@ -109,10 +151,12 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
     }
   });
 
-  it("preserves actual *emphasis* unchanged", () => {
+  it("preserves actual *emphasis* unchanged", async () => {
     // *foo* should remain as *foo* (emphasis node round-trips cleanly).
     const src = "*foo* bar\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 });
 
@@ -121,47 +165,67 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
 // ---------------------------------------------------------------------------
 
 describe("round-trip: nested lists", () => {
-  it("preserves 2-space nested unordered list", () => {
+  it("preserves 2-space nested unordered list", async () => {
     const src = "* Item 1\n  * Nested 1\n  * Nested 2\n* Item 2\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves three-level nesting", () => {
+  it("preserves three-level nesting", async () => {
     const src = "* Level 1\n  * Level 2\n    * Level 3\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves nested task lists", () => {
+  it("preserves nested task lists", async () => {
     const src =
       "* [ ] Parent task\n" +
       "  * [ ] Child task\n" +
       "    * [ ] Grandchild\n" +
       "  * [ ] Another child\n" +
       "* [ ] Second parent\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves ordered list nested inside unordered", () => {
+  it("preserves ordered list nested inside unordered", async () => {
     const src = "* Item\n  1. First\n  2. Second\n* Another item\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
-  it("preserves loose nested list (blank lines between items)", () => {
+  it("preserves loose nested list (blank lines between items)", async () => {
     const src = "* Item 1\n\n  * Nested 1\n\n  * Nested 2\n\n* Item 2\n";
-    expect(roundTrip(src)).toBe(src);
+    expect(
+      await normalizeFileContent({ content: src, vaultPath, dates: testDate }),
+    ).toBe(src);
   });
 
   // Regression: remark-stringify with listItemIndent:'one' lost indentation
   // and inserted a blank line when a numbered list was nested inside a bullet.
-  it("preserves nested numbered list in bullet — exact repro", () => {
-    expect(roundTrip(NESTED_ORDERED_IN_UNORDERED)).toBe(
-      NESTED_ORDERED_IN_UNORDERED,
-    );
+  it("preserves nested numbered list in bullet — exact repro", async () => {
+    expect(
+      await normalizeFileContent({
+        content: NESTED_ORDERED_IN_UNORDERED,
+        vaultPath,
+        dates: testDate,
+      }),
+    ).toBe(NESTED_ORDERED_IN_UNORDERED);
   });
 
-  it("is idempotent for nested numbered list inside bullet list", () => {
-    const once = roundTrip(NESTED_ORDERED_IN_UNORDERED);
-    expect(roundTrip(once)).toBe(once);
+  it("is idempotent for nested numbered list inside bullet list", async () => {
+    const once = await normalizeFileContent({
+      content: NESTED_ORDERED_IN_UNORDERED,
+      vaultPath,
+      dates: testDate,
+    });
+    expect(
+      await normalizeFileContent({ content: once, vaultPath, dates: testDate }),
+    ).toBe(once);
   });
 });
 
@@ -173,10 +237,15 @@ describe("round-trip: YAML front-matter", () => {
   it("preserves front-matter block via normalizeFileContent", async () => {
     // normalizeFileContent splits frontmatter from body before parse/stringify,
     // so the YAML block is never fed to remark and cannot be corrupted.
-    const { normalizeFileContent } = await import("../src/engine/runner.js");
     const src =
       "---\ntitle: My Note\ntags:\n  - project\n---\n\n# Heading\n\nBody text.\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(
+      await await normalizeFileContent({
+        content: src,
+        vaultPath,
+        dates: testDate,
+      }),
+    ).toBe(src);
   });
 
   it("does not convert publish:false frontmatter into a Markdown heading", async () => {
@@ -184,19 +253,27 @@ describe("round-trip: YAML front-matter", () => {
     // by remark as a setext heading underline, turning `publish: false\n---`
     // into `## publish: false`.  normalizeFileContent must prevent this by
     // stripping frontmatter before passing the body to remark.
-    const { normalizeFileContent } = await import("../src/engine/runner.js");
     const src = "---\npublish: false\n---\n";
-    expect(normalizeFileContent(src)).toBe(src);
+    expect(
+      await await normalizeFileContent({
+        content: src,
+        vaultPath,
+        dates: testDate,
+      }),
+    ).toBe(src);
   });
 
   it("normalizeFileContent preserves nested numbered list in bullet list", async () => {
     // Regression: bullet → ordered nesting must survive the full normalise
     // pipeline (parseFrontmatter → parseMarkdown → stringifyMarkdown) without
     // losing indentation or gaining a blank line between the two lists.
-    const { normalizeFileContent } = await import("../src/engine/runner.js");
-    expect(normalizeFileContent(NESTED_ORDERED_IN_UNORDERED)).toBe(
-      NESTED_ORDERED_IN_UNORDERED,
-    );
+    expect(
+      await await normalizeFileContent({
+        content: NESTED_ORDERED_IN_UNORDERED,
+        vaultPath,
+        dates: testDate,
+      }),
+    ).toBe(NESTED_ORDERED_IN_UNORDERED);
   });
 });
 
@@ -206,10 +283,6 @@ describe("round-trip: YAML front-matter", () => {
 
 describe("round-trip: UTF-16 decoding", () => {
   it("decodes UTF-16 LE content to the same text as UTF-8", async () => {
-    const { runInitPass } = await import("../src/engine/runner.js");
-    const { promises: fs } = await import("node:fs");
-    const { join, dirname } = await import("node:path");
-    const { fileURLToPath } = await import("node:url");
     const __dir = dirname(fileURLToPath(import.meta.url));
 
     const TMP = join(__dir, "..", "tmp", "roundtrip-utf16-test");

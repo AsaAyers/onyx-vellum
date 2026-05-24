@@ -1,2 +1,2 @@
-- [ ] A due:today
-- [ ] B
+* [ ] A due:today
+* [ ] B

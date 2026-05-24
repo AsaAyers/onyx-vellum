@@ -10,6 +10,8 @@ import {
   normalizeAlertSchedule,
 } from "../src/engine/scheduler.js";
 
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 describe("normalizeAlertSchedule", () => {
   it("normalizes single-digit values and deduplicates entries", () => {
     const result = normalizeAlertSchedule(["9:5", "09:05", " 09:5 "]);
@@ -44,6 +46,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -65,6 +68,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -82,6 +86,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -97,6 +102,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -114,6 +120,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -131,6 +138,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -152,6 +160,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 }, // check every second
     );
 
@@ -174,6 +183,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -197,6 +207,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -223,6 +234,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -240,6 +252,7 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      tz,
       { intervalMs: 1_000 },
     );
 
@@ -262,9 +275,9 @@ describe("createAlertScheduler", () => {
       async () => {
         alerts.push("fired");
       },
+      "America/Los_Angeles",
       {
         intervalMs: 1_000,
-        getTimezone: () => "America/Los_Angeles",
       },
     );
 

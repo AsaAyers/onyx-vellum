@@ -1,277 +1,92 @@
-import { unified } from "unified";
+import { type Processor, unified } from "unified";
 import remarkParse from "remark-parse";
+import createDebug from "debug";
 import remarkGfm from "remark-gfm";
 import remarkWikiLink from "remark-wiki-link";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkStringify from "remark-stringify";
-import { visit, SKIP } from "unist-util-visit";
-import type { Root, Text, Parent } from "mdast";
+
+import {
+  inlineFieldsPlugin,
+  inlineFieldsNodeHandler,
+} from "./inlineFieldsPlugin.js";
+import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
+import { rolloverPlugin } from "../rules/rolloverPlugin.js";
+import type { Root, Node, Link } from "mdast";
 import type {
   ObsidianEmbedNode,
   WikiLinkNode,
-  Handlers,
+  Handle,
   ObsidianTagNode,
-  RawAsteriskNode,
 } from "./types.js";
+import type { Config } from "../config.js";
+import { stampDonePlugin } from "../rules/stampDonePlugin.js";
+import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
+import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
+import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
+import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
+import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
+import { remarkObsidianPlugin } from "./remarkObsidianPlugin.js";
+import type { PluginContext } from "./PluginContext.js";
 
-function remarkObsidianProtections() {
-  return (tree: Root): void => {
-    protectObsidianEmbeds(tree);
-    protectObsidianTags(tree);
-    protectInertAsterisks(tree);
-  };
-}
+const debug = createDebug("onyx:markdown:parse");
 
-const createParseProcessor = () =>
-  unified()
+type MarkdownProcessor<
+  CompileTree extends Node | undefined = undefined,
+  Result extends string | undefined = undefined,
+> = Processor<Root, Root, Root, CompileTree, Result>;
+export const createParseProcessor = (
+  config: Config,
+  ctx: PluginContext,
+): MarkdownProcessor<Root, string> => {
+  debug("Creating markdown processor with ruleContext:", ctx);
+  let processor: MarkdownProcessor = unified()
+    .data({
+      settings: {
+        onyxVellum: {
+          config,
+          ctx,
+        },
+      },
+    })
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkFrontmatter)
     .use(remarkWikiLink)
-    .use(remarkObsidianProtections)
-    .use(remarkStringify, {
-      bullet: "*",
-      listItemIndent: "one",
-      rule: "-",
-      handlers: customHandlers,
-    });
-const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
+    .use(remarkObsidianPlugin);
 
-function splitObsidianEmbedText(
-  value: string,
-): Array<Text | ObsidianEmbedNode> {
-  const parts: Array<Text | ObsidianEmbedNode> = [];
-  let lastIndex = 0;
-  OBSIDIAN_EMBED_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = OBSIDIAN_EMBED_RE.exec(value)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({
-        type: "text",
-        value: value.slice(lastIndex, match.index),
-      } as Text);
-    }
-    parts.push({ type: "obsidianEmbed", value: match[1] } as ObsidianEmbedNode);
-    lastIndex = match.index + match[1].length;
-  }
-  if (lastIndex < value.length) {
-    parts.push({ type: "text", value: value.slice(lastIndex) } as Text);
-  }
-  return parts;
-}
-
-/**
- * Walk the AST and replace text nodes containing Obsidian embeds with a mix of
- * `text` and `obsidianEmbed` nodes so the stringify step emits them verbatim.
- *
- * Mutates `tree` in place — call just before stringification.
- */
-function protectObsidianEmbeds(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("![[")) return;
-      const parts = splitObsidianEmbedText(node.value);
-      if (parts.length === 1 && parts[0].type === "text") return;
-      (parent.children as Array<Text | ObsidianEmbedNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
-}
-
-/**
- * Matches an Obsidian hashtag: `#` immediately followed by a letter or
- * underscore (preventing pure-number tags which Obsidian disallows), then
- * any run of word characters, hyphens, or forward slashes.
- * Supports Unicode letters via the `u` flag and `\p{L}` property.
- */
-const OBSIDIAN_TAG_RE = /#[\p{L}_][\p{L}\p{N}_\-/]*/gu;
-
-function splitObsidianTagText(value: string): Array<Text | ObsidianTagNode> {
-  const parts: Array<Text | ObsidianTagNode> = [];
-  let lastIndex = 0;
-  OBSIDIAN_TAG_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = OBSIDIAN_TAG_RE.exec(value)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({
-        type: "text",
-        value: value.slice(lastIndex, match.index),
-      } as Text);
-    }
-    parts.push({ type: "obsidianTag", value: match[0] } as ObsidianTagNode);
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < value.length) {
-    parts.push({ type: "text", value: value.slice(lastIndex) } as Text);
-  }
-  return parts;
-}
-
-/**
- * Walk the AST and replace text nodes containing Obsidian hashtags with a mix
- * of `text` and `obsidianTag` nodes so the stringify step emits them verbatim.
- *
- * Mutates `tree` in place — call just before stringification.
- */
-function protectObsidianTags(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("#")) return;
-      const parts = splitObsidianTagText(node.value);
-      if (
-        parts.length === 0 ||
-        (parts.length === 1 && parts[0].type === "text")
-      )
-        return;
-      (parent.children as Array<Text | ObsidianTagNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
-}
-
-// ASCII punctuation characters used by the CommonMark flanking-delimiter rules.
-const ASCII_PUNCT_RE = /[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/;
-
-/**
- * Compute the left- and right-flanking status of a single `*` delimiter
- * given the characters immediately before and after it.
- * Pass an empty string for `prev`/`next` to represent start/end of value.
- */
-function asteriskFlanking(
-  prev: string,
-  next: string,
-): { left: boolean; right: boolean } {
-  const prevIsWs = prev === "" || /\s/.test(prev);
-  const nextIsWs = next === "" || /\s/.test(next);
-  const prevIsPunct = prev !== "" && ASCII_PUNCT_RE.test(prev);
-  const nextIsPunct = next !== "" && ASCII_PUNCT_RE.test(next);
-
-  // CommonMark spec §6.2 (emphasis):
-  //   Left-flanking:  not followed by whitespace  AND
-  //                   (not followed by punctuation  OR  preceded by ws/punct)
-  //   Right-flanking: not preceded by whitespace  AND
-  //                   (not preceded by punctuation OR  followed by ws/punct)
-  const left = !nextIsWs && (!nextIsPunct || prevIsWs || prevIsPunct);
-  const right = !prevIsWs && (!prevIsPunct || nextIsWs || nextIsPunct);
-  return { left, right };
-}
-
-/**
- * Returns the set of positions within `value` where `*` is "inert" — i.e. it
- * cannot be part of an emphasis pair and may be emitted verbatim.
- *
- * Start and end of the string are treated as whitespace for boundary analysis.
- * Asterisks at potential line-break positions (position 0 or after `\n`) that
- * are followed by a space/tab/newline/`*` are excluded: the `atBreak` unsafe
- * rule in remark-stringify must keep those escaped to prevent accidental list
- * items from being created.
- */
-function inertAsteriskPositions(value: string): Set<number> {
-  interface AsteriskInfo {
-    pos: number;
-    left: boolean;
-    right: boolean;
-  }
-  const asts: AsteriskInfo[] = [];
-
-  for (let i = 0; i < value.length; i++) {
-    if (value[i] !== "*") continue;
-
-    const prev = i > 0 ? value[i - 1] : "";
-    const next = i < value.length - 1 ? value[i + 1] : "";
-
-    // Exclude * at line-break boundaries that match the atBreak unsafe rule.
-    if (
-      (i === 0 || prev === "\n") &&
-      /[ \t\r\n*]/.test(next === "" ? " " : next)
-    ) {
-      continue;
-    }
-
-    const { left, right } = asteriskFlanking(prev, next);
-    asts.push({ pos: i, left, right });
+  if (ctx.mode === "normalize") {
+    debug("Creating processor in normalize mode");
+    processor = processor.use(sortTasksSpecPlugin);
+  } else {
+    processor = processor
+      .use(inlineFieldsPlugin)
+      .use(normalizeTodayPlugin)
+      .use(ensureAudioTranscriptsPlugin);
   }
 
-  // Greedily pair the first left-flanking opener with the nearest subsequent
-  // right-flanking closer.  Unpaired * are inert.
-  const paired = new Set<number>();
-  for (let i = 0; i < asts.length; i++) {
-    if (!asts[i].left || paired.has(asts[i].pos)) continue;
-    for (let j = i + 1; j < asts.length; j++) {
-      if (!asts[j].right || paired.has(asts[j].pos)) continue;
-      paired.add(asts[i].pos);
-      paired.add(asts[j].pos);
-      break;
-    }
+  if (ctx.mode === "all") {
+    debug("Creating processor");
+    processor = processor
+      .use(stampDonePlugin)
+      .use(rolloverPlugin)
+      .use(removeEphemeralOverdueTasksPlugin)
+      .use(moveDoneTasksPlugin)
+      .use(sortTasksSpecPlugin);
+  } else if (ctx.mode === "alert") {
+    debug("Creating processor in alert mode");
+    processor = processor
+      .use(incompleteTaskAlertPlugin)
+      .use(sortTasksSpecPlugin);
   }
 
-  const inert = new Set<number>();
-  for (const a of asts) {
-    if (!paired.has(a.pos)) inert.add(a.pos);
-  }
-  return inert;
-}
-
-/**
- * Walk the AST and split text nodes that contain inert `*` characters into
- * alternating `text` / `rawAsterisk` nodes so the stringify step emits the
- * asterisks verbatim without backslash-escaping.
- *
- * Mutates `tree` in place — call just before stringification.
- */
-function protectInertAsterisks(tree: Root): void {
-  visit(
-    tree,
-    "text",
-    (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (!parent || index === undefined) return;
-      if (!node.value.includes("*")) return;
-
-      const inert = inertAsteriskPositions(node.value);
-      if (inert.size === 0) return;
-
-      const parts: Array<Text | RawAsteriskNode> = [];
-      let lastIdx = 0;
-      for (let i = 0; i < node.value.length; i++) {
-        if (inert.has(i)) {
-          if (i > lastIdx) {
-            parts.push({
-              type: "text",
-              value: node.value.slice(lastIdx, i),
-            } as Text);
-          }
-          parts.push({ type: "rawAsterisk", value: "*" } as RawAsteriskNode);
-          lastIdx = i + 1;
-        }
-      }
-      if (lastIdx < node.value.length) {
-        parts.push({ type: "text", value: node.value.slice(lastIdx) } as Text);
-      }
-      if (parts.length <= 1) return;
-
-      (parent.children as Array<Text | RawAsteriskNode>).splice(
-        index,
-        1,
-        ...parts,
-      );
-      return [SKIP, index + parts.length];
-    },
-  );
-}
+  return processor.use(remarkStringify, {
+    bullet: "*",
+    listItemIndent: "one",
+    rule: "-",
+    handlers: customHandlers,
+  });
+};
 
 // ---------------------------------------------------------------------------
 // Link / image URL protection
@@ -337,19 +152,19 @@ imageHandler.peek = (): string => "!";
 function isAutolink(node: any, state: any): boolean {
   const child = node.children?.length === 1 ? node.children[0] : null;
   const raw: string = child?.type === "text" ? child.value : "";
-  return Boolean(
+  const r = Boolean(
     !state.options.resourceLink &&
     node.url &&
     !node.title &&
-    raw &&
-    (raw === node.url || "mailto:" + raw === node.url) &&
-    /^[a-z][a-z+.-]+:/i.test(node.url) &&
-    !/[\0- <>\u007F]/.test(node.url),
+    Boolean(raw === "" || raw === node.url || "mailto:" + raw === node.url) &&
+    Boolean(/^[a-z][a-z+.-]+:/i.test(node.url)) &&
+    Boolean(!/[\0- <>\u007F]/.test(node.url)),
   );
+  return r;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function linkHandler(node: any, _: any, state: any, info: any): string {
+const linkHandler: Handle = function (node: Link, _, state, info): string {
   const quote: string = state.options.quote || '"';
   const suffix = quote === '"' ? "Quote" : "Apostrophe";
   const tracker = state.createTracker(info);
@@ -413,7 +228,9 @@ function linkHandler(node: any, _: any, state: any, info: any): string {
   value += tracker.move(")");
   exit();
   return value;
-}
+};
+// @ts-expect-error: `peek` is not declared on `Handle` type, but is used by
+// remark-stringify to determine whether to apply unsafe rules.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 linkHandler.peek = (node: any, _: any, state: any): string =>
   isAutolink(node, state) ? "<" : "[";
@@ -422,8 +239,12 @@ linkHandler.peek = (node: any, _: any, state: any): string =>
 // Markdown stringifier handlers
 // ---------------------------------------------------------------------------
 
+function rawHandler<T extends { value: string }>(node: T): string {
+  return node.value;
+}
+
 /** Emit custom nodes verbatim, without any escaping. */
-const customHandlers = {
+const customHandlers: Record<string, Handle> = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wikiLink: (node: any) => {
     const wiki = node as WikiLinkNode;
@@ -431,26 +252,18 @@ const customHandlers = {
     if (alias && alias !== wiki.value) return `[[${wiki.value}|${alias}]]`;
     return `[[${wiki.value}]]`;
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  obsidianEmbed: (node: any) => (node as ObsidianEmbedNode).value,
+
+  callout: rawHandler,
+  obsidianEmbed: (node) =>
+    `![[${(node as ObsidianEmbedNode).target}${
+      (node as ObsidianEmbedNode).alias
+        ? `|${(node as ObsidianEmbedNode).alias}`
+        : ""
+    }]]`,
   rawAsterisk: () => "*",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obsidianTag: (node: any) => (node as ObsidianTagNode).value,
   link: linkHandler,
   image: imageHandler,
-} as Partial<Handlers>;
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export function parseMarkdown(content: string): Root {
-  const processor = createParseProcessor();
-  return processor.parse(content);
-}
-
-export function stringifyMarkdown(tree: Root): string {
-  const processor = createParseProcessor();
-  const transformed = processor.runSync(tree) as Root;
-  return processor.stringify(transformed);
-}
+  inlineFields: inlineFieldsNodeHandler,
+};

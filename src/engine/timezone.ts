@@ -1,70 +1,75 @@
-type DateParts = {
-  year: number;
-  month: number;
-  day: number;
-  hour: number;
-  minute: number;
-  second: number;
-};
+import z from "zod";
+import { format, toZonedTime, toDate } from "date-fns-tz";
+import { addDays } from "date-fns";
+import createDebug from "debug";
 
-const DATE_PART_KEYS = [
-  "year",
-  "month",
-  "day",
-  "hour",
-  "minute",
-  "second",
-] as const;
+const debug = createDebug("onyx:timezone");
 
-type DatePartKey = (typeof DATE_PART_KEYS)[number];
+const zTimeInput = z.strictObject({
+  strDate: z.string().optional(),
+  tz: z.string(),
+});
 
-function isDatePartKey(value: string): value is DatePartKey {
-  return (DATE_PART_KEYS as readonly string[]).includes(value);
-}
+const zTimeOutput = z.object({
+  date: z.date(),
+  today: z.string(),
+  yesterday: z.string(),
+  tomorrow: z.string(),
+  tz: z.string(),
+});
+export const zUserLocalTime = zTimeInput
+  .pipe(
+    z.preprocess(
+      (i, ctx): z.infer<typeof zTimeOutput> => {
+        const input = zTimeInput.safeParse(i);
+        if (!input.success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.invalid_type,
+            expected: "object",
+            received: typeof i,
+            message: input.error.message,
+          });
+          return z.NEVER;
+        }
 
-/**
- * Convert an instant to a Date whose local-wall-clock components match
- * the requested IANA timezone at that instant.
- */
-export function toTimezoneDate(date: Date, timezone?: string): Date {
-  if (!timezone) return date;
+        const { strDate, tz } = input.data;
+        const toISO = (d: Date) => format(d, "yyyy-MM-dd", { timeZone: tz });
 
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
+        const now = toDate(new Date(), { timeZone: tz });
+        const dateInput = strDate ?? now;
 
-  const values = parts.reduce<Partial<DateParts>>((acc, part) => {
-    if (isDatePartKey(part.type)) {
-      acc[part.type] = Number(part.value);
-    }
-    return acc;
-  }, {});
+        const date = toZonedTime(dateInput, tz);
+        if (strDate) {
+          const [year, month, day] = strDate.split("-").map(Number);
+          date.setFullYear(year, month - 1, day);
+          date.setHours(12, 0, 0, 0);
+        }
+        const today = toISO(date);
+        debug(
+          "Parsed user local time",
+          JSON.stringify({ strDate, date, today, tz }),
+        );
+        const yesterday = toISO(addDays(date, -1));
+        const tomorrow = toISO(addDays(date, 1));
 
-  if (
-    values.year === undefined ||
-    values.month === undefined ||
-    values.day === undefined ||
-    values.hour === undefined ||
-    values.minute === undefined ||
-    values.second === undefined
-  ) {
-    return date;
-  }
+        if (strDate && strDate !== today) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Provided date is not today in the specified timezone",
+            params: { strDate, today, date },
+          });
+          return z.NEVER;
+        }
+        return { date, today, yesterday, tomorrow, tz };
+      },
+      zTimeOutput,
+      zTimeInput,
+    ),
+  )
+  .brand("UserNoon");
 
-  return new Date(
-    values.year,
-    values.month - 1,
-    values.day,
-    values.hour,
-    values.minute,
-    values.second,
-    date.getMilliseconds(),
-  );
-}
+export type UserLocalTime = z.infer<typeof zUserLocalTime>;
+
+export const userLocalTime = (
+  input: z.input<typeof zUserLocalTime>,
+): UserLocalTime => zUserLocalTime.parse(input);

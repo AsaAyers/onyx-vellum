@@ -8,14 +8,15 @@
     "verbatimModuleSyntax": true,
     "outDir": "dist",
     "types": ["node"],
-    "rootDir": "src",
+    // "rootDir": "src",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*", "src/markdown/ast-augmentations.ts"],
   "exclude": ["node_modules", "dist"]
 }
