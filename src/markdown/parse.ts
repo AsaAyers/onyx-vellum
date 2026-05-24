@@ -30,6 +30,8 @@ import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
 import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
 import type { Job } from "../transcription/types.js";
 import { makePlugin } from "../rules/makePlugin.js";
+import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
+import type { VaultFile } from "../engine/io.js";
 
 const debug = createDebug("onyx:markdown:parse");
 
@@ -54,7 +56,7 @@ export type FileOperation = {
 };
 
 export type PluginContext = {
-  updateFile(transcriptPath: string, arg1: FileOperation): unknown;
+  updateFile(file: VaultFile, arg1: FileOperation): unknown;
   queueJob: (job: Job) => Promise<void>;
   jobIdFactory: (createdAt: Date) => string;
   env: NodeJS.ProcessEnv;
@@ -74,6 +76,7 @@ export const createParseProcessor = (
   config: Config,
   ctx: PluginContext,
 ): MarkdownProcessor<Root, string> => {
+  debug("Creating markdown processor with ruleContext:", ctx);
   let processor: MarkdownProcessor = unified()
     .data({
       settings: {
@@ -91,27 +94,27 @@ export const createParseProcessor = (
 
   if (ctx.mode === "normalize") {
     debug("Creating processor in normalize mode");
-    // Skip adding rule plugins
-  } else if (ctx.mode === "fast") {
-    debug("Creating processor in fast mode");
+    processor = processor.use(sortTasksSpecPlugin);
+  } else {
     processor = processor
       .use(inlineFieldsPlugin)
       .use(normalizeTodayPlugin)
       .use(ensureAudioTranscriptsPlugin);
-  } else if (ctx.mode === "all") {
+  }
+
+  if (ctx.mode === "all") {
     debug("Creating processor");
     processor = processor
-      .use(ensureAudioTranscriptsPlugin)
-      .use(inlineFieldsPlugin)
       .use(stampDonePlugin)
-      .use(normalizeTodayPlugin)
       .use(rolloverPlugin)
       .use(removeEphemeralOverdueTasksPlugin)
       .use(moveDoneTasksPlugin)
       .use(sortTasksSpecPlugin);
   } else if (ctx.mode === "alert") {
     debug("Creating processor in alert mode");
-    // TODO
+    processor = processor
+      .use(incompleteTaskAlertPlugin)
+      .use(sortTasksSpecPlugin);
   }
 
   return processor.use(remarkStringify, {

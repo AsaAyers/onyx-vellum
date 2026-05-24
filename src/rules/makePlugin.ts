@@ -5,6 +5,8 @@ import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/runner.js";
 import type { PluginContext } from "../markdown/parse.js";
+import { relative } from "node:path";
+import { zVaultFile } from "../engine/io.js";
 
 export function makePlugin<
   PluginName extends string,
@@ -29,12 +31,16 @@ export function makePlugin<
 
     return function (tree: Root, file: VFile): Root | void {
       try {
-        // invariant(file.path, "file.path must be defined");
-        const vaultPath: string = ctx.vaultPath;
+        const vaultFile = file.path
+          ? zVaultFile.parse({
+              relativePath: relative(ctx.vaultPath, file.path),
+              absolutePath: file.path,
+            })
+          : null;
         if (
           ruleConfig?.sources &&
-          file.path &&
-          !fileMatchesSources(file.path, ruleConfig.sources, vaultPath)
+          vaultFile &&
+          !fileMatchesSources(vaultFile, ruleConfig.sources)
         ) {
           return tree;
         }

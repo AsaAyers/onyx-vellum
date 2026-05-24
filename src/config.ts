@@ -42,6 +42,12 @@ const zPathSource = z.object({
 
 export const zSource = z.discriminatedUnion("type", [zGlobSource, zPathSource]);
 
+export const zAlertConfig = z.object({
+  sources: z.array(zSource).optional(),
+  alertUrl: z.string().optional(),
+  alertToken: z.string().optional(),
+});
+
 const zRuleConfig = z.object({
   sources: z.array(zSource).optional(),
   alertUrl: z.string().optional(),
@@ -59,7 +65,11 @@ const zWatchConfig = z.object({
    */
   alertSchedule: z.array(z.string()).optional(),
 });
-
+const zKnownRuleConfig = z
+  .object({
+    incompleteTaskAlert: zAlertConfig.optional(),
+  })
+  .catchall(zRuleConfig);
 /**
  * Full config schema:
  *   - optional top-level timezone (IANA timezone, used for date processing)
@@ -89,7 +99,7 @@ export const zConfig = z
       .optional(),
     sources: z.array(zSource).optional(),
     watch: zWatchConfig.optional(),
-    rules: z.record(z.string(), zRuleConfig),
+    rules: zKnownRuleConfig,
   })
   .strict();
 

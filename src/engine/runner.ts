@@ -1,8 +1,14 @@
 import { createPatch } from "diff";
 import fs from "node:fs/promises";
-import fsPath, { join, relative } from "node:path";
+import { join } from "node:path";
 import { createParseProcessor, type PluginContext } from "../markdown/parse.js";
-import { walkMarkdownFiles } from "./io.js";
+import {
+  FileWriteManager,
+  walkMarkdownFiles,
+  zVaultFile,
+  type ChangesArray,
+  type VaultFile,
+} from "./io.js";
 import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../config.js";
 import micromatch from "micromatch";
@@ -13,19 +19,16 @@ import { buildJobId } from "../transcription/queue.js";
 import { resolveStateDir } from "../transcription/runtime.js";
 import { enqueue } from "../transcription/queue.js";
 import { FileOperationExecutor } from "./FileOperationExecutor.js";
-import createDebug from "debug";
-import path from "node:path";
-
-const debug = createDebug("onyx:runner");
+import {
+  ALERT_FILE,
+  sendNotification,
+} from "../rules/incompleteTaskAlertPlugin.js";
 
 export function fileMatchesSources(
-  filePath: string,
+  file: VaultFile,
   sources: Source[],
-  vaultPath: string,
 ): boolean {
-  const relPath = filePath.startsWith(vaultPath)
-    ? filePath.slice(vaultPath.length + 1)
-    : filePath;
+  const relPath = file.relativePath;
   for (const src of sources) {
     if (src.type === "glob" && src.pattern) {
       if (micromatch.isMatch(relPath, src.pattern)) {
@@ -68,12 +71,12 @@ export async function runAllRules(
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
 ): Promise<{
-  changes: Array<{ path: string; content: string }>;
+  changes: ChangesArray;
   report: string;
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
-    // console.log(msg);
+    console.log(msg);
     lines.push(msg);
   };
   // Load config
@@ -120,86 +123,112 @@ export async function runAllRules(
   // Filter all .md files in the vault
   const matchingFiles = (
     await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
-  ).filter((filePath) =>
-    fileMatchesSources(filePath, globalGlobs, baseCtx.vaultPath),
-  );
-  const changes: Array<{ path: string; content: string }> = [];
-  for (const filePath of matchingFiles) {
+  ).filter((filePath) => fileMatchesSources(filePath, globalGlobs));
+  const fileManager = new FileWriteManager(baseCtx.vaultPath);
+  const alertFile =
+    baseCtx.mode === "alert"
+      ? zVaultFile.parse({
+          absolutePath: join(baseCtx.vaultPath, ALERT_FILE),
+          relativePath: ALERT_FILE,
+        })
+      : null;
+  if (alertFile) {
+    fileManager.stage(alertFile, "");
+  }
+  for (const vaultFile of matchingFiles) {
     let original: string;
     try {
-      original = await fs.readFile(
-        path.join(baseCtx.vaultPath, filePath),
-        "utf-8",
-      );
+      original = await fileManager.read(vaultFile);
     } catch {
       continue;
     }
 
-    const vfile = new VFile({ path: filePath, value: original });
+    const vfile = new VFile({ path: vaultFile.absolutePath, value: original });
 
     // Use the provided processor for normalization
     const tree = processor.parse(vfile);
     const processed = (await processor.run(tree, vfile)) as Root;
     const normalized = String(processor.stringify(processed, vfile));
     if (normalized !== original) {
-      changes.push({ path: filePath, content: normalized });
+      fileManager.stage(vaultFile, normalized);
     }
   }
 
-  fileOperations.execute(processor, changes);
+  await fileOperations.execute(processor, fileManager);
+
+  const alertFileContent = alertFile && (await fileManager.read(alertFile));
+  if (baseCtx.mode === "alert" && alertFileContent !== "" && alertFile) {
+    const processor2 = createParseProcessor(config, {
+      ...ruleContext,
+      mode: "alert",
+    });
+
+    const vfile = new VFile({
+      path: alertFile.absolutePath,
+      value: alertFileContent,
+    });
+    const tree = processor2.parse(vfile);
+    const processed = (await processor2.run(tree, vfile)) as Root;
+    const content = String(processor2.stringify(processed, vfile));
+    fileManager.unstageAll();
+    fileManager.stage(alertFile, content);
+  }
 
   // Sort by path for deterministic output
-  changes.sort((a, b) => a.path.localeCompare(b.path));
+  // fileManager.sort((a, b) => a.path.localeCompare(b.path));
+  const changes = await fileManager.commit(baseCtx.dryRun);
   if (baseCtx.dryRun) {
     if (changes.length > 0) {
       for (const change of changes) {
-        const relPath = filePathRelative(baseCtx.vaultPath, change.path);
+        const fullPath = change.vaultFile.absolutePath;
         let original = "";
         try {
-          original = await fs.readFile(change.path, "utf-8");
+          original = await fs.readFile(fullPath, "utf-8");
         } catch {
           // new file — treat original as empty
         }
-        log(createPatch(relPath, original, change.content));
+        log(createPatch(fullPath, original, change.content));
       }
     } else {
       log("No changes.");
     }
   } else {
-    for (const change of changes) {
-      const fullPath = path.join(baseCtx.vaultPath, change.path);
-      await fs.mkdir(fsPath.dirname(fullPath), { recursive: true });
-      debug(`Writing file: ${fullPath}`);
-      await fs.writeFile(fullPath, change.content, "utf-8");
-    }
     if (changes.length > 0) {
       log("\nFiles written:");
-      for (const { path: f } of changes) {
+      for (const {
+        vaultFile: { relativePath: f },
+      } of changes) {
         log(`  ${f}`);
       }
     } else {
       log("\nNo files written.");
     }
   }
+
+  if (ruleContext.mode === "alert" && !baseCtx.dryRun && alertFile) {
+    const alertContent = await fileManager.read(alertFile);
+    if (alertContent.trim() === "") {
+      log("\nNo alerts to report.");
+    } else {
+      log(
+        `Sending alert to: ${
+          config.rules.incompleteTaskAlert?.alertUrl ?? "(no URL configured)"
+        }`,
+      );
+      await sendNotification(config.rules.incompleteTaskAlert, alertContent);
+    }
+  }
+
   return { changes, report: lines.join("\n") };
 }
 
-function filePathRelative(base: string, file: string): string {
-  if (file.startsWith(base)) {
-    return file.slice(base.length + 1);
-  }
-  return file;
-}
-
 export async function runInitPass(vaultPath: string, dryRun: boolean) {
-  const changes: Array<{ path: string; original: string; content: string }> =
-    [];
+  const fileManager = new FileWriteManager(vaultPath);
   const allFiles = await walkMarkdownFiles(vaultPath, vaultPath);
-  for (const filePath of allFiles) {
+  for (const vaultFile of allFiles) {
     let rawBuffer: Buffer;
     try {
-      const absolutePath = join(vaultPath, filePath);
-      rawBuffer = await fs.readFile(absolutePath);
+      rawBuffer = await fs.readFile(vaultFile.absolutePath);
     } catch {
       continue;
     }
@@ -254,19 +283,25 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
     // Always record a change for UTF-16 files: even if the text is already
     // normalized, the encoding itself needs to be converted to UTF-8.
     if (normalized !== original || wasUtf16) {
-      changes.push({ path: filePath, original, content: normalized });
+      fileManager.stage(vaultFile, normalized);
     }
   }
+
+  const changes = await fileManager.commit(dryRun);
   // Sort by path for deterministic output.
-  changes.sort((a, b) => a.path.localeCompare(b.path));
+  changes.sort((a, b) =>
+    a.vaultFile.absolutePath.localeCompare(b.vaultFile.absolutePath),
+  );
 
   if (dryRun) {
     if (changes.length > 0) {
       for (const change of changes) {
         console.log(
           createPatch(
-            relative(vaultPath, change.path),
-            change.original,
+            change.vaultFile.relativePath,
+            await fs
+              .readFile(change.vaultFile.absolutePath, "utf-8")
+              .catch(() => ""),
             change.content,
           ),
         );
@@ -276,7 +311,11 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
     }
   } else {
     for (const change of changes) {
-      await fs.writeFile(join(vaultPath, change.path), change.content, "utf-8");
+      await fs.writeFile(
+        change.vaultFile.absolutePath,
+        change.content,
+        "utf-8",
+      );
     }
   }
   return { changes };

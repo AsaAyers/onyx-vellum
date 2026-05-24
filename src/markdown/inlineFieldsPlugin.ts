@@ -31,9 +31,7 @@ export function getInlineFields(i: ListItem): Record<string, string> {
       return newNode.data.inlineFields as Record<string, string>;
     }
   }
-  throw new Error(
-    "getInlineFields: No paragraph found in list item to attach inline fields",
-  );
+  return {};
 }
 
 // Utility to set a single inline field on a ListItem (mutates the last inlineFields node)
@@ -94,7 +92,6 @@ export const inlineFieldsPlugin = function (this: Processor) {
       const extractedFields: Record<string, string> = {};
       visit(listItemNode, "text", (textNode) => {
         const { clean, fields } = extractInlineFields(textNode.value);
-        debug("found fields", fields);
         Object.assign(extractedFields, fields);
         textNode.value = clean;
       });

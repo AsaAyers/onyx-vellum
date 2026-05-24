@@ -13,7 +13,6 @@ import type { PluginContext } from "./markdown/parse.js";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
-const verbose = args.includes("--verbose");
 const init = args.includes("--init");
 const watch = args.includes("--watch");
 const help = args.includes("--help") || args.includes("-h");
@@ -61,19 +60,20 @@ if (init) {
     process.exit(1);
   });
 } else {
+  const mode = positional[0];
   // Rule selection is required: either "all" or one or more rule names.
-  if (positional.length === 0) {
-    console.error('Error: specify "all" or a list of rule names to run.');
+  if (positional.length !== 1 || (mode !== "all" && mode !== "alert")) {
+    console.error('Error: specify "all" or "alert".');
     console.error("");
     console.error("Examples:");
     console.error("  onyx-vellum all");
-    console.error("  onyx-vellum --dry-run stampDone");
+    console.error("  onyx-vellum --dry-run all");
     console.error("");
     console.error("Run with --help for full usage information.");
     process.exit(1);
   }
   const ruleContext: Omit<Parameters<typeof runAllRules>[0], "todayDate"> = {
-    mode: "all",
+    mode,
     vaultPath,
     dryRun,
     env: process.env,
@@ -198,13 +198,13 @@ if (init) {
     });
   } else {
     if (dryRun) {
-      console.log(`Dry run: true${verbose ? " (verbose)" : ""}`);
+      console.log(`Dry run: true`);
     } else {
       console.log(`Dry run: false`);
     }
     console.log("");
 
-    await run("all", onlyGlob).catch((err: unknown) => {
+    await run(mode, onlyGlob).catch((err: unknown) => {
       console.error("Fatal error:", (err as Error).message);
       process.exit(1);
     });

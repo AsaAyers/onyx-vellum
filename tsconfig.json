@@ -14,6 +14,7 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src/**/*", "tests/**/*"],

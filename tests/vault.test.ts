@@ -8,7 +8,7 @@
  * even when the `.md` input file does not yet exist on disk.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAllRules } from "../src/engine/runner.js";
 import { walkMarkdownFiles } from "../src/engine/io.js";
@@ -79,7 +79,7 @@ describe("test vault — .md.expected snapshots", () => {
       mode: "all",
     });
     pipelineOutputs = new Map(
-      changes.map((c) => [join(TEST_VAULT, c.path), c.content]),
+      changes.map((c) => [c.vaultFile.absolutePath, c.content]),
     );
   })();
 
@@ -100,26 +100,25 @@ describe("test vault — .md.expected snapshots", () => {
   }
 
   function defineTests(node: DirTree, pathArr: string[] = []) {
-    for (const [key, value] of Object.entries(node)) {
-      if (typeof value === "string") {
-        const expectedPath = value;
-        const actualPath = expectedPath.slice(0, -".expected".length);
-        const relPath = relative(TEST_VAULT, actualPath);
-        if (WORKER_ONLY_EXPECTED_OUTPUTS.has(actualPath)) continue;
-        it(relPath, async () => {
+    for (const [fileName, expectedPath] of Object.entries(node)) {
+      if (typeof expectedPath === "string") {
+        const absolutePath = expectedPath.slice(0, -".expected".length);
+        const relPath = relative(TEST_VAULT, absolutePath);
+        if (WORKER_ONLY_EXPECTED_OUTPUTS.has(absolutePath)) continue;
+        it(basename(relPath), async () => {
           await pipelineReady;
           const expectedContent = await fsp.readFile(expectedPath, "utf-8");
           const actualContent =
-            pipelineOutputs.get(actualPath) ??
-            (await readOptionalFile(actualPath));
+            pipelineOutputs.get(absolutePath) ??
+            (await readOptionalFile(absolutePath));
           if (actualContent === undefined) {
             throw new Error(`expected output file was not produced`);
           }
           expect(actualContent, relPath).toBe(expectedContent);
         });
       } else {
-        describe(key, () => {
-          defineTests(value as DirTree, pathArr.concat(key));
+        describe(fileName, () => {
+          defineTests(expectedPath, pathArr.concat(fileName));
         });
       }
     }
@@ -135,7 +134,7 @@ describe("test vault — .md.expected snapshots", () => {
     const before = new Map(
       await Promise.all(
         mdFiles
-          .map((path) => join(TEST_VAULT, path))
+          .map((path) => path.absolutePath)
           .map(async (p) => [p, await fsp.readFile(p, "utf-8")] as const),
       ),
     );

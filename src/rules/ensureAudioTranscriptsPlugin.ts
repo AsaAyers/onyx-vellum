@@ -4,8 +4,9 @@ import invariant from "tiny-invariant";
 import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
 import type { TranscriptionPipelineJob } from "../transcription/types.js";
 import { makePlugin } from "./makePlugin.js";
-import path from "node:path";
+import path, { relative } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
+import { zVaultFile } from "../engine/io.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -75,7 +76,11 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 
         ctx.queueJob(job);
 
-        ctx.updateFile(absoluteTranscriptPath, {
+        const vaultFile = zVaultFile.parse({
+          absolutePath: absoluteTranscriptPath,
+          relativePath: relative(ctx.vaultPath, absoluteTranscriptPath),
+        });
+        ctx.updateFile(vaultFile, {
           position: "start",
           header: null,
           frontmatter: {
