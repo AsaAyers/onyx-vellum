@@ -41,8 +41,17 @@ function sortTaskItems(items: ListItem[]): ListItem[] {
  */
 export const sortTasksSpecPlugin = makePlugin("sortTasks", function ({ tree }) {
   visit(tree as Root, "list", (listNode: List) => {
-    if (!Array.isArray(listNode.children)) return;
-    listNode.spread = false;
-    listNode.children = sortTaskItems(listNode.children);
+    const children = listNode.children;
+    if (!Array.isArray(children)) return;
+    listNode.children = sortTaskItems(children);
+
+    if (
+      listNode.children.some(
+        (child, index) => children.indexOf(child) !== index,
+      )
+    ) {
+      // Compress sorted lists
+      listNode.spread = false;
+    }
   });
 });

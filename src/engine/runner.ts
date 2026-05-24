@@ -23,7 +23,7 @@ import {
   ALERT_FILE,
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
-import { userLocalTime } from "./timezone.js";
+import { type UserLocalTime } from "./timezone.js";
 
 export function fileMatchesSources(
   file: VaultFile,
@@ -289,11 +289,10 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
       }
     }
 
-    const normalized = await normalizeFileContent(original);
-    // Always record a change for UTF-16 files: even if the text is already
-    // normalized, the encoding itself needs to be converted to UTF-8.
-    if (normalized !== original || wasUtf16) {
-      fileManager.stage(vaultFile, normalized);
+    // Always record a change for UTF-16 files: the encoding itself needs to be
+    // converted to UTF-8.
+    if (wasUtf16) {
+      fileManager.stage(vaultFile, original);
     }
   }
 
@@ -335,7 +334,15 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
  * Normalize a single file's raw content through the parse → stringify
  * pipeline, preserving structured YAML frontmatter data.
  */
-export async function normalizeFileContent(raw: string, tz: string = "UTC") {
+export async function normalizeFileContent({
+  content,
+  dates,
+  vaultPath,
+}: {
+  content: string;
+  dates: UserLocalTime;
+  vaultPath: string;
+}) {
   const fileOperations = new FileOperationExecutor();
   const processor = createParseProcessor(
     {
@@ -346,8 +353,8 @@ export async function normalizeFileContent(raw: string, tz: string = "UTC") {
       updateFile: fileOperations.updateFile,
       queueJob: async () => {},
       jobIdFactory: buildJobId,
-      dates: userLocalTime({ tz }),
-      vaultPath: "",
+      dates,
+      vaultPath,
       dryRun: true,
       env: {},
     },
@@ -358,7 +365,7 @@ export async function normalizeFileContent(raw: string, tz: string = "UTC") {
    */
   // fileOperations.execute(processor, []);
 
-  const vfile = new VFile({ path: "tmp.md", value: raw });
+  const vfile = new VFile({ path: "tmp.md", value: content });
   const tree = processor.parse(vfile);
   const processed = (await processor.run(tree, vfile)) as Root;
   const normalized = String(processor.stringify(processed, vfile));

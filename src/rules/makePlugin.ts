@@ -38,6 +38,10 @@ export function makePlugin<
 
     return function (tree: Root, file: VFile): Root | void {
       try {
+        invariant(
+          ctx.vaultPath,
+          `[${pluginName}] vaultPath must be provided in plugin context`,
+        );
         const relativePath = file.path?.replace(ctx.vaultPath + "/", "");
 
         const vaultFile = file.path

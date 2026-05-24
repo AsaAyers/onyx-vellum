@@ -10,7 +10,7 @@ import {
   normalizeAlertSchedule,
 } from "../src/engine/scheduler.js";
 
-const tz = "UTC";
+const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 describe("normalizeAlertSchedule", () => {
   it("normalizes single-digit values and deduplicates entries", () => {

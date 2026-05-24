@@ -32,7 +32,7 @@ import type { Job } from "../transcription/types.js";
 import { makePlugin } from "../rules/makePlugin.js";
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
 import type { VaultFile } from "../engine/io.js";
-import type { UserNoon } from "../engine/timezone.js";
+import type { UserLocalTime } from "../engine/timezone.js";
 
 const debug = createDebug("onyx:markdown:parse");
 
@@ -63,7 +63,7 @@ export type PluginContext = {
   env: NodeJS.ProcessEnv;
   mode: "normalize" | "all" | "fast" | "alert";
   onlyGlob?: string[];
-  dates: UserNoon;
+  dates: UserLocalTime;
   dryRun: boolean;
   vaultPath: string;
 };

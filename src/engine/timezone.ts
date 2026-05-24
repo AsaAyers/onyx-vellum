@@ -8,7 +8,6 @@ const debug = createDebug("onyx:timezone");
 const zTimeInput = z.strictObject({
   strDate: z.string().optional(),
   tz: z.string(),
-  noon: z.boolean().default(true),
 });
 
 const zTimeOutput = z.object({
@@ -33,26 +32,21 @@ export const zUserLocalTime = zTimeInput
           return z.NEVER;
         }
 
-        const { strDate, tz, noon } = input.data;
+        const { strDate, tz } = input.data;
         const toISO = (d: Date) => format(d, "yyyy-MM-dd", { timeZone: tz });
 
         const now = toZonedTime(new Date(), tz);
         if (strDate) {
           const [year, month, day] = strDate.split("-").map(Number);
           now.setFullYear(year, month - 1, day);
-        } else {
-          console.trace();
         }
 
-        const dateInput = strDate ? `${strDate}T00:00` : new Date();
+        const dateInput = strDate ?? new Date();
         const date = toZonedTime(dateInput, tz);
-        if (noon === true) {
-          date.setHours(12, 0, 0, 0); // Set to noon in the specified timezone
-        }
         const today = toISO(date);
         debug(
           "Parsed user local time",
-          JSON.stringify({ strDate, date, today }),
+          JSON.stringify({ strDate, date, today, tz }),
         );
         const yesterday = toISO(addDays(date, -1));
         const tomorrow = toISO(addDays(date, 1));
@@ -73,8 +67,8 @@ export const zUserLocalTime = zTimeInput
   )
   .brand("UserNoon");
 
-export type UserNoon = z.infer<typeof zUserLocalTime>;
+export type UserLocalTime = z.infer<typeof zUserLocalTime>;
 
 export const userLocalTime = (
   input: z.input<typeof zUserLocalTime>,
-): UserNoon => zUserLocalTime.parse(input);
+): UserLocalTime => zUserLocalTime.parse(input);

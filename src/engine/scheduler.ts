@@ -8,6 +8,9 @@
  */
 
 import { userLocalTime } from "./timezone.js";
+import createDebug from "debug";
+
+const debug = createDebug("onyx:scheduler");
 
 /**
  * Start a recurring schedule check.
@@ -70,6 +73,7 @@ export function createAlertScheduler(
 
   const check = (): void => {
     const schedule = normalizeAlertSchedule(getSchedule()).valid;
+    debug(`Current alert schedule: ${schedule.join(", ")}`);
     if (schedule.length === 0) return;
 
     const now = userLocalTime({ tz }).date;
@@ -77,6 +81,9 @@ export function createAlertScheduler(
     const mm = String(now.getMinutes()).padStart(2, "0");
     const currentMinute = `${hh}:${mm}`;
 
+    debug(
+      `Checking alert schedule at ${currentMinute} (schedule: ${!schedule.includes(currentMinute)})`,
+    );
     if (!schedule.includes(currentMinute)) return;
 
     const yyyy = String(now.getFullYear());
@@ -84,6 +91,7 @@ export function createAlertScheduler(
     const dd = String(now.getDate()).padStart(2, "0");
     const firedKey = `${yyyy}-${mo}-${dd}T${currentMinute}`;
 
+    debug({ firedKey, lastFiredKey });
     if (firedKey !== lastFiredKey) {
       lastFiredKey = firedKey;
       console.log(`[watch] Alert schedule: firing at ${currentMinute}`);

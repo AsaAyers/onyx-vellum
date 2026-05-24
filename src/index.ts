@@ -186,7 +186,7 @@ if (init) {
         await runAllRules({
           ...ruleContext,
           mode: "alert",
-          dates: userLocalTime({ tz: timezone, noon: false }),
+          dates: userLocalTime({ tz: timezone }),
         });
       },
       timezone,
