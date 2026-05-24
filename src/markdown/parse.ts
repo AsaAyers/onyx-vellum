@@ -163,7 +163,6 @@ function isAutolink(node: any, state: any): boolean {
   return r;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const linkHandler: Handle = function (node: Link, _, state, info): string {
   const quote: string = state.options.quote || '"';
   const suffix = quote === '"' ? "Quote" : "Apostrophe";

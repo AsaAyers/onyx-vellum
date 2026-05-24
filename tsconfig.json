@@ -8,7 +8,7 @@
     "verbatimModuleSyntax": true,
     "outDir": "dist",
     "types": ["node"],
-    // "rootDir": "src",
+    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
