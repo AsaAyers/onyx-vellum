@@ -12,12 +12,12 @@ const debug = createDebug("onyx:fileOperationExecutor");
 export class FileOperationExecutor {
   fileOperations: Record<string, FileOperation[]> = {};
 
-  updateFile(file: VaultFile, fileOperation: FileOperation) {
+  updateFile = (file: VaultFile, fileOperation: FileOperation) => {
     const filePath = file.relativePath;
     this.fileOperations[filePath] ??= [];
     this.fileOperations[filePath].push(fileOperation);
     debug(`Queued file operation for ${filePath}`);
-  }
+  };
 
   async execute(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

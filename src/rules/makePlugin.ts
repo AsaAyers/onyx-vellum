@@ -5,7 +5,7 @@ import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/runner.js";
 import type { PluginContext } from "../markdown/parse.js";
-import { relative } from "node:path";
+import { join } from "node:path";
 import { zVaultFile } from "../engine/io.js";
 
 export function makePlugin<
@@ -31,10 +31,12 @@ export function makePlugin<
 
     return function (tree: Root, file: VFile): Root | void {
       try {
+        const relativePath = file.path?.replace(ctx.vaultPath + "/", "");
+
         const vaultFile = file.path
           ? zVaultFile.parse({
-              relativePath: relative(ctx.vaultPath, file.path),
-              absolutePath: file.path,
+              relativePath,
+              absolutePath: join(ctx.vaultPath, relativePath),
             })
           : null;
         if (

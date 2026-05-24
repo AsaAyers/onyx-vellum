@@ -145,7 +145,6 @@ export async function runAllRules(
 
     const vfile = new VFile({ path: vaultFile.absolutePath, value: original });
 
-    // Use the provided processor for normalization
     const tree = processor.parse(vfile);
     const processed = (await processor.run(tree, vfile)) as Root;
     const normalized = String(processor.stringify(processed, vfile));

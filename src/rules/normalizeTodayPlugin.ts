@@ -18,7 +18,7 @@ const DATE_KEYS = ["due", "start", "snooze", "done"] as const;
  */
 export const normalizeTodayPlugin = makePlugin(
   "normalizeTodayLiteral",
-  function ({ tree, ctx }) {
+  function ({ tree, ctx, file }) {
     const { timezone, todayDate } = ctx;
 
     const toISO = (d: Date) => format(d, "yyyy-MM-dd", { timeZone: timezone });

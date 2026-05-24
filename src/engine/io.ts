@@ -58,7 +58,7 @@ export const zVaultFile = z
   .transform((obj) => {
     invariant(
       path.isAbsolute(obj.absolutePath),
-      "absolutePath must be absolute",
+      `absolutePath must be absolute ${obj.absolutePath}`,
     );
     invariant(
       obj.absolutePath.endsWith(obj.relativePath),
@@ -93,7 +93,7 @@ export class FileWriteManager {
     const path = file.relativePath;
     const staged = this.pending.get(path);
     if (staged !== undefined) return staged;
-    return readFile(path);
+    return readFile(file.absolutePath);
   }
 
   stage(file: VaultFile, content: string): void {

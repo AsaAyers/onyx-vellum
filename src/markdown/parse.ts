@@ -32,6 +32,7 @@ import type { Job } from "../transcription/types.js";
 import { makePlugin } from "../rules/makePlugin.js";
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
 import type { VaultFile } from "../engine/io.js";
+import { format } from "date-fns-tz";
 
 const debug = createDebug("onyx:markdown:parse");
 
@@ -76,7 +77,11 @@ export const createParseProcessor = (
   config: Config,
   ctx: PluginContext,
 ): MarkdownProcessor<Root, string> => {
-  debug("Creating markdown processor with ruleContext:", ctx);
+  debug(
+    "Creating markdown processor with ruleContext:",
+    ctx,
+    format(ctx.todayDate, "yyyy-MM-dd", { timeZone: ctx.timezone || "UTC" }),
+  );
   let processor: MarkdownProcessor = unified()
     .data({
       settings: {

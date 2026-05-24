@@ -5,7 +5,7 @@ import "../markdown/ast-augmentations.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import type { RuleConfig } from "../config.js";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { zVaultFile } from "../engine/io.js";
 export type MoveDoneTasksConfig = RuleConfig & {
   dailyNotesFolder?: string;
@@ -31,12 +31,13 @@ export const moveDoneTasksPlugin = makePlugin(
             const fields = getInlineFields(item);
             if (checked && fields.done) {
               const done = fields.done;
-              const destPath = join(vaultPath, dailyNotesFolder, `${done}.md`);
+              const relativePath = join(dailyNotesFolder, `${done}.md`);
               const vaultFile = zVaultFile.parse({
-                absolutePath: destPath,
-                relativePath: relative(vaultPath, destPath),
+                absolutePath: join(vaultPath, relativePath),
+                relativePath: relativePath,
               });
               const destExists = fs.existsSync(vaultFile.absolutePath);
+              console.log({ destExists });
 
               if (destExists) {
                 ctx.updateFile(vaultFile, {
