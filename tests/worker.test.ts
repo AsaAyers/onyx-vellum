@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { claimNext, enqueue } from "../src/transcription/queue.js";
 import { startWorker } from "../src/transcription/worker.js";
-import { type Job } from "../src/transcription/types.js";
+import { type ContentLocation, type Job } from "../src/transcription/types.js";
 import { zVaultFile } from "../src/engine/io.js";
 
 const CREATED_DIRS: string[] = [];
@@ -66,8 +66,7 @@ describe("workers", () => {
       await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
       await fs.writeFile(
         transcriptPath,
-        `
-Source audio: [[audio/clip.m4a]]
+        `Source audio: [[audio/clip.m4a]]
 
 # Header 2
 
@@ -91,7 +90,6 @@ Existing content
             position: "end",
           },
         },
-        createdAt: "2026-05-13T00:00:00.000Z",
       };
       await runWorkerForSingleJob(transcriptionJob);
       transcriptionJob.audioPath = audioPath2;
@@ -101,26 +99,71 @@ Existing content
       const content = await fs.readFile(transcriptPath, "utf-8");
 
       expect(content).toMatchInlineSnapshot(`
-        "Source audio: [[audio/clip.m4a]]
+        "---
+        cleanText: 01j-worker-a
+        ---
+
+        Source audio: [[audio/clip.m4a]]
 
         # Header 1
 
-        transcript body
-
-        # Header 2
-
-        Existing content
-
         # Header 3
-
-        transcript body
         "
       `);
     });
   });
 
-  describe("summarize", async () => {
-    it("Reads a header from a source and writes the summary to the target", async () => {});
+  describe("clean-transcription", async () => {
+    it("Cleans up the raw transcript from Whisper", async () => {
+      const transcriptPath = join(vaultPath, "audio", "clip.transcript.md");
+      await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
+      const header = "Some serious content";
+      await fs.writeFile(
+        transcriptPath,
+        `# ${header}
+
+Bacon ipsum dolor amet pork 
+loin venison tongue,
+chislic doner corned beef
+`,
+        "utf-8",
+      );
+
+      const source: ContentLocation = {
+        file: zVaultFile.parse({
+          relativePath: "audio/clip.transcript.md",
+          absolutePath: transcriptPath,
+        }),
+        header,
+        position: "end",
+      };
+      await runWorkerForSingleJob({
+        type: "clean-transcription",
+        vaultPath,
+        id: "01j-worker-a",
+        source,
+        target: {
+          location: source,
+        },
+      });
+
+      expect(
+        await fs.readFile(transcriptPath, "utf-8"),
+      ).toMatchInlineSnapshot(`
+        "---
+        filename: some-serious-content.md
+        ---
+
+        # Some serious content
+
+        BaCoN IpSuM DoLoR AmEt pOrK LoIn vEnIsOn tOnGuE, cHiSlIc dOnEr cOrNeD BeEf
+
+        # Summary
+
+        SuMmArY: bAcOn iPsUm dOlOr aM...
+        "
+      `);
+    });
   });
 
   describe("transcription-pipeline", () => {

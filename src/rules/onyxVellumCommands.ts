@@ -35,7 +35,7 @@ export const onyxVellumCommands = makePlugin(
             absolutePath: join(ctx.vaultPath, file.path),
           });
           const id = ctx.jobIdFactory(new Date());
-          const destination: FileOperation = {
+          const target: FileOperation = {
             frontmatter: {
               summarizeText: id,
             },
@@ -45,7 +45,7 @@ export const onyxVellumCommands = makePlugin(
               file: vaultFile,
             },
           };
-          ctx.updateFile(destination);
+          ctx.updateFile(target);
           ctx.queueJob({
             type: "summarize-text",
             id,
@@ -55,7 +55,7 @@ export const onyxVellumCommands = makePlugin(
               file: vaultFile,
               position: "end",
             },
-            destination,
+            target,
           });
 
           break;

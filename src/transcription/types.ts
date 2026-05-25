@@ -50,11 +50,10 @@ export const zTranscribeJob = z.object({
   createdAt: z.string().optional(),
 });
 
-export const zCleanTextJob = z.object({
-  type: z.literal("clean-text"),
+export const zCleanTranscript = z.object({
+  type: z.literal("clean-transcription"),
   vaultPath: z.string(),
   id: z.string(),
-  transcriptPath: z.string(),
   target: zFileOperation,
   source: zContentLocation,
   createdAt: z.string().optional(),
@@ -64,7 +63,7 @@ export const zSummarizeTextJob = z.object({
   type: z.literal("summarize-text"),
   vaultPath: z.string(),
   id: z.string(),
-  destination: zFileOperation,
+  target: zFileOperation,
   source: zContentLocation,
   createdAt: z.string().optional(),
 });
@@ -73,14 +72,13 @@ export const zFindTasksJob = z.object({
   type: z.literal("find-tasks"),
   vaultPath: z.string(),
   id: z.string(),
-  transcriptPath: z.string(),
   target: zFileOperation,
   source: zContentLocation,
   createdAt: z.string().optional(),
 });
 
 export const zJob = zTranscriptionPipelineJob
-  .or(zCleanTextJob)
+  .or(zCleanTranscript)
   .or(zSummarizeTextJob)
   .or(zTranscribeJob)
   .or(zFindTasksJob);
@@ -105,7 +103,7 @@ export type TranscriptionPipelineJob = z.infer<
   typeof zTranscriptionPipelineJob
 >;
 export type TranscribeJob = z.infer<typeof zTranscribeJob>;
-export type CleanTextJob = z.infer<typeof zCleanTextJob>;
+export type CleanTranscript = z.infer<typeof zCleanTranscript>;
 export type SummarizeTextJob = z.infer<typeof zSummarizeTextJob>;
 export type FindTasksJob = z.infer<typeof zFindTasksJob>;
 export type TranscriberBackend = z.infer<typeof zTranscriberBackend>;

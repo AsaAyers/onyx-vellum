@@ -1,6 +1,6 @@
 import { taskArraySchema } from "../markdown/tasks.js";
 import { z } from "zod";
-import type { TranscriptResult } from "./worker/summarizeText.js";
+import type { TranscriptResult } from "./worker/cleanTranscript.js";
 
 export type TranscriptionStatus =
   | "pending"

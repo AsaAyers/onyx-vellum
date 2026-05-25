@@ -1,6 +1,6 @@
 import { VFile } from "vfile";
 import { readFileOperationTarget } from "../../engine/FileOperationExecutor.js";
-import type { SummarizeTextJob } from "../types.js";
+import type { CleanTranscript } from "../types.js";
 import type { JobWorker } from "./types.js";
 import { type ChatRequest } from "ollama";
 import { z } from "zod";
@@ -23,10 +23,23 @@ const zTranscriptResult = z.object({
   cleanedTranscript: zCleanedTranscript,
 });
 
+const sarcasm = (text: string) =>
+  [...text]
+    .map((c, i) => (i % 2 == 0 ? c.toUpperCase() : c.toLowerCase()))
+    .join("");
+
 export type TranscriptResult = z.infer<typeof zTranscriptResult>;
 export async function processRawTranscript(
   rawTranscript: string,
 ): Promise<TranscriptResult> {
+  if (process.env.NODE_ENV === "test") {
+    const fakeTranscriptResult: TranscriptResult = {
+      filename: "some-serious-content.md",
+      cleanedTranscript: sarcasm(rawTranscript.split("\n").join(" ")),
+      summary: sarcasm("Summary: " + rawTranscript.slice(0, 20) + "..."),
+    };
+    return fakeTranscriptResult;
+  }
   return callModel(
     zTranscriptResult,
     createCleanupRequest(rawTranscript, zTranscriptResult),
@@ -82,25 +95,42 @@ function createCleanupRequest(
   };
 }
 
-export const summarizeTextWorker: JobWorker<SummarizeTextJob> =
-  async function ({ job, getWriteManager, getProcessor }) {
-    const fileManager = getWriteManager(job.vaultPath);
-    const processor = await getProcessor(job.vaultPath);
-    const vaultFile = job.source.file;
-    const file = new VFile({
-      path: vaultFile.relativePath,
-      content: await fileManager.read(vaultFile),
-    });
+export const summarizeTextWorker: JobWorker<CleanTranscript> = async function ({
+  job,
+  getWriteManager,
+  getProcessor,
+  fileOperations,
+}) {
+  const fileManager = getWriteManager(job.vaultPath);
+  const processor = await getProcessor(job.vaultPath);
+  const vaultFile = job.source.file;
+  const file = new VFile({
+    path: vaultFile.relativePath,
+    value: await fileManager.read(vaultFile),
+  });
 
-    const tree = processor.parse(file);
-    const children = readFileOperationTarget(tree, job.source);
-    const sourceText = processor.stringify(
-      {
-        type: "root",
-        children,
-      },
-      file,
-    );
+  const tree = processor.parse(file);
+  const children = readFileOperationTarget(tree, job.source);
+  const sourceText = processor.stringify(
+    {
+      type: "root",
+      children,
+    },
+    file,
+  );
 
-    console.log({ sourceText });
-  };
+  const r = await processRawTranscript(sourceText);
+  console.log(job.source.file, { file, r });
+  job.target.frontmatter ??= {};
+  job.target.frontmatter.filename = r.filename;
+  job.target.content = r.cleanedTranscript;
+  fileOperations.updateFile(job.target);
+  fileOperations.updateFile({
+    location: {
+      file: job.target.location.file,
+      header: "Summary",
+      position: "end",
+    },
+    content: r.summary,
+  });
+};

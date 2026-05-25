@@ -27,7 +27,7 @@ import {
   processRawTranscript,
   summarizeTextWorker,
   type TranscriptResult,
-} from "./worker/summarizeText.js";
+} from "./worker/cleanTranscript.js";
 import type { JobWorker } from "./worker/types.js";
 import { gatherTasks } from "./worker/gatherTasks.js";
 
@@ -117,15 +117,14 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
           getProcessor,
           getWriteManager,
         };
-        console.log({ job });
         switch (job.type) {
           case "transcribe":
             await transcriptWorker(jobArgs);
             break;
           case "summarize-text":
+          case "clean-transcription":
             await summarizeTextWorker(jobArgs);
             break;
-          case "clean-text":
           case "find-tasks":
           default:
             logger.error(`Unknown job type: ${job.type}`);
