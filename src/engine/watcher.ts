@@ -1,5 +1,6 @@
 import { watch } from "node:fs";
 import { resolve, relative } from "node:path";
+import { FileWriteManager } from "./io.js";
 
 export type WatcherOptions = {
   /** Debounce duration in milliseconds. Defaults to 60 000 (60 s). */
@@ -149,6 +150,9 @@ export function startVaultWatcher(
     { recursive: true },
     (eventType, filename) => {
       if (!filename) return;
+      if (FileWriteManager.isWriting) {
+        return;
+      }
 
       // resolve + relative normalises any platform path separators.
       const absPath = resolve(vaultPath, filename);

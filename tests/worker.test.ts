@@ -17,11 +17,11 @@ async function runWorkerForSingleStateDir(stateDir: string) {
   let shouldRun = true;
   await startWorker({
     stateDir,
-    backend: {
+    getWhisperBackend: () => ({
       async transcribe() {
         return "transcript body";
       },
-    },
+    }),
     pollIntervalMs: 1,
     shouldContinue: () => {
       if (shouldRun) {

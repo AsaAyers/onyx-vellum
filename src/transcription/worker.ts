@@ -12,7 +12,11 @@ import {
   markFailed,
 } from "./queue.js";
 import { resolveStateDir } from "./queue.js";
-import type { Job, TranscriptionPipelineJob, WorkerOptions } from "./types.js";
+import {
+  type Job,
+  type TranscriptionPipelineJob,
+  type WorkerOptions,
+} from "./types.js";
 import { trimDeadAir } from "./trimDeadAir.js";
 import os from "node:os";
 import type z from "zod";
@@ -29,7 +33,7 @@ import {
   type TranscriptResult,
 } from "./worker/cleanTranscript.js";
 import type { JobWorker } from "./worker/types.js";
-import { gatherTasks } from "./worker/findTasks.js";
+import { findTasksWorker, gatherTasks } from "./worker/findTasks.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
@@ -126,8 +130,11 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
             await summarizeTextWorker(jobArgs);
             break;
           case "find-tasks":
+            await findTasksWorker(jobArgs);
+
+            break;
           default:
-            logger.error(`Unknown job type: ${job.type}`);
+            logger.error(`Unknown job type: ${JSON.stringify(job)}`);
         }
 
         console.log(
@@ -140,6 +147,8 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
           await fileOperations.execute(processor, fileWriteManger);
           await fileWriteManger.commit(false);
         }
+
+        await markDone(options.stateDir, job.id);
         continue;
       }
 
@@ -202,7 +211,10 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         }
 
         await writeFile("transcribing");
-        transcriptText = await options.backend.transcribe(trimmedFile);
+
+        transcriptText = await options
+          .getWhisperBackend()
+          .transcribe(trimmedFile);
 
         if (options.ollamaHost) {
           await writeFile("processingTranscript");
@@ -232,22 +244,25 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
 async function main(): Promise<void> {
   const vaultPath = process.env["VAULT_PATH"] ?? "/vault";
   const stateDir = resolveStateDir(process.env, vaultPath);
-  const backend = createFasterWhisperBackend({
-    executablePath: process.env["FASTER_WHISPER_EXECUTABLE"],
-    scriptPath: process.env["FASTER_WHISPER_SCRIPT"],
-    model: process.env["FASTER_WHISPER_MODEL"],
-    device: process.env["FASTER_WHISPER_DEVICE"],
-    computeType: process.env["FASTER_WHISPER_COMPUTE_TYPE"],
-    downloadRoot: process.env["FASTER_WHISPER_DOWNLOAD_ROOT"],
-  });
 
   console.log(`Starting transcription worker...`);
   console.log(`Vault: ${vaultPath}`);
   console.log(`State dir: ${stateDir}`);
 
+  let backend: ReturnType<typeof createFasterWhisperBackend> | null = null;
   await startWorker({
     stateDir,
-    backend,
+    getWhisperBackend: () => {
+      backend ??= createFasterWhisperBackend({
+        executablePath: process.env["FASTER_WHISPER_EXECUTABLE"],
+        scriptPath: process.env["FASTER_WHISPER_SCRIPT"],
+        model: process.env["FASTER_WHISPER_MODEL"],
+        device: process.env["FASTER_WHISPER_DEVICE"],
+        computeType: process.env["FASTER_WHISPER_COMPUTE_TYPE"],
+        downloadRoot: process.env["FASTER_WHISPER_DOWNLOAD_ROOT"],
+      });
+      return backend;
+    },
     trimDeadAir: true,
     ollamaHost: process.env.OLLAMA_HOST,
   });

@@ -3,40 +3,45 @@ import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { taskArraySchema } from "../../markdown/tasks.js";
 import { callModel } from "../callModel.js";
+import type { FindTasksJob } from "../types.js";
+import type { JobWorker } from "./types.js";
+import { extractSourceText } from "./extractSourceText.js";
+import type { List, ListItem } from "mdast";
+import type { InlineFieldsNode } from "../../markdown/types.js";
 
+const fakeTasks = taskArraySchema.parse([
+  {
+    sourcePath: "unknown",
+    title: "Clean the car",
+    text: "Clean the car",
+    checked: false,
+    fields: {
+      repeat: "1a",
+    },
+  },
+  {
+    sourcePath: "unknown",
+    title: "Take out the trash",
+    text: "Take out the trash",
+    checked: false,
+    fields: {
+      due: "today",
+      snooze: "yesterday",
+      repeat: "h",
+    },
+  },
+  {
+    sourcePath: "unknown",
+    title: "Call mom",
+    text: "Call mom",
+    checked: false,
+    fields: {
+      due: "after cleaning the car",
+    },
+  },
+]);
 export async function gatherTasks(cleanTranscript: string) {
   if (process.env.NODE_ENV === "test") {
-    const fakeTasks = taskArraySchema.parse([
-      {
-        sourcePath: "unknown",
-        title: "Clean the car",
-        text: "Clean the car",
-        checked: false,
-        fields: {
-          repeat: "1a",
-        },
-      },
-      {
-        sourcePath: "unknown",
-        title: "Take out the trash",
-        text: "Take out the trash",
-        checked: false,
-        fields: {
-          due: "today",
-          snooze: "yesterday",
-          repeat: "h",
-        },
-      },
-      {
-        sourcePath: "unknown",
-        title: "Call mom",
-        text: "Call mom",
-        checked: false,
-        fields: {
-          due: "after cleaning the car",
-        },
-      },
-    ]);
     return fakeTasks;
   }
 
@@ -118,3 +123,54 @@ function createTaskRequest(
     ],
   };
 }
+
+export const findTasksWorker: JobWorker<FindTasksJob> = async function (ctx) {
+  const sourceText = await extractSourceText(
+    ctx.job.vaultPath,
+    ctx.job.source,
+    ctx,
+  );
+  const tasks = await gatherTasks(sourceText);
+
+  const list: List = {
+    type: "list",
+    ordered: false,
+    start: null,
+    spread: false,
+    children: tasks.map((task) => {
+      const listItem: ListItem = {
+        type: "listItem",
+        spread: false,
+        checked: task.checked,
+        children: [
+          {
+            type: "paragraph",
+            children: [
+              {
+                type: "text",
+                value: task.text,
+              },
+            ],
+          },
+        ],
+      };
+      if (Object.keys(task.fields).length > 0) {
+        const inlineFields: InlineFieldsNode = {
+          type: "inlineFields",
+          value: "",
+          data: {
+            inlineFields: task.fields,
+          },
+        };
+        // @ts-expect-error - This is a custom node type
+        listItem.children.push(inlineFields);
+      }
+      return listItem;
+    }),
+  };
+
+  ctx.job.target.frontmatter ??= {};
+  ctx.job.target.frontmatter.tasks = new Date().toISOString();
+  ctx.job.target.content = list;
+  ctx.fileOperations.updateFile(ctx.job.target);
+};

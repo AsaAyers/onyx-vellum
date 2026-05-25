@@ -3,7 +3,7 @@ import type { FileWriteManager } from "../../engine/io.js";
 import type { createParseProcessor } from "../../markdown/parse.js";
 import type { Job, WorkerOptions } from "../types.js";
 
-export type JobWorker<T extends Job> = (args: {
+export type WorkerContext<T extends Job> = {
   getWriteManager: (vaultPath: string) => FileWriteManager;
   getProcessor: (
     vaultPath: string,
@@ -11,4 +11,8 @@ export type JobWorker<T extends Job> = (args: {
   options: WorkerOptions;
   job: T;
   fileOperations: FileOperationExecutor;
-}) => Promise<void>;
+};
+
+export type JobWorker<T extends Job> = (
+  args: WorkerContext<T>,
+) => Promise<void>;

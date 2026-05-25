@@ -1,11 +1,10 @@
-import { VFile } from "vfile";
-import { readFileOperationTarget } from "../../engine/FileOperationExecutor.js";
 import type { CleanTranscript } from "../types.js";
 import type { JobWorker } from "./types.js";
 import { type ChatRequest } from "ollama";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { callModel } from "../callModel.js";
+import { extractSourceText } from "./extractSourceText.js";
 
 const zCleanedTranscript = z
   .string()
@@ -94,32 +93,18 @@ function createCleanupRequest(
   };
 }
 
-export const summarizeTextWorker: JobWorker<CleanTranscript> = async function ({
-  job,
-  getWriteManager,
-  getProcessor,
-  fileOperations,
-}) {
-  const fileManager = getWriteManager(job.vaultPath);
-  const processor = await getProcessor(job.vaultPath);
-  const vaultFile = job.source.file;
-  const file = new VFile({
-    path: vaultFile.relativePath,
-    value: await fileManager.read(vaultFile),
-  });
+export const summarizeTextWorker: JobWorker<CleanTranscript> = async function (
+  ctx,
+) {
+  const { job, fileOperations } = ctx;
 
-  const tree = processor.parse(file);
-  const children = readFileOperationTarget(tree, job.source);
-  const sourceText = processor.stringify(
-    {
-      type: "root",
-      children,
-    },
-    file,
+  const sourceText = await extractSourceText(
+    ctx.job.vaultPath,
+    ctx.job.source,
+    ctx,
   );
 
   const r = await processRawTranscript(sourceText);
-  console.log(job.source.file, { file, r });
   job.target.frontmatter ??= {};
   job.target.frontmatter.filename = r.filename;
   job.target.content = r.cleanedTranscript;

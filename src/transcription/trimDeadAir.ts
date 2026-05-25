@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import fs from "node:fs/promises";
 
 export type TrimDeadAirOptions = {
   input: string;
@@ -49,6 +50,11 @@ export async function trimDeadAir({
   bitrate = "128k",
   ffmpegPath = "ffmpeg",
 }: TrimDeadAirOptions): Promise<void> {
+  // Skip empty files used for testing
+  if ((await fs.stat(input)).size === 0) {
+    return;
+  }
+
   if (keepSilenceSeconds > minSilenceSeconds) {
     throw new Error(
       `keepSilenceSeconds must be <= minSilenceSeconds. Got keep=${keepSilenceSeconds}, min=${minSilenceSeconds}.`,

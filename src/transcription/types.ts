@@ -91,7 +91,7 @@ export const zWorkerOptions = z.object({
   ollamaHost: z.string().optional(),
   trimDeadAir: z.boolean().optional(),
   stateDir: z.string(),
-  backend: zTranscriberBackend,
+  getWhisperBackend: z.function().returns(zTranscriberBackend),
   pollIntervalMs: z.number().optional(),
   shouldContinue: z.function().returns(z.boolean()).optional(),
   logger: z.object({ error: z.function() }).optional(),

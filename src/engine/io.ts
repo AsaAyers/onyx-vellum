@@ -104,6 +104,9 @@ export class FileWriteManager {
   unstageAll() {
     this.pending.clear();
   }
+
+  static isWriting = false;
+
   /**
    * Flush all staged changes.
    * In dry-run mode, files are NOT written to disk; the staged changes are
@@ -112,6 +115,7 @@ export class FileWriteManager {
    */
   async commit(dryRun: boolean): Promise<ChangesArray> {
     const changes: ChangesArray = [];
+    FileWriteManager.isWriting = !dryRun;
     for (const [relativePath, content] of this.pending) {
       const vaultFile = zVaultFile.parse({
         absolutePath: join(this.vaultPath, relativePath),
@@ -125,6 +129,7 @@ export class FileWriteManager {
       changes.push({ vaultFile, content });
     }
     this.pending.clear();
+    FileWriteManager.isWriting = false;
     return changes;
   }
 }

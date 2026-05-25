@@ -28,7 +28,9 @@ export const transcriptWorker: JobWorker<TranscribeJob> =
         });
       }
     }
-    const transcriptText = await options.backend.transcribe(srcAudio);
+    const transcriptText = await options
+      .getWhisperBackend()
+      .transcribe(srcAudio);
     job.target.content = transcriptText;
     fileOperations.updateFile(job.target);
 
@@ -53,22 +55,4 @@ export const transcriptWorker: JobWorker<TranscribeJob> =
         },
       },
     });
-
-    // const targetOperation: FileOperation = {
-    //   location: {
-    //     file: job.target.location.file,
-    //     header: "Summary",
-    //     position: "end",
-    //   },
-    //   content: `> [!onyx]+ Summarizing transcript...`,
-    // };
-
-    // enqueue(options.stateDir, {
-    //   type: "summarize-text",
-    //   id: buildJobId(createdAt),
-    //   vaultPath: job.vaultPath,
-    //   createdAt: createdAt.toISOString(),
-    //   source: job.target.location,
-    //   target: targetOperation,
-    // });
   };
