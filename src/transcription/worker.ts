@@ -11,33 +11,25 @@ import {
   markDone,
   markFailed,
 } from "./queue.js";
-import { resolveStateDir } from "./runtime.js";
-import type {
-  FileOperation,
-  Job,
-  SummarizeTextJob,
-  TranscribeJob,
-  TranscriptionPipelineJob,
-  WorkerOptions,
-} from "./types.js";
-import {
-  gatherTasks,
-  processTranscript,
-  type TranscriptResult,
-} from "./processTranscript.js";
+import { resolveStateDir } from "./queue.js";
+import type { Job, TranscriptionPipelineJob, WorkerOptions } from "./types.js";
 import { trimDeadAir } from "./trimDeadAir.js";
 import os from "node:os";
 import type z from "zod";
 import { FileWriteManager } from "../engine/io.js";
-import {
-  FileOperationExecutor,
-  readFileOperationTarget,
-} from "../engine/FileOperationExecutor.js";
+import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import { createParseProcessor } from "../markdown/parse.js";
 import { loadConfig } from "../config.js";
 import type { PluginContext } from "../markdown/PluginContext.js";
 import { userLocalTime } from "../engine/timezone.js";
-import { VFile } from "vfile";
+import { transcriptWorker } from "./worker/transcript.js";
+import {
+  processRawTranscript,
+  summarizeTextWorker,
+  type TranscriptResult,
+} from "./worker/summarizeText.js";
+import type { JobWorker } from "./worker/types.js";
+import { gatherTasks } from "./worker/gatherTasks.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
@@ -100,6 +92,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     const config = await loadConfig(vaultPath);
     return createParseProcessor(config, {
       ...ruleContext,
+      jobIdFactory: buildJobId,
       vaultPath,
       dates: userLocalTime({ tz: config.timezone ?? "UTC" }),
     });
@@ -214,7 +207,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
 
         if (options.ollamaHost) {
           await writeFile("processingTranscript");
-          transcriptResult = await processTranscript(transcriptText);
+          transcriptResult = await processRawTranscript(transcriptText);
 
           await writeFile("gatheringTasks");
           tasks = await gatherTasks(transcriptResult.cleanedTranscript);
@@ -267,84 +260,3 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exit(1);
   });
 }
-
-type JobWorker<T extends Job> = (args: {
-  getWriteManager: (vaultPath: string) => FileWriteManager;
-  getProcessor: (
-    vaultPath: string,
-  ) => Promise<ReturnType<typeof createParseProcessor>>;
-  options: WorkerOptions;
-  job: T;
-  fileOperations: FileOperationExecutor;
-}) => Promise<void>;
-
-const transcriptWorker: JobWorker<TranscribeJob> =
-  async function transcriptJob({ options, job, fileOperations }) {
-    let srcAudio = job.audioPath;
-    if (options.trimDeadAir) {
-      srcAudio =
-        dirname(job.audioPath) +
-        "/" +
-        path.basename(job.audioPath, ".m4a") +
-        "-trimmed.m4a";
-
-      const trimmedFileExists = await fs
-        .access(srcAudio)
-        .then(() => true)
-        .catch(() => false);
-      if (!trimmedFileExists) {
-        await trimDeadAir({
-          input: job.audioPath,
-          output: srcAudio,
-          thresholdDb: -35,
-        });
-      }
-    }
-    const transcriptText = await options.backend.transcribe(srcAudio);
-    job.target.content = transcriptText;
-    fileOperations.updateFile(job.target);
-    const createdAt = new Date();
-
-    const targetOperation: FileOperation = {
-      location: {
-        file: job.target.location.file,
-        header: "Summary",
-        position: "end",
-      },
-      content: `> [!onyx]+ Summarizing transcript...`,
-    };
-
-    enqueue(options.stateDir, {
-      type: "summarize-text",
-      id: buildJobId(createdAt),
-      vaultPath: job.vaultPath,
-      createdAt: createdAt.toISOString(),
-      source: job.target.location,
-      destination: targetOperation,
-    });
-  };
-const summarizeTextWorker: JobWorker<SummarizeTextJob> = async function ({
-  job,
-  getWriteManager,
-  getProcessor,
-}) {
-  const fileManager = getWriteManager(job.vaultPath);
-  const processor = await getProcessor(job.vaultPath);
-  const vaultFile = job.source.file;
-  const file = new VFile({
-    path: vaultFile.relativePath,
-    content: await fileManager.read(vaultFile),
-  });
-
-  const tree = processor.parse(file);
-  const children = readFileOperationTarget(tree, job.source);
-  const sourceText = processor.stringify(
-    {
-      type: "root",
-      children,
-    },
-    file,
-  );
-
-  console.log({ sourceText });
-};

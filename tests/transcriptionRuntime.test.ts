@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { runAllRules } from "../src/engine/runner.js";
-import { resolveStateDir } from "../src/transcription/runtime.js";
+import { resolveStateDir } from "../src/transcription/queue.js";
 import { testDate } from "./testDate.js";
 
 const CREATED_DIRS: string[] = [];

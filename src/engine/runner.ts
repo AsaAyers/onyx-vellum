@@ -16,7 +16,7 @@ import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
-import { resolveStateDir } from "../transcription/runtime.js";
+import { resolveStateDir } from "../transcription/queue.js";
 import { enqueue } from "../transcription/queue.js";
 import {
   fileMatchesSources,
@@ -75,7 +75,7 @@ export async function runAllRules(
     },
   );
 
-  const statDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
+  const stateDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
 
   const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
@@ -85,7 +85,7 @@ export async function runAllRules(
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     async queueJob(job) {
       if (!baseCtx.dryRun) {
-        await enqueue(statDir, job);
+        await enqueue(stateDir, job);
       }
     },
     vaultPath: baseCtx.vaultPath,

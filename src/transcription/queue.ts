@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import type { Job } from "./types.js";
 import { randomUUID } from "crypto";
+import { resolve, dirname } from "path/posix";
 
 const QUEUE_DIRS = ["pending", "processing", "done", "failed"] as const;
 
@@ -88,3 +89,13 @@ export function buildJobId(createdAt: Date): string {
   const uuid = randomUUID();
   return `${createdAtMs.toString(36)}-${uuid}`;
 }
+export function resolveStateDir(
+  env: NodeJS.ProcessEnv,
+  vaultPath: string,
+): string {
+  const configured = env["STATE_DIR"];
+  return configured
+    ? resolve(configured)
+    : join(dirname(vaultPath), DEFAULT_STATE_DIRNAME);
+}
+export const DEFAULT_STATE_DIRNAME = ".onyx-vellum-state";

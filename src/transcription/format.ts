@@ -1,6 +1,6 @@
-import type { TranscriptResult } from "./processTranscript.js";
 import { taskArraySchema } from "../markdown/tasks.js";
 import { z } from "zod";
+import type { TranscriptResult } from "./worker/summarizeText.js";
 
 export type TranscriptionStatus =
   | "pending"
