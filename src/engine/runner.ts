@@ -27,6 +27,7 @@ import {
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
 import { type UserLocalTime } from "./timezone.js";
+import { commandsMarkdown } from "../onyx_vellum_commands.js";
 
 /**
  * Run all registered rules against the vault.
@@ -73,6 +74,7 @@ export async function runAllRules(
 
   const statDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
 
+  const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     ...baseCtx,
@@ -85,6 +87,8 @@ export async function runAllRules(
     },
     vaultPath: baseCtx.vaultPath,
   };
+  await ensureCommandFile(baseCtx, fileManager);
+
   const processor = createParseProcessor(config, ruleContext);
   // Accepts array or single object for config.sources
   const globalGlobs: Source[] = Array.isArray(config.sources)
@@ -97,7 +101,9 @@ export async function runAllRules(
     globalGlobs.length = 0; // Clear config sources if onlyGlob is specified
     globalGlobs.push(
       ...baseCtx.onlyGlob
-        .filter((path) => path.endsWith(".md"))
+        .filter(
+          (path) => path.endsWith(".md") && !path.endsWith("onyx-commands.md"),
+        )
         .map(
           (value): Source =>
             value.includes("*")
@@ -111,7 +117,6 @@ export async function runAllRules(
   const matchingFiles = (
     await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
   ).filter((filePath) => fileMatchesSources(filePath, globalGlobs));
-  const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const alertFile =
     baseCtx.mode === "alert"
       ? zVaultFile.parse({
@@ -209,6 +214,23 @@ export async function runAllRules(
   }
 
   return { changes, report: lines.join("\n"), matchingFiles };
+}
+
+async function ensureCommandFile(
+  baseCtx: Omit<
+    PluginContext,
+    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
+  > & { jobIdFactory?: PluginContext["jobIdFactory"] },
+  fileManager: FileWriteManager,
+) {
+  const commandsFile = zVaultFile.parse({
+    absolutePath: join(baseCtx.vaultPath, "onyx-commands.md"),
+    relativePath: "onyx-commands.md",
+  });
+  const commandsMd = await fileManager.read(commandsFile);
+  if (commandsMd !== commandsMarkdown) {
+    fileManager.stage(commandsFile, commandsMarkdown);
+  }
 }
 
 export async function runInitPass(vaultPath: string, dryRun: boolean) {

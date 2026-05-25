@@ -123,7 +123,7 @@ function queryFileOperationTarget(
           [newHeader],
         ];
       } else {
-        return [processed, children.length - 1, 0, [newHeader]];
+        return [processed, children.length, 0, [newHeader]];
       }
     } else {
       const headerNode = children[headerNodeIndex] as Heading;
@@ -154,11 +154,11 @@ function queryFileOperationTarget(
  */
 async function applyFileOperations(
   processor: Processor<Root, Root, Root>,
-  processed: Root,
+  tree: Root,
   ops: FileOperation[],
 ) {
   for (const op of ops) {
-    const target = queryFileOperationTarget(processed, op.location);
+    const target = queryFileOperationTarget(tree, op.location);
     if (!target) continue;
     const [parent, childIndex, numDelete, newNodes] = target;
 

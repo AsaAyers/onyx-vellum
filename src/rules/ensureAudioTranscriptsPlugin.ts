@@ -75,22 +75,29 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
         const fileOperation: FileOperation = {
           location: {
             file: vaultFile,
-            position: "start",
+            position: "end",
             header: "Transcript",
           },
           frontmatter: {
             status: "pending",
             jobId: id,
           },
-          content: `Source audio: [[${path.relative(
-            path.dirname(absoluteTranscriptPath),
-            audioPath,
-          )}]]
-
+          content: `
 > [!onyx]+ OnyxVellum: job status
 > Transcription is pending.
 `,
         };
+        ctx.updateFile({
+          location: {
+            file: vaultFile,
+            position: "start",
+            header: null,
+          },
+          content: `Source audio: [[${path.relative(
+            path.dirname(absoluteTranscriptPath),
+            audioPath,
+          )}]]`,
+        });
         ctx.updateFile(fileOperation);
 
         ctx.queueJob({
