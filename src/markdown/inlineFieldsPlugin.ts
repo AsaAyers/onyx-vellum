@@ -1,6 +1,6 @@
 import { visit, SKIP } from "unist-util-visit";
 import type { Handlers, InlineFieldsNode } from "./types.js";
-import type { PhrasingContent, ListItem, Root } from "mdast";
+import type { ListItem, PhrasingContent, Root } from "mdast";
 import type { Processor } from "unified";
 import type { VFile } from "vfile";
 import createDebug from "debug";
@@ -91,14 +91,15 @@ export const inlineFieldsPlugin = function (this: Processor) {
   return function (tree: Root, _file: VFile): Root | void {
     visit(tree, "listItem", (listItemNode: ListItem) => {
       const extractedFields: Record<string, string> = {};
-      visit(listItemNode, "text", (textNode) => {
-        const { clean, fields } = extractInlineFields(textNode.value);
-        Object.assign(extractedFields, fields);
-        textNode.value = clean;
+      visit(listItemNode, ["list", "text"], (textNode) => {
+        if (textNode.type === "list") return SKIP; // Don't extract from nested lists
+        if (textNode.type === "text") {
+          const { clean, fields } = extractInlineFields(textNode.value);
+          Object.assign(extractedFields, fields);
+          textNode.value = clean;
+        }
       });
       Object.assign(getInlineFields(listItemNode), extractedFields);
-
-      return SKIP;
     });
   };
 };

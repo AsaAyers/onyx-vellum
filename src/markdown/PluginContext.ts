@@ -4,7 +4,7 @@ import type { Job } from "../transcription/types.js";
 
 export type PluginContext = {
   updateFile: FileOperationExecutor["updateFile"];
-  queueJob: (job: Job) => Promise<void>;
+  queueJob: (job: Job) => void;
   jobIdFactory: (createdAt: Date) => string;
   env: NodeJS.ProcessEnv;
   mode: "normalize" | "all" | "fast" | "alert";

@@ -5,6 +5,41 @@ import { taskArraySchema } from "../../markdown/tasks.js";
 import { callModel } from "../callModel.js";
 
 export async function gatherTasks(cleanTranscript: string) {
+  if (process.env.NODE_ENV === "test") {
+    const fakeTasks = taskArraySchema.parse([
+      {
+        sourcePath: "unknown",
+        title: "Clean the car",
+        text: "Clean the car",
+        checked: false,
+        fields: {
+          repeat: "1a",
+        },
+      },
+      {
+        sourcePath: "unknown",
+        title: "Take out the trash",
+        text: "Take out the trash",
+        checked: false,
+        fields: {
+          due: "today",
+          snooze: "yesterday",
+          repeat: "h",
+        },
+      },
+      {
+        sourcePath: "unknown",
+        title: "Call mom",
+        text: "Call mom",
+        checked: false,
+        fields: {
+          due: "after cleaning the car",
+        },
+      },
+    ]);
+    return fakeTasks;
+  }
+
   return callModel(
     taskArraySchema,
     createTaskRequest(cleanTranscript, taskArraySchema),

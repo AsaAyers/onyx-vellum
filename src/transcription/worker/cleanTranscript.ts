@@ -82,7 +82,6 @@ function createCleanupRequest(
           "- filename",
           "- summary",
           "- cleanedTranscript",
-          "- tasks",
           "",
           "JSON schema:",
           JSON.stringify(schema, null, 2),

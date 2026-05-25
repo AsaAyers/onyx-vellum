@@ -29,7 +29,7 @@ import {
   type TranscriptResult,
 } from "./worker/cleanTranscript.js";
 import type { JobWorker } from "./worker/types.js";
-import { gatherTasks } from "./worker/gatherTasks.js";
+import { gatherTasks } from "./worker/findTasks.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 

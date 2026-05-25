@@ -57,7 +57,7 @@ export async function runAllRules(
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
-    console.log(msg);
+    // console.log(msg);
     lines.push(msg);
   };
   // Load config
@@ -219,7 +219,7 @@ async function ensureCommandFile(
     relativePath: ONYX_COMMANDS_FILE,
   });
   const commandsMd = await fileManager.read(commandsFile);
-  if (commandsMd !== commandsMarkdown) {
+  if (commandsMd.trim() !== commandsMarkdown.trim()) {
     fileManager.stage(commandsFile, commandsMarkdown);
   }
 }

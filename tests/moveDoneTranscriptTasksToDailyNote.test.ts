@@ -1,29 +1,13 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAllRules } from "../src/engine/runner.js";
 import { testDate } from "./testDate.js";
-
-const CREATED_DIRS: string[] = [];
-
-async function createTempVault(): Promise<string> {
-  const dir = await fs.mkdtemp(join(tmpdir(), "onyx-vellum-transcript-rule-"));
-  CREATED_DIRS.push(dir);
-  return dir;
-}
-
-afterEach(async () => {
-  await Promise.all(
-    CREATED_DIRS.splice(0).map((dir) =>
-      fs.rm(dir, { recursive: true, force: true }),
-    ),
-  );
-});
+import { createTempDir } from "./createTempDir.js";
 
 describe("moveDoneTasks - config opt-in", () => {
   it("does not move anything when dailyNotesFolder is not configured", async () => {
-    const vaultPath = await createTempVault();
+    const vaultPath = await createTempDir("onyx-vellum-transcript-rule-");
     await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
     await fs.writeFile(
       join(vaultPath, ".onyx-vellum.json"),

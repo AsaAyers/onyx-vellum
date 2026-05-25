@@ -75,9 +75,11 @@ if (init) {
     process.exit(1);
   }
   const stateDir = resolveStateDir(process.env, vaultPath);
-  async function queueJob(job: Job) {
+  const queue: Job[] = [];
+  function queueJob(job: Job) {
+    queue.push(job);
     if (!dryRun) {
-      await enqueue(stateDir, job);
+      enqueue(stateDir, job);
     }
   }
   const ruleContext: Omit<Parameters<typeof runAllRules>[0], "dates"> = {
@@ -99,15 +101,33 @@ if (init) {
     const dates = userLocalTime({
       tz: config.timezone ?? "UTC",
     });
-    const { report } = await runAllRules({
+    const { changes, report } = await runAllRules({
       ...ruleContext,
       mode,
       dates,
       onlyGlob: glob,
     });
 
-    console.log(`=== Report ===`);
-    console.log(report);
+    if (changes.length > 0 || queue.length > 0) {
+      console.log(`=== Report ===`);
+      console.log(report);
+      console.log(`Jobs queued:`);
+      console.log(
+        JSON.stringify(
+          queue,
+          (key, value) => {
+            if (key === "id" || key === "vaultPath") {
+              return undefined;
+            }
+            if (key === "file" && value.absolutePath) {
+              return value.absolutePath;
+            }
+            return value;
+          },
+          2,
+        ),
+      );
+    }
   };
 
   if (watch) {
