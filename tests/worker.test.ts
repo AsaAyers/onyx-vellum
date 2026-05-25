@@ -1,19 +1,11 @@
 import { promises as fs } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { claimNext, enqueue } from "../src/transcription/queue.js";
 import { startWorker } from "../src/transcription/worker.js";
 import { type ContentLocation, type Job } from "../src/transcription/types.js";
 import { zVaultFile } from "../src/engine/io.js";
-
-const CREATED_DIRS: string[] = [];
-
-async function createTempDir(prefix: string): Promise<string> {
-  const dir = await fs.mkdtemp(join(tmpdir(), prefix));
-  CREATED_DIRS.push(dir);
-  return dir;
-}
+import { createTempDir } from "./createTempDir.js";
 
 async function runWorkerForSingleJob(job: Job) {
   const stateDir = await createTempDir("onyx-vellum-worker-state-");
@@ -41,14 +33,6 @@ async function runWorkerForSingleStateDir(stateDir: string) {
     sleep: async () => Promise.resolve(),
   });
 }
-
-afterEach(async () => {
-  await Promise.all(
-    CREATED_DIRS.splice(0).map((dir) =>
-      fs.rm(dir, { recursive: true, force: true }),
-    ),
-  );
-});
 
 describe("workers", () => {
   let vaultPath = "";
@@ -147,9 +131,7 @@ chislic doner corned beef
         },
       });
 
-      expect(
-        await fs.readFile(transcriptPath, "utf-8"),
-      ).toMatchInlineSnapshot(`
+      expect(await fs.readFile(transcriptPath, "utf-8")).toMatchInlineSnapshot(`
         "---
         filename: some-serious-content.md
         ---

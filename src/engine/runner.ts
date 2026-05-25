@@ -16,8 +16,6 @@ import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
-import { resolveStateDir } from "../transcription/queue.js";
-import { enqueue } from "../transcription/queue.js";
 import {
   fileMatchesSources,
   FileOperationExecutor,
@@ -49,10 +47,7 @@ import {
  *                 `report`  — everything printed to console during the run.
  */
 export async function runAllRules(
-  baseCtx: Omit<
-    PluginContext,
-    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
-  > & {
+  baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "updateFile"> & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
 ): Promise<{
@@ -75,19 +70,12 @@ export async function runAllRules(
     },
   );
 
-  const stateDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
-
   const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     ...baseCtx,
     updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
-    async queueJob(job) {
-      if (!baseCtx.dryRun) {
-        await enqueue(stateDir, job);
-      }
-    },
     vaultPath: baseCtx.vaultPath,
   };
   await ensureCommandFile(baseCtx, fileManager);

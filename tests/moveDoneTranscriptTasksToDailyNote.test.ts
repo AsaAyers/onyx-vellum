@@ -42,6 +42,7 @@ describe("moveDoneTasks - config opt-in", () => {
       dryRun: false,
       env: {},
       mode: "all",
+      queueJob: async () => {},
     });
 
     const transcript = await fs.readFile(

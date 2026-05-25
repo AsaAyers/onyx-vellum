@@ -10,6 +10,8 @@ import { userLocalTime } from "./engine/timezone.js";
 import { HELP_TEXT } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./config.js";
 import type { PluginContext } from "./markdown/PluginContext.js";
+import { enqueue, resolveStateDir } from "./transcription/queue.js";
+import type { Job } from "./transcription/types.js";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -72,9 +74,16 @@ if (init) {
     console.error("Run with --help for full usage information.");
     process.exit(1);
   }
+  const stateDir = resolveStateDir(process.env, vaultPath);
+  async function queueJob(job: Job) {
+    if (!dryRun) {
+      await enqueue(stateDir, job);
+    }
+  }
   const ruleContext: Omit<Parameters<typeof runAllRules>[0], "dates"> = {
     mode,
     vaultPath,
+    queueJob,
     dryRun,
     env: process.env,
   };

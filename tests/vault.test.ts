@@ -14,6 +14,9 @@ import { runAllRules } from "../src/engine/runner.js";
 import { walkMarkdownFiles } from "../src/engine/io.js";
 import fs, { promises as fsp } from "node:fs";
 import { testDate } from "./testDate.js";
+import { createTempDir } from "./createTempDir.js";
+import { enqueue } from "../src/transcription/queue.js";
+import type { Job } from "../src/transcription/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEST_VAULT = join(__dirname, "test_vault");
@@ -68,9 +71,14 @@ describe("test vault — .md.expected snapshots", () => {
   let pipelineOutputs: Map<string, string>;
   const expectedFiles = walkExpectedFilesSync(TEST_VAULT);
   const pipelineReady: Promise<void> = (async () => {
+    const stateDir = await createTempDir("onyx-vellum-worker-state-");
+    async function queueJob(job: Job) {
+      await enqueue(stateDir, job);
+    }
     const { changes } = await runAllRules({
       vaultPath: TEST_VAULT,
       dates: testDate,
+      queueJob,
       dryRun: true,
       env: {},
       jobIdFactory: deterministicJobIdFactory,
@@ -136,12 +144,17 @@ describe("test vault — .md.expected snapshots", () => {
           .map(async (p) => [p, await fsp.readFile(p, "utf-8")] as const),
       ),
     );
+    const stateDir = await createTempDir("onyx-vellum-worker-state-");
+    async function queueJob(job: Job) {
+      await enqueue(stateDir, job);
+    }
 
     await runAllRules({
       vaultPath: TEST_VAULT,
       dates: testDate,
       dryRun: true,
       env: {},
+      queueJob,
       jobIdFactory: deterministicJobIdFactory,
       mode: "all",
     });
