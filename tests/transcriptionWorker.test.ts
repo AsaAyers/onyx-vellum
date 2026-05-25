@@ -61,15 +61,16 @@ afterEach(async () => {
 
 describe("transcription worker", () => {
   it("writes source audio wikilink relative to source note", async () => {
-    const vaultDir = await createTempDir("onyx-vellum-worker-vault-");
-    const audioPath = join(vaultDir, "audio", "clip.m4a");
-    const transcriptPath = join(vaultDir, "audio", "clip.transcript.md");
-    const sourceNotePath = join(vaultDir, "daily.md");
-    await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
+    const vaultPath = await createTempDir("onyx-vellum-worker-vault-");
+    const audioPath = join(vaultPath, "audio", "clip.m4a");
+    const transcriptPath = join(vaultPath, "audio", "clip.transcript.md");
+    const sourceNotePath = join(vaultPath, "daily.md");
+    await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
 
     const content = await runWorkerForSingleJob({
       type: "transcription-pipeline",
       id: "01j-worker-a",
+      vaultPath,
       audioPath,
       transcriptPath,
       sourceNotePath,
@@ -81,16 +82,17 @@ describe("transcription worker", () => {
   });
 
   it("supports parent-directory relative paths from nested notes", async () => {
-    const vaultDir = await createTempDir("onyx-vellum-worker-vault-");
-    const sourceNotePath = join(vaultDir, "notes", "daily.md");
-    const audioPath = join(vaultDir, "audio", "clip.m4a");
-    const transcriptPath = join(vaultDir, "audio", "clip.transcript.md");
-    await fs.mkdir(join(vaultDir, "notes"), { recursive: true });
-    await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
+    const vaultPath = await createTempDir("onyx-vellum-worker-vault-");
+    const sourceNotePath = join(vaultPath, "notes", "daily.md");
+    const audioPath = join(vaultPath, "audio", "clip.m4a");
+    const transcriptPath = join(vaultPath, "audio", "clip.transcript.md");
+    await fs.mkdir(join(vaultPath, "notes"), { recursive: true });
+    await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
 
     const content = await runWorkerForSingleJob({
       type: "transcription-pipeline",
       id: "01j-worker-b",
+      vaultPath,
       audioPath,
       transcriptPath,
       sourceNotePath,
@@ -102,16 +104,17 @@ describe("transcription worker", () => {
   });
 
   it("retries stale processing jobs when the worker restarts", async () => {
-    const vaultDir = await createTempDir("onyx-vellum-worker-vault-");
+    const vaultPath = await createTempDir("onyx-vellum-worker-vault-");
     const stateDir = await createTempDir("onyx-vellum-worker-state-");
-    const audioPath = join(vaultDir, "audio", "clip.m4a");
-    const transcriptPath = join(vaultDir, "audio", "clip.transcript.md");
-    const sourceNotePath = join(vaultDir, "daily.md");
-    await fs.mkdir(join(vaultDir, "audio"), { recursive: true });
+    const audioPath = join(vaultPath, "audio", "clip.m4a");
+    const transcriptPath = join(vaultPath, "audio", "clip.transcript.md");
+    const sourceNotePath = join(vaultPath, "daily.md");
+    await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
 
     const job: Job = {
       type: "transcription-pipeline",
       id: "01j-worker-c",
+      vaultPath,
       audioPath,
       transcriptPath,
       sourceNotePath,

@@ -1,11 +1,11 @@
 import { visit } from "unist-util-visit";
 import invariant from "tiny-invariant";
 import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
-import type { TranscriptionPipelineJob } from "../transcription/types.js";
 import { makePlugin } from "./makePlugin.js";
 import path, { relative } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
 import { zVaultFile } from "../engine/io.js";
+import type { FileOperation } from "../transcription/types.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -65,27 +65,22 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
           path.dirname(file.path),
           transcriptPath,
         );
-        const job: TranscriptionPipelineJob = {
-          type: "transcription-pipeline",
-          id: ctx.jobIdFactory(todayDate),
-          audioPath,
-          transcriptPath: absoluteTranscriptPath,
-          sourceNotePath: file.path,
-          createdAt,
-        };
-
-        ctx.queueJob(job);
 
         const vaultFile = zVaultFile.parse({
           absolutePath: absoluteTranscriptPath,
           relativePath: relative(ctx.vaultPath, absoluteTranscriptPath),
         });
-        ctx.updateFile(vaultFile, {
-          position: "start",
-          header: null,
+
+        const id = ctx.jobIdFactory(todayDate);
+        const fileOperation: FileOperation = {
+          location: {
+            file: vaultFile,
+            position: "start",
+            header: "Transcript",
+          },
           frontmatter: {
             status: "pending",
-            jobId: job.id,
+            jobId: id,
           },
           content: `Source audio: [[${path.relative(
             path.dirname(absoluteTranscriptPath),
@@ -95,6 +90,16 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 > [!onyx]+ OnyxVellum: job status
 > Transcription is pending.
 `,
+        };
+        ctx.updateFile(fileOperation);
+
+        ctx.queueJob({
+          type: "transcribe",
+          vaultPath,
+          id: ctx.jobIdFactory(todayDate),
+          audioPath,
+          createdAt,
+          target: fileOperation,
         });
       }
     });

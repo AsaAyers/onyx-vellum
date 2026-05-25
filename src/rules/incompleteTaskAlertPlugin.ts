@@ -33,10 +33,13 @@ export const incompleteTaskAlertPlugin = makePlugin(
           return; // Snoozed, skip alert
         }
 
-        ctx.updateFile(vaultFile, {
-          header: file.path,
+        ctx.updateFile({
+          location: {
+            file: vaultFile,
+            header: file.path,
+            position: "end",
+          },
           content: node,
-          position: "end",
         });
       }
     });

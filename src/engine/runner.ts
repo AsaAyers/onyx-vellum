@@ -105,7 +105,6 @@ export async function runAllRules(
               : { type: "path", value },
         ),
     );
-    console.log({ globalGlobs });
   }
 
   // Filter all .md files in the vault

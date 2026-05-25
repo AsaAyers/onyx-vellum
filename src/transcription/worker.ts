@@ -4,9 +4,22 @@ import { fileURLToPath } from "node:url";
 import { taskArraySchema } from "../markdown/tasks.js";
 import { createFasterWhisperBackend } from "./fasterWhisperBackend.js";
 import { formatTranscriptFile, type TranscriptionStatus } from "./format.js";
-import { claimNext, markDone, markFailed } from "./queue.js";
+import {
+  buildJobId,
+  claimNext,
+  enqueue,
+  markDone,
+  markFailed,
+} from "./queue.js";
 import { resolveStateDir } from "./runtime.js";
-import type { TranscriptionPipelineJob, WorkerOptions } from "./types.js";
+import type {
+  FileOperation,
+  Job,
+  SummarizeTextJob,
+  TranscribeJob,
+  TranscriptionPipelineJob,
+  WorkerOptions,
+} from "./types.js";
 import {
   gatherTasks,
   processTranscript,
@@ -15,6 +28,16 @@ import {
 import { trimDeadAir } from "./trimDeadAir.js";
 import os from "node:os";
 import type z from "zod";
+import { FileWriteManager } from "../engine/io.js";
+import {
+  FileOperationExecutor,
+  readFileOperationTarget,
+} from "../engine/FileOperationExecutor.js";
+import { createParseProcessor } from "../markdown/parse.js";
+import { loadConfig } from "../config.js";
+import type { PluginContext } from "../markdown/PluginContext.js";
+import { userLocalTime } from "../engine/timezone.js";
+import { VFile } from "vfile";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
@@ -51,6 +74,37 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
 
   await recoverStaleProcessingJobs(options.stateDir);
 
+  const fileOperations = new FileOperationExecutor();
+  const ruleContext: Omit<PluginContext, "dates" | "vaultPath"> = {
+    updateFile: fileOperations.updateFile,
+    jobIdFactory: buildJobId,
+    async queueJob(job) {
+      await enqueue(options.stateDir, job);
+    },
+    env: process.env,
+    mode: "normalize",
+    dryRun: false,
+  };
+
+  const writeManagers = new Map<string, FileWriteManager>();
+  const getWriteManager = (vaultPath: string): FileWriteManager => {
+    let manager = writeManagers.get(vaultPath);
+    if (!manager) {
+      manager = new FileWriteManager(vaultPath);
+      writeManagers.set(vaultPath, manager);
+    }
+    return manager;
+  };
+
+  const getProcessor = async (vaultPath: string) => {
+    const config = await loadConfig(vaultPath);
+    return createParseProcessor(config, {
+      ...ruleContext,
+      vaultPath,
+      dates: userLocalTime({ tz: config.timezone ?? "UTC" }),
+    });
+  };
+
   while (options.shouldContinue?.() ?? true) {
     try {
       const job = await claimNext(options.stateDir);
@@ -60,7 +114,37 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       }
 
       if (job.type !== "transcription-pipeline") {
-        logger.error(`Unknown job type: ${job.type}`);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const jobArgs: Parameters<JobWorker<any>>[0] = {
+          options,
+          job,
+          fileOperations,
+          getProcessor,
+          getWriteManager,
+        };
+        switch (job.type) {
+          case "transcribe":
+            await transcriptJob(jobArgs);
+            break;
+          case "summarize-text":
+            await summarizeTextJob(jobArgs);
+            break;
+          case "clean-text":
+          case "find-tasks":
+          default:
+            logger.error(`Unknown job type: ${job.type}`);
+        }
+
+        console.log(
+          `Completed job ${job.id}. Changes: ${fileOperations.hasPendingOperations()}`,
+        );
+        if (fileOperations.hasPendingOperations()) {
+          const vaultPath = job.vaultPath;
+          const fileWriteManger = getWriteManager(vaultPath);
+          const processor = await getProcessor(vaultPath);
+          await fileOperations.execute(processor, fileWriteManger);
+          await fileWriteManger.commit(false);
+        }
         continue;
       }
 
@@ -179,3 +263,87 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     process.exit(1);
   });
 }
+
+type JobWorker<T extends Job> = (args: {
+  getWriteManager: (vaultPath: string) => FileWriteManager;
+  getProcessor: (
+    vaultPath: string,
+  ) => Promise<ReturnType<typeof createParseProcessor>>;
+  options: WorkerOptions;
+  job: T;
+  fileOperations: FileOperationExecutor;
+}) => Promise<void>;
+
+const transcriptJob: JobWorker<TranscribeJob> = async function transcriptJob({
+  options,
+  job,
+  fileOperations,
+}) {
+  let srcAudio = job.audioPath;
+  if (options.trimDeadAir) {
+    srcAudio =
+      dirname(job.audioPath) +
+      "/" +
+      path.basename(job.audioPath, ".m4a") +
+      "-trimmed.m4a";
+
+    const trimmedFileExists = await fs
+      .access(srcAudio)
+      .then(() => true)
+      .catch(() => false);
+    if (!trimmedFileExists) {
+      await trimDeadAir({
+        input: job.audioPath,
+        output: srcAudio,
+        thresholdDb: -35,
+      });
+    }
+  }
+  const transcriptText = await options.backend.transcribe(srcAudio);
+  job.target.content = transcriptText;
+  fileOperations.updateFile(job.target);
+  const createdAt = new Date();
+
+  const targetOperation: FileOperation = {
+    location: {
+      file: job.target.location.file,
+      header: "Summary",
+      position: "end",
+    },
+    content: `> [!onyx]+ Summarizing transcript...`,
+  };
+
+  enqueue(options.stateDir, {
+    type: "summarize-text",
+    id: buildJobId(createdAt),
+    vaultPath: job.vaultPath,
+    createdAt: createdAt.toISOString(),
+    source: job.target.location,
+    destination: targetOperation,
+  });
+};
+const summarizeTextJob: JobWorker<SummarizeTextJob> = async function ({
+  job,
+  getWriteManager,
+  getProcessor,
+}) {
+  const fileManager = getWriteManager(job.vaultPath);
+  const processor = await getProcessor(job.vaultPath);
+  const vaultFile = job.source.file;
+  const file = new VFile({
+    path: vaultFile.relativePath,
+    content: await fileManager.read(vaultFile),
+  });
+
+  const tree = processor.parse(file);
+  const children = readFileOperationTarget(tree, job.source);
+  const sourceText = processor.stringify(
+    {
+      type: "root",
+      children,
+    },
+    file,
+  );
+
+  console.log({ sourceText });
+};

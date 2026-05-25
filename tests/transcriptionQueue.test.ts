@@ -22,6 +22,7 @@ function makeJob(id: string): TranscriptionPipelineJob {
   return {
     type: "transcription-pipeline",
     id,
+    vaultPath: "/vault",
     audioPath: `/vault/audio/${id}.m4a`,
     transcriptPath: `/vault/audio/${id}.transcript.md`,
     sourceNotePath: "/vault/daily.md",
