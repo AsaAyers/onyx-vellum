@@ -28,6 +28,7 @@ import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlu
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
 import { remarkObsidianPlugin } from "./remarkObsidianPlugin.js";
 import type { PluginContext } from "./PluginContext.js";
+import { onyxVellumCommands } from "../rules/onyxVellumCommands.js";
 
 const debug = createDebug("onyx:markdown:parse");
 
@@ -62,6 +63,7 @@ export const createParseProcessor = (
     processor = processor
       .use(inlineFieldsPlugin)
       .use(normalizeTodayPlugin)
+      .use(onyxVellumCommands)
       .use(ensureAudioTranscriptsPlugin);
   }
 

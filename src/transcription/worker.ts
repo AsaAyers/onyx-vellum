@@ -105,9 +105,11 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     });
   };
 
+  let lastJob: Job | null = null;
   while (options.shouldContinue?.() ?? true) {
     try {
       const job = await claimNext(options.stateDir);
+      lastJob = job;
       if (!job) {
         await (options.sleep ?? sleep)(pollIntervalMs);
         continue;
@@ -122,12 +124,13 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
           getProcessor,
           getWriteManager,
         };
+        console.log({ job });
         switch (job.type) {
           case "transcribe":
-            await transcriptJob(jobArgs);
+            await transcriptWorker(jobArgs);
             break;
           case "summarize-text":
-            await summarizeTextJob(jobArgs);
+            await summarizeTextWorker(jobArgs);
             break;
           case "clean-text":
           case "find-tasks":
@@ -227,7 +230,8 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`transcription worker loop error: ${message}`);
+      console.error(err);
+      logger.error(`worker loop error: [${lastJob?.type}] ${message}`);
       await sleep(pollIntervalMs);
     }
   }
@@ -274,55 +278,52 @@ type JobWorker<T extends Job> = (args: {
   fileOperations: FileOperationExecutor;
 }) => Promise<void>;
 
-const transcriptJob: JobWorker<TranscribeJob> = async function transcriptJob({
-  options,
-  job,
-  fileOperations,
-}) {
-  let srcAudio = job.audioPath;
-  if (options.trimDeadAir) {
-    srcAudio =
-      dirname(job.audioPath) +
-      "/" +
-      path.basename(job.audioPath, ".m4a") +
-      "-trimmed.m4a";
+const transcriptWorker: JobWorker<TranscribeJob> =
+  async function transcriptJob({ options, job, fileOperations }) {
+    let srcAudio = job.audioPath;
+    if (options.trimDeadAir) {
+      srcAudio =
+        dirname(job.audioPath) +
+        "/" +
+        path.basename(job.audioPath, ".m4a") +
+        "-trimmed.m4a";
 
-    const trimmedFileExists = await fs
-      .access(srcAudio)
-      .then(() => true)
-      .catch(() => false);
-    if (!trimmedFileExists) {
-      await trimDeadAir({
-        input: job.audioPath,
-        output: srcAudio,
-        thresholdDb: -35,
-      });
+      const trimmedFileExists = await fs
+        .access(srcAudio)
+        .then(() => true)
+        .catch(() => false);
+      if (!trimmedFileExists) {
+        await trimDeadAir({
+          input: job.audioPath,
+          output: srcAudio,
+          thresholdDb: -35,
+        });
+      }
     }
-  }
-  const transcriptText = await options.backend.transcribe(srcAudio);
-  job.target.content = transcriptText;
-  fileOperations.updateFile(job.target);
-  const createdAt = new Date();
+    const transcriptText = await options.backend.transcribe(srcAudio);
+    job.target.content = transcriptText;
+    fileOperations.updateFile(job.target);
+    const createdAt = new Date();
 
-  const targetOperation: FileOperation = {
-    location: {
-      file: job.target.location.file,
-      header: "Summary",
-      position: "end",
-    },
-    content: `> [!onyx]+ Summarizing transcript...`,
+    const targetOperation: FileOperation = {
+      location: {
+        file: job.target.location.file,
+        header: "Summary",
+        position: "end",
+      },
+      content: `> [!onyx]+ Summarizing transcript...`,
+    };
+
+    enqueue(options.stateDir, {
+      type: "summarize-text",
+      id: buildJobId(createdAt),
+      vaultPath: job.vaultPath,
+      createdAt: createdAt.toISOString(),
+      source: job.target.location,
+      destination: targetOperation,
+    });
   };
-
-  enqueue(options.stateDir, {
-    type: "summarize-text",
-    id: buildJobId(createdAt),
-    vaultPath: job.vaultPath,
-    createdAt: createdAt.toISOString(),
-    source: job.target.location,
-    destination: targetOperation,
-  });
-};
-const summarizeTextJob: JobWorker<SummarizeTextJob> = async function ({
+const summarizeTextWorker: JobWorker<SummarizeTextJob> = async function ({
   job,
   getWriteManager,
   getProcessor,

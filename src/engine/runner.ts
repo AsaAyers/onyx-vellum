@@ -27,7 +27,10 @@ import {
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
 import { type UserLocalTime } from "./timezone.js";
-import { commandsMarkdown } from "../onyx_vellum_commands.js";
+import {
+  commandsMarkdown,
+  ONYX_COMMANDS_FILE,
+} from "../onyx_vellum_commands.js";
 
 /**
  * Run all registered rules against the vault.
@@ -102,7 +105,7 @@ export async function runAllRules(
     globalGlobs.push(
       ...baseCtx.onlyGlob
         .filter(
-          (path) => path.endsWith(".md") && !path.endsWith("onyx-commands.md"),
+          (path) => path.endsWith(".md") && !path.endsWith(ONYX_COMMANDS_FILE),
         )
         .map(
           (value): Source =>
@@ -224,8 +227,8 @@ async function ensureCommandFile(
   fileManager: FileWriteManager,
 ) {
   const commandsFile = zVaultFile.parse({
-    absolutePath: join(baseCtx.vaultPath, "onyx-commands.md"),
-    relativePath: "onyx-commands.md",
+    absolutePath: join(baseCtx.vaultPath, ONYX_COMMANDS_FILE),
+    relativePath: ONYX_COMMANDS_FILE,
   });
   const commandsMd = await fileManager.read(commandsFile);
   if (commandsMd !== commandsMarkdown) {

@@ -1,3 +1,5 @@
+export const ONYX_COMMANDS_FILE = "onyx-commands.md";
+
 export const commandsMarkdown = `Commands:
 
 * #onyx/summarize

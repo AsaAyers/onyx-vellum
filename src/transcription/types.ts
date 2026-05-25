@@ -11,7 +11,7 @@ export type ContentLocation = z.infer<typeof zContentLocation>;
 
 export const zFileOperation = z.object({
   location: zContentLocation,
-  frontmatter: z.object({ jobId: z.string(), status: z.string() }).optional(),
+  frontmatter: z.record(z.string(), z.any()).optional(),
   content: z
     .union([
       z.string(),
@@ -39,7 +39,7 @@ export const zTranscriptionPipelineJob = z.object({
   audioPath: z.string(),
   transcriptPath: z.string(),
   sourceNotePath: z.string(),
-  createdAt: z.string(),
+  createdAt: z.string().optional(),
 });
 export const zTranscribeJob = z.object({
   type: z.literal("transcribe"),
@@ -47,7 +47,7 @@ export const zTranscribeJob = z.object({
   id: z.string(),
   audioPath: z.string(),
   target: zFileOperation,
-  createdAt: z.string(),
+  createdAt: z.string().optional(),
 });
 
 export const zCleanTextJob = z.object({
@@ -57,7 +57,7 @@ export const zCleanTextJob = z.object({
   transcriptPath: z.string(),
   target: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string(),
+  createdAt: z.string().optional(),
 });
 
 export const zSummarizeTextJob = z.object({
@@ -66,7 +66,7 @@ export const zSummarizeTextJob = z.object({
   id: z.string(),
   destination: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string(),
+  createdAt: z.string().optional(),
 });
 
 export const zFindTasksJob = z.object({
@@ -76,7 +76,7 @@ export const zFindTasksJob = z.object({
   transcriptPath: z.string(),
   target: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string(),
+  createdAt: z.string().optional(),
 });
 
 export const zJob = zTranscriptionPipelineJob
