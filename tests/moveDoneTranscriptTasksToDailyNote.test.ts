@@ -16,7 +16,7 @@ describe("moveDoneTasks - config opt-in", () => {
     );
     await fs.writeFile(
       join(vaultPath, "audio", "session.transcript.md"),
-      "* [x] Keep in transcript done:2026-05-01\n",
+      "* [x] Keep in transcript ✅:2026-05-01\n",
       "utf-8",
     );
 
@@ -33,6 +33,6 @@ describe("moveDoneTasks - config opt-in", () => {
       join(vaultPath, "audio", "session.transcript.md"),
       "utf-8",
     );
-    expect(transcript).toContain("* [x] Keep in transcript done:2026-05-01");
+    expect(transcript).toContain("* [x] Keep in transcript ✅:2026-05-01");
   });
 });

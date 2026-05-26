@@ -28,9 +28,6 @@ export const incompleteTaskAlertPlugin = makePlugin(
     visit(tree, "listItem", (node) => {
       if (node.checked === false) {
         const fields = getInlineFields(node);
-        if (fields.start && fields.start > ctx.dates.today) {
-          return; // Not started yet, skip alert
-        }
         if (fields.snooze && fields.snooze > ctx.dates.today) {
           return; // Snoozed, skip alert
         }

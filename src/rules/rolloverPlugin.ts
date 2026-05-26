@@ -32,7 +32,15 @@ export const rolloverPlugin = makePlugin(
         );
       }
       const fields = getInlineFields(node);
-      if (!fields.repeat || !fields.done || fields.copied !== undefined) {
+
+      // Migration: clean up tasks previously marked as copied
+      if (fields.copied !== undefined) {
+        delete fields.repeat;
+        delete fields.copied;
+        return;
+      }
+
+      if (!fields.repeat || !fields.done) {
         return;
       }
       if (node.checked !== true) {
@@ -45,8 +53,6 @@ export const rolloverPlugin = makePlugin(
       if (!doneDate) {
         return;
       }
-
-      fields.copied = "1";
       const repeat = parseRepeat(fields.repeat);
       if (!repeat) return;
 
@@ -63,18 +69,6 @@ export const rolloverPlugin = makePlugin(
       const oldDue = oldDueDate ?? doneDate;
       const deltaDays = differenceInCalendarDays(newDue, oldDue);
 
-      if (fields.start) {
-        const { date: startDate, today: startStr } = userLocalTime({
-          strDate: fields.start,
-          tz,
-        });
-        if (startDate) {
-          const newStart = addDays(startDate, deltaDays);
-          debug(fields.start, { startDate, startStr }, formatDate(startDate));
-          cloneFields.start = formatDate(newStart);
-          debug(fields.start, { startDate, newStart, deltaDays, tz });
-        }
-      }
       if (fields.snooze) {
         const snoozeDate = userLocalTime({
           strDate: fields.snooze,
@@ -97,6 +91,9 @@ export const rolloverPlugin = makePlugin(
       debug({ newFields });
 
       parent.children.splice(idx + 1, 0, newListItem);
+
+      // Strip repeat from original to prevent re-processing
+      delete fields.repeat;
     });
   },
 );

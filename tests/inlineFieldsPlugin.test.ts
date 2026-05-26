@@ -25,7 +25,7 @@ describe("inlineFieldsPlugin", () => {
   it("extracts inline fields from all text nodes in list items", () => {
     const md = `
 - [ ] Task one due:2026-05-03 repeat:mwf
-- [x] Task two start:2026-01-01 snooze:2026-02-01
+- [x] Task two snooze:2026-02-01
 - [ ] Multi para:\n  More text due:today\n  Even more snooze:tomorrow
 `;
     const result = extractInlineFields(md);
@@ -41,7 +41,7 @@ describe("inlineFieldsPlugin", () => {
         type: "inlineFields",
         value: "",
         data: {
-          inlineFields: { start: "2026-01-01", snooze: "2026-02-01" },
+          inlineFields: { snooze: "2026-02-01" },
         },
       },
       {

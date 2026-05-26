@@ -1,4 +1,4 @@
-import { extractInlineFields } from "./inlineFieldsPlugin.js";
+import { extractInlineFields, EMOJI_MAP } from "./inlineFieldsPlugin.js";
 import { z } from "zod";
 
 export const TaskInputSchema = z.object({
@@ -12,7 +12,7 @@ export const TaskInputSchema = z.object({
     .record(z.string())
     .default({})
     .describe(
-      "Inline fields (e.g. due:today start:2026-01-01 snooze:2026-02-01 done:yesterday repeat)." +
+      "Inline fields (e.g. due:today snooze:2026-02-01 done:yesterday repeat:1s)." +
         `
 # dates
 
@@ -84,7 +84,6 @@ export const taskArraySchema = z
 const KNOWN_INLINE_FIELD_ORDER = [
   "due",
   "sleep",
-  "start",
   "snooze",
   "done",
   "repeat",
@@ -132,9 +131,11 @@ function serializeTaskText(
   title: string,
   fields: Record<string, string>,
 ): string {
-  const fieldTokens = KNOWN_INLINE_FIELD_ORDER.map((key) =>
-    fields[key] !== undefined ? `${key}:${fields[key]}` : undefined,
-  ).filter((token): token is string => token !== undefined);
+  const fieldTokens = KNOWN_INLINE_FIELD_ORDER.map((key) => {
+    if (fields[key] === undefined) return undefined;
+    const emoji = EMOJI_MAP[key];
+    return emoji ? `${emoji}:${fields[key]}` : `${key}:${fields[key]}`;
+  }).filter((token): token is string => token !== undefined);
 
   const base = title.trim();
   if (base.length === 0) return fieldTokens.join(" ").trim();

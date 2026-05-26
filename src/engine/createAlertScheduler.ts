@@ -79,7 +79,7 @@ export function createAlertScheduler(
     debug(`Current alert schedule: ${schedule.join(", ")}`);
     if (schedule.length === 0) return;
 
-    const now = userLocalTime({ tz }).date;
+    const now = userLocalTime({ tz: tz || "UTC" }).date;
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
     const currentMinute = `${hh}:${mm}`;

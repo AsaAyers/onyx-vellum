@@ -7,6 +7,22 @@ import createDebug from "debug";
 
 const debug = createDebug("onyx:inlineFieldsPlugin");
 
+export const EMOJI_MAP: Record<string, string> = {
+  snooze: "💤",
+  due: "📅",
+  done: "✅",
+  repeat: "🔁",
+  ephemeral: "⏳",
+};
+
+const EMOJI_REVERSE: Record<string, string> = {
+  "💤": "snooze",
+  "📅": "due",
+  "✅": "done",
+  "🔁": "repeat",
+  "⏳": "ephemeral",
+};
+
 // Utility to get the inlineFields object from the last inlineFields node in a ListItem
 export function getInlineFields(i: ListItem): Record<string, string> {
   for (let idx = i.children.length - 1; idx >= 0; idx--) {
@@ -45,17 +61,18 @@ export function extractInlineFields(text: string): {
   clean: string;
   fields: Record<string, string>;
 } {
-  const fieldPattern = /(?:^|\s)([a-zA-Z][\w-]*):([^\s]+)/g;
+  const fieldPattern = /(?:^|\s)((?:💤|📅|✅|🔁|⏳|[a-zA-Z][\w-]*)):([^\s]+)/g;
   let match;
   let cleanText = text;
   const fields: Record<string, string> = {};
   // Track the indexes to remove, so we can do it in one pass
   const removals: { start: number; end: number }[] = [];
   while ((match = fieldPattern.exec(text)) !== null) {
-    const key = match[1];
+    const rawKey = match[1];
     const value = match[2];
-    if (KNOWN_INLINE_FIELD_ORDER.includes(key)) {
-      fields[key] = value;
+    const textKey = EMOJI_REVERSE[rawKey] ?? rawKey;
+    if (KNOWN_INLINE_FIELD_ORDER.includes(textKey)) {
+      fields[textKey] = value;
       const start = match.index;
       const end = match.index + match[0].length;
       removals.push({ start, end });
@@ -106,7 +123,6 @@ export const inlineFieldsPlugin = function (this: Processor) {
 
 // Handler for remark-stringify to serialize inline fields from the nearest listItem
 const KNOWN_INLINE_FIELD_ORDER = [
-  "start",
   "snooze",
   "due",
   "repeat",
@@ -125,7 +141,10 @@ export const inlineFieldsNodeHandler: Handlers["inlineFields"] = (
   const fields = _node.data?.inlineFields ?? {};
   const tokens: string[] = [];
   for (const key of KNOWN_INLINE_FIELD_ORDER) {
-    if (fields[key]) tokens.push(`${key}:${fields[key]}`);
+    if (fields[key]) {
+      const emoji = EMOJI_MAP[key];
+      tokens.push(emoji ? `${emoji}:${fields[key]}` : `${key}:${fields[key]}`);
+    }
   }
   for (const key of Object.keys(fields)) {
     if (!KNOWN_INLINE_FIELD_ORDER.includes(key)) {
