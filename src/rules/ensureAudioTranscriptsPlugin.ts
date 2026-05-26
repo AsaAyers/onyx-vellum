@@ -103,7 +103,7 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
         ctx.queueJob({
           type: "transcribe",
           vaultPath,
-          id: ctx.jobIdFactory(todayDate),
+          id,
           audioPath,
           createdAt,
           target: fileOperation,
