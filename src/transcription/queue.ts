@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { promises as fsp, mkdirSync, writeFileSync } from "node:fs";
+import { resolve, dirname, join } from "node:path";
 import type { Job } from "./types.js";
 import { randomUUID } from "crypto";
 
@@ -17,17 +17,15 @@ function jobPath(
   return join(queuePath(stateDir, dir), `${id}.json`);
 }
 
-async function ensureQueueDirs(stateDir: string): Promise<void> {
-  await Promise.all(
-    QUEUE_DIRS.map((dir) =>
-      fs.mkdir(queuePath(stateDir, dir), { recursive: true }),
-    ),
+function ensureQueueDirs(stateDir: string): void {
+  QUEUE_DIRS.map((dir) =>
+    mkdirSync(queuePath(stateDir, dir), { recursive: true }),
   );
 }
 
-export async function enqueue(stateDir: string, job: Job): Promise<void> {
-  await ensureQueueDirs(stateDir);
-  await fs.writeFile(
+export function enqueue(stateDir: string, job: Job): void {
+  ensureQueueDirs(stateDir);
+  writeFileSync(
     jobPath(stateDir, "pending", job.id),
     `${JSON.stringify(job, null, 2)}\n`,
     "utf-8",
@@ -37,7 +35,7 @@ export async function enqueue(stateDir: string, job: Job): Promise<void> {
 export async function claimNext(stateDir: string): Promise<Job | null> {
   await ensureQueueDirs(stateDir);
   const pendingPath = queuePath(stateDir, "pending");
-  const files = (await fs.readdir(pendingPath))
+  const files = (await fsp.readdir(pendingPath))
     .filter((name) => name.endsWith(".json"))
     .sort((a, b) => a.localeCompare(b));
 
@@ -45,14 +43,14 @@ export async function claimNext(stateDir: string): Promise<Job | null> {
     const from = join(pendingPath, file);
     const to = join(queuePath(stateDir, "processing"), file);
     try {
-      await fs.rename(from, to);
+      await fsp.rename(from, to);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") {
         continue;
       }
       throw err;
     }
-    const raw = await fs.readFile(to, "utf-8");
+    const raw = await fsp.readFile(to, "utf-8");
     return JSON.parse(raw) as Job;
   }
 
@@ -61,7 +59,7 @@ export async function claimNext(stateDir: string): Promise<Job | null> {
 
 export async function markDone(stateDir: string, id: string): Promise<void> {
   await ensureQueueDirs(stateDir);
-  await fs.rename(
+  await fsp.rename(
     jobPath(stateDir, "processing", id),
     jobPath(stateDir, "done", id),
   );
@@ -73,11 +71,11 @@ export async function markFailed(
   error: string,
 ): Promise<void> {
   await ensureQueueDirs(stateDir);
-  await fs.rename(
+  await fsp.rename(
     jobPath(stateDir, "processing", id),
     jobPath(stateDir, "failed", id),
   );
-  await fs.writeFile(
+  await fsp.writeFile(
     join(queuePath(stateDir, "failed"), `${id}.error.txt`),
     `${error}\n`,
     "utf-8",
@@ -88,3 +86,13 @@ export function buildJobId(createdAt: Date): string {
   const uuid = randomUUID();
   return `${createdAtMs.toString(36)}-${uuid}`;
 }
+export function resolveStateDir(
+  env: NodeJS.ProcessEnv,
+  vaultPath: string,
+): string {
+  const configured = env["STATE_DIR"];
+  return configured
+    ? resolve(configured)
+    : join(dirname(vaultPath), DEFAULT_STATE_DIRNAME);
+}
+export const DEFAULT_STATE_DIRNAME = ".onyx-vellum-state";

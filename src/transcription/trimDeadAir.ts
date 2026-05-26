@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import fs from "node:fs/promises";
 
 export type TrimDeadAirOptions = {
   input: string;
@@ -49,6 +50,11 @@ export async function trimDeadAir({
   bitrate = "128k",
   ffmpegPath = "ffmpeg",
 }: TrimDeadAirOptions): Promise<void> {
+  // Skip empty files used for testing
+  if ((await fs.stat(input)).size === 0) {
+    return;
+  }
+
   if (keepSilenceSeconds > minSilenceSeconds) {
     throw new Error(
       `keepSilenceSeconds must be <= minSilenceSeconds. Got keep=${keepSilenceSeconds}, min=${minSilenceSeconds}.`,
@@ -67,15 +73,6 @@ export async function trimDeadAir({
     "window=0.02,asetpts=N/SR/TB", // Shortened window to 20ms for precise speech tracking
   ].join(":");
 
-  // const controller = new AbortController();
-  // const cancelSignal = controller.signal;
-  // setTimeout(() => {
-  //   controller.abort();
-  // }, 30_000);
-
-  const i = setInterval(() => {
-    console.log("Working on dead air...");
-  }, 1_000);
   await execa(
     ffmpegPath,
     [
@@ -104,5 +101,4 @@ export async function trimDeadAir({
       // cancelSignal,
     },
   );
-  clearInterval(i);
 }

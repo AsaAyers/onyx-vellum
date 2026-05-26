@@ -1,28 +1,35 @@
 import { promises as fs } from "node:fs";
-import path, { dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { taskArraySchema } from "../markdown/tasks.js";
 import { createFasterWhisperBackend } from "./fasterWhisperBackend.js";
-import { formatTranscriptFile, type TranscriptionStatus } from "./format.js";
-import { claimNext, markDone, markFailed } from "./queue.js";
-import { resolveStateDir } from "./runtime.js";
-import type { TranscriptionPipelineJob, WorkerOptions } from "./types.js";
 import {
-  gatherTasks,
-  processTranscript,
-  type TranscriptResult,
-} from "./processTranscript.js";
-import { trimDeadAir } from "./trimDeadAir.js";
-import os from "node:os";
-import type z from "zod";
+  buildJobId,
+  claimNext,
+  enqueue,
+  markDone,
+  markFailed,
+} from "./queue.js";
+import { resolveStateDir } from "./queue.js";
+import { type Job, type WorkerOptions } from "./types.js";
+import { FileWriteManager } from "../engine/io.js";
+import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
+import { createParseProcessor } from "../markdown/parse.js";
+import { loadConfig } from "../config.js";
+import type { PluginContext } from "../markdown/PluginContext.js";
+import { userLocalTime } from "../engine/timezone.js";
+import { transcriptWorker } from "./worker/transcript.js";
+import { summarizeTextWorker } from "./worker/cleanTranscript.js";
+import type { JobWorker } from "./worker/types.js";
+import { findTasksWorker } from "./worker/findTasks.js";
+import createDebug from "debug";
+import { unreachable } from "../unreachable.js";
 
 const DEFAULT_POLL_INTERVAL_MS = 2_000;
 
-function buildSourceAudioWikilink(job: TranscriptionPipelineJob): string {
-  const sourceDir = dirname(job.sourceNotePath);
-  const relTarget = relative(sourceDir, job.audioPath).replace(/\\/g, "/");
-  return `[[${relTarget}]]`;
-}
+const debug = createDebug("onyx:worker");
+createDebug.enable("onyx:worker*");
+
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
 
 async function recoverStaleProcessingJobs(stateDir: string): Promise<void> {
   const processingDir = `${stateDir}/processing`;
@@ -51,99 +58,92 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
 
   await recoverStaleProcessingJobs(options.stateDir);
 
+  const fileOperations = new FileOperationExecutor();
+  const ruleContext: Omit<PluginContext, "dates" | "vaultPath"> = {
+    updateFile: fileOperations.updateFile,
+    jobIdFactory: buildJobId,
+    async queueJob(job) {
+      await enqueue(options.stateDir, job);
+    },
+    env: process.env,
+    mode: "normalize",
+    dryRun: false,
+  };
+
+  const writeManagers = new Map<string, FileWriteManager>();
+  const getWriteManager = (vaultPath: string): FileWriteManager => {
+    let manager = writeManagers.get(vaultPath);
+    if (!manager) {
+      manager = new FileWriteManager(vaultPath);
+      writeManagers.set(vaultPath, manager);
+    }
+    return manager;
+  };
+
+  const getProcessor = async (vaultPath: string) => {
+    const config = await loadConfig(vaultPath);
+    return createParseProcessor(config, {
+      ...ruleContext,
+      jobIdFactory: buildJobId,
+      vaultPath,
+      dates: userLocalTime({ tz: config.timezone ?? "UTC" }),
+    });
+  };
+
+  let lastJob: Job | null = null;
   while (options.shouldContinue?.() ?? true) {
     try {
       const job = await claimNext(options.stateDir);
+      lastJob = job;
       if (!job) {
         await (options.sleep ?? sleep)(pollIntervalMs);
         continue;
       }
 
-      if (job.type !== "transcription-pipeline") {
-        logger.error(`Unknown job type: ${job.type}`);
-        continue;
-      }
-
-      console.log(`Claimed job ${job.id} for audio ${job.audioPath}`);
-
-      const sourceAudioWikilink = buildSourceAudioWikilink(job);
-      let transcriptText: string | undefined;
-      let transcriptResult: TranscriptResult | undefined;
-      let trimmedFile = job.audioPath;
-      let tasks: z.infer<typeof taskArraySchema> = [];
-
-      let lastStatus: TranscriptionStatus = "pending";
-      const writeFile = async (
-        status: TranscriptionStatus,
-        errorMessage?: string,
-      ) => {
-        lastStatus = status;
-        await fs.writeFile(
-          job.transcriptPath,
-          formatTranscriptFile({
-            jobId: job.id,
-            sourceAudioWikilink,
-            trimmed: trimmedFile !== job.audioPath,
-            transcriptText,
-            transcriptResult,
-            status,
-            tasks,
-            errorMessage,
-          }),
-          "utf-8",
-        );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jobArgs: Parameters<JobWorker<any>>[0] = {
+        options,
+        job,
+        fileOperations,
+        debug: debug.extend(job.type),
+        getProcessor,
+        getWriteManager,
       };
-      try {
-        await writeFile("trimDeadAir");
-
-        if (options.trimDeadAir) {
-          trimmedFile = path.join(
-            os.tmpdir(),
-            `trimmed-${Math.random().toString(16).slice(2)}.m4a`,
-          );
-
-          trimmedFile =
-            dirname(job.audioPath) +
-            "/" +
-            path.basename(job.audioPath, ".m4a") +
-            "-trimmed.m4a";
-
-          const trimmedFileExists = await fs
-            .access(trimmedFile)
-            .then(() => true)
-            .catch(() => false);
-          if (!trimmedFileExists) {
-            await writeFile("trimDeadAir");
-            await trimDeadAir({
-              input: job.audioPath,
-              output: trimmedFile,
-              thresholdDb: -35,
-            });
-          }
-        }
-
-        await writeFile("transcribing");
-        transcriptText = await options.backend.transcribe(trimmedFile);
-
-        if (options.ollamaHost) {
-          await writeFile("processingTranscript");
-          transcriptResult = await processTranscript(transcriptText);
-
-          await writeFile("gatheringTasks");
-          tasks = await gatherTasks(transcriptResult.cleanedTranscript);
-        }
-
-        await writeFile("done");
-        await markDone(options.stateDir, job.id);
-      } catch (err) {
-        console.error(err);
-        const message = err instanceof Error ? err.message : String(err);
-        await writeFile("fail", `lastStatus: ${lastStatus}\n\n${message}`);
-        await markFailed(options.stateDir, job.id, message);
+      switch (job.type) {
+        case "transcribe":
+          await transcriptWorker(jobArgs);
+          break;
+        case "summarize-text":
+        case "clean-transcription":
+          await summarizeTextWorker(jobArgs);
+          break;
+        case "find-tasks":
+          await findTasksWorker(jobArgs);
+          break;
+        default:
+          logger.error(`Unknown job type: ${JSON.stringify(job)}`);
+          unreachable(job);
       }
+
+      log(
+        `Completed job ${job.type}. Changes: ${fileOperations.hasPendingOperations()}`,
+      );
+
+      if (fileOperations.hasPendingOperations()) {
+        const vaultPath = job.vaultPath;
+        const fileWriteManger = getWriteManager(vaultPath);
+        const processor = await getProcessor(vaultPath);
+        await fileOperations.execute(processor, fileWriteManger);
+        await fileWriteManger.commit(false);
+      }
+
+      await markDone(options.stateDir, job.id);
+      continue;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`transcription worker loop error: ${message}`);
+      await markFailed(options.stateDir, lastJob!.id, message);
+      console.error(err);
+      logger.error(`worker loop error: [${lastJob?.type}] ${message}`);
       await sleep(pollIntervalMs);
     }
   }
@@ -152,22 +152,25 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
 async function main(): Promise<void> {
   const vaultPath = process.env["VAULT_PATH"] ?? "/vault";
   const stateDir = resolveStateDir(process.env, vaultPath);
-  const backend = createFasterWhisperBackend({
-    executablePath: process.env["FASTER_WHISPER_EXECUTABLE"],
-    scriptPath: process.env["FASTER_WHISPER_SCRIPT"],
-    model: process.env["FASTER_WHISPER_MODEL"],
-    device: process.env["FASTER_WHISPER_DEVICE"],
-    computeType: process.env["FASTER_WHISPER_COMPUTE_TYPE"],
-    downloadRoot: process.env["FASTER_WHISPER_DOWNLOAD_ROOT"],
-  });
 
-  console.log(`Starting transcription worker...`);
-  console.log(`Vault: ${vaultPath}`);
-  console.log(`State dir: ${stateDir}`);
+  log(`Starting transcription worker...`);
+  log(`Vault: ${vaultPath}`);
+  log(`State dir: ${stateDir}`);
 
+  let backend: ReturnType<typeof createFasterWhisperBackend> | null = null;
   await startWorker({
     stateDir,
-    backend,
+    getWhisperBackend: () => {
+      backend ??= createFasterWhisperBackend({
+        executablePath: process.env["FASTER_WHISPER_EXECUTABLE"],
+        scriptPath: process.env["FASTER_WHISPER_SCRIPT"],
+        model: process.env["FASTER_WHISPER_MODEL"],
+        device: process.env["FASTER_WHISPER_DEVICE"],
+        computeType: process.env["FASTER_WHISPER_COMPUTE_TYPE"],
+        downloadRoot: process.env["FASTER_WHISPER_DOWNLOAD_ROOT"],
+      });
+      return backend;
+    },
     trimDeadAir: true,
     ollamaHost: process.env.OLLAMA_HOST,
   });

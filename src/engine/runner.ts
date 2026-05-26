@@ -16,8 +16,6 @@ import type { Root } from "mdast";
 import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
-import { resolveStateDir } from "../transcription/runtime.js";
-import { enqueue } from "../transcription/queue.js";
 import {
   fileMatchesSources,
   FileOperationExecutor,
@@ -27,6 +25,11 @@ import {
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
 import { type UserLocalTime } from "./timezone.js";
+import { ONYX_COMMANDS_FILE } from "../rules/onyxVellumCommands.js";
+import { commandsMarkdown } from "../rules/onyxVellumCommands.js";
+
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
 
 /**
  * Run all registered rules against the vault.
@@ -45,10 +48,7 @@ import { type UserLocalTime } from "./timezone.js";
  *                 `report`  — everything printed to console during the run.
  */
 export async function runAllRules(
-  baseCtx: Omit<
-    PluginContext,
-    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
-  > & {
+  baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "updateFile"> & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
 ): Promise<{
@@ -58,7 +58,7 @@ export async function runAllRules(
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
-    console.log(msg);
+    // console.log(msg);
     lines.push(msg);
   };
   // Load config
@@ -71,20 +71,16 @@ export async function runAllRules(
     },
   );
 
-  const statDir = await resolveStateDir(baseCtx.env, baseCtx.vaultPath);
-
+  const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     ...baseCtx,
     updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
-    async queueJob(job) {
-      if (!baseCtx.dryRun) {
-        await enqueue(statDir, job);
-      }
-    },
     vaultPath: baseCtx.vaultPath,
   };
+  await ensureCommandFile(baseCtx, fileManager);
+
   const processor = createParseProcessor(config, ruleContext);
   // Accepts array or single object for config.sources
   const globalGlobs: Source[] = Array.isArray(config.sources)
@@ -97,7 +93,9 @@ export async function runAllRules(
     globalGlobs.length = 0; // Clear config sources if onlyGlob is specified
     globalGlobs.push(
       ...baseCtx.onlyGlob
-        .filter((path) => path.endsWith(".md"))
+        .filter(
+          (path) => path.endsWith(".md") && !path.endsWith(ONYX_COMMANDS_FILE),
+        )
         .map(
           (value): Source =>
             value.includes("*")
@@ -105,14 +103,12 @@ export async function runAllRules(
               : { type: "path", value },
         ),
     );
-    console.log({ globalGlobs });
   }
 
   // Filter all .md files in the vault
   const matchingFiles = (
     await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
   ).filter((filePath) => fileMatchesSources(filePath, globalGlobs));
-  const fileManager = new FileWriteManager(baseCtx.vaultPath);
   const alertFile =
     baseCtx.mode === "alert"
       ? zVaultFile.parse({
@@ -212,6 +208,23 @@ export async function runAllRules(
   return { changes, report: lines.join("\n"), matchingFiles };
 }
 
+async function ensureCommandFile(
+  baseCtx: Omit<
+    PluginContext,
+    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
+  > & { jobIdFactory?: PluginContext["jobIdFactory"] },
+  fileManager: FileWriteManager,
+) {
+  const commandsFile = zVaultFile.parse({
+    absolutePath: join(baseCtx.vaultPath, ONYX_COMMANDS_FILE),
+    relativePath: ONYX_COMMANDS_FILE,
+  });
+  const commandsMd = await fileManager.read(commandsFile);
+  if (commandsMd.trim() !== commandsMarkdown.trim()) {
+    fileManager.stage(commandsFile, commandsMarkdown);
+  }
+}
+
 export async function runInitPass(vaultPath: string, dryRun: boolean) {
   const fileManager = new FileWriteManager(vaultPath);
   const allFiles = await walkMarkdownFiles(vaultPath, vaultPath);
@@ -285,7 +298,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
   if (dryRun) {
     if (changes.length > 0) {
       for (const change of changes) {
-        console.log(
+        log(
           createPatch(
             change.vaultFile.relativePath,
             await fs
@@ -296,7 +309,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
         );
       }
     } else {
-      console.log("No changes.");
+      log("No changes.");
     }
   } else {
     for (const change of changes) {

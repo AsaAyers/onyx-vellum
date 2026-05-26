@@ -7,18 +7,29 @@ import { zVaultFile, type FileWriteManager, type VaultFile } from "./io.js";
 import { join } from "node:path";
 import micromatch from "micromatch";
 import type { Source } from "../rules/types.js";
+import {
+  type ContentLocation,
+  type FileOperation,
+} from "../transcription/types.js";
 
 const debug = createDebug("onyx:fileOperationExecutor");
 
 export class FileOperationExecutor {
+  resetAll() {
+    this.fileOperations = {};
+  }
   fileOperations: Record<string, FileOperation[]> = {};
 
-  updateFile = (file: VaultFile, fileOperation: FileOperation) => {
-    const filePath = file.relativePath;
+  updateFile = (fileOperation: FileOperation) => {
+    const filePath = fileOperation.location.file.relativePath;
     this.fileOperations[filePath] ??= [];
     this.fileOperations[filePath].push(fileOperation);
     debug(`Queued file operation for ${filePath}`);
   };
+
+  hasPendingOperations() {
+    return Object.keys(this.fileOperations).length > 0;
+  }
 
   async execute(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -54,6 +65,14 @@ export class FileOperationExecutor {
   }
 }
 
+export function readFileOperationTarget(root: Root, location: ContentLocation) {
+  const target = queryFileOperationTarget(root, location);
+  if (!target) return [];
+  const [parent, childIndex, numDelete] = target;
+
+  return parent.children.slice(childIndex, childIndex + numDelete);
+}
+
 /**
  * Determines where to apply a FileOperation in the AST.
  * For header: null, returns [parent, 0, i] where i is the index of the first heading node,
@@ -62,56 +81,67 @@ export class FileOperationExecutor {
  */
 function queryFileOperationTarget(
   processed: Root,
-  op: FileOperation,
+  location: ContentLocation,
 ): null | [typeof processed, number, number, RootContent[]] {
   const children = processed.children;
-  let firstHeaderIdx = children.findIndex((n) => n.type === "heading");
-  if (firstHeaderIdx === -1) {
-    firstHeaderIdx = children.length;
-  }
-  const preHeaderIndex = firstHeaderIdx - 1;
-  const bodyStart = children.findIndex((n) => n.type !== "yaml") + 1;
-  if (op.header === null) {
-    if (op.position === "start") {
+  let bodyStart = children.findIndex((n) => n.type !== "yaml");
+  if (bodyStart === -1) bodyStart = children.length;
+
+  let firstHeadingIndex = children.findIndex((n) => n.type === "heading");
+  const hasHeadings = firstHeadingIndex !== -1;
+  if (firstHeadingIndex === -1) firstHeadingIndex = children.length;
+
+  if (location.header === null) {
+    if (location.position === "start") {
       // Replace from top up to first header
-      return [processed, bodyStart, preHeaderIndex - bodyStart, []];
-    } else if (op.position === "end") {
+      return [processed, bodyStart, firstHeadingIndex - bodyStart, []];
+    } else if (location.position === "end") {
       return [processed, children.length, 0, []];
     }
-  } else if (op.header !== null) {
-    const startIdx = children.findIndex(
+  } else if (location.header !== null) {
+    const headerNodeIndex = children.findIndex(
       (n) =>
         n.type === "heading" &&
-        n.children.some((c) => c.type === "text" && c.value === op.header),
+        n.children.some(
+          (c) => c.type === "text" && c.value === location.header,
+        ),
     );
-    if (startIdx === -1) {
+    if (headerNodeIndex === -1) {
       const newHeader: Heading = {
         type: "heading",
-        depth: 2,
-        children: [{ type: "text", value: op.header }],
+        depth: 1,
+        children: [{ type: "text", value: location.header }],
       };
-      if (op.position === "start") {
-        return [processed, bodyStart, preHeaderIndex - bodyStart, [newHeader]];
+      if (location.position === "start") {
+        if (hasHeadings) {
+          return [processed, firstHeadingIndex, 0, [newHeader]];
+        }
+        return [
+          processed,
+          bodyStart,
+          firstHeadingIndex - bodyStart,
+          [newHeader],
+        ];
       } else {
-        return [processed, children.length - 1, 0, [newHeader]];
+        return [processed, children.length, 0, [newHeader]];
       }
     } else {
-      const headerNode = children[startIdx] as Heading;
+      const headerNode = children[headerNodeIndex] as Heading;
       const depth = headerNode.depth;
+
+      const start = headerNodeIndex + 1;
       const endOfHeaderSection = children.reduce((acc, node, idx) => {
-        if (idx <= startIdx) return acc;
+        if (idx <= start) return acc;
         if (node.type === "heading" && node.depth <= depth) {
           return idx;
         }
         return acc;
-      }, startIdx);
-      const headerLength = endOfHeaderSection - startIdx;
-
-      if (op.position === "start") {
-        return [processed, startIdx, headerLength, []];
-      } else if (op.position === "end") {
-        return [processed, endOfHeaderSection + 1, 0, []];
+      }, -1);
+      if (endOfHeaderSection === -1) {
+        return [processed, start, children.length - start + 1, []];
       }
+
+      return [processed, start, endOfHeaderSection - start, []];
     }
   }
   // Not supported yet
@@ -124,39 +154,20 @@ function queryFileOperationTarget(
  */
 async function applyFileOperations(
   processor: Processor<Root, Root, Root>,
-  processed: Root,
+  tree: Root,
   ops: FileOperation[],
 ) {
   for (const op of ops) {
-    const target = queryFileOperationTarget(processed, op);
+    const target = queryFileOperationTarget(tree, op.location);
     if (!target) continue;
     const [parent, childIndex, numDelete, newNodes] = target;
 
     // Prepare new nodes: YAML frontmatter + content
-    let existingFrontmatter: Record<string, unknown> = {};
-
-    const yamlNode: RootContent = parent.children.find(
-      (n) => n.type === "yaml",
-    ) ?? {
-      type: "yaml",
-      value: "",
-    };
-
-    if (yamlNode.type === "yaml") {
-      // Parse and merge
-      try {
-        existingFrontmatter = (yaml.load(yamlNode.value) || {}) as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        // skip invalid frontmatter
-      }
-    }
+    const { yamlNode, frontmatter } = extractYamlFrontmatter(parent);
     // Overwrite with op.frontmatter
     if (op.frontmatter) {
       yamlNode.value = yaml
-        .dump({ ...existingFrontmatter, ...op.frontmatter })
+        .dump({ ...frontmatter, ...op.frontmatter })
         .trimEnd();
     }
 
@@ -171,11 +182,14 @@ async function applyFileOperations(
       } else {
         contentNodes = [op.content];
       }
-    }
-    if (newNodes.length > 0) {
-      contentNodes.unshift(...newNodes);
+      if (newNodes.length > 0) {
+        contentNodes.unshift(...newNodes);
+      }
     }
 
+    debug(
+      `Applying file operation at ${op.location.file.relativePath} - replacing ${numDelete} nodes with ${contentNodes.length} new nodes`,
+    );
     parent.children.splice(childIndex, numDelete, ...contentNodes);
     if (!parent.children.includes(yamlNode)) {
       parent.children.unshift(yamlNode);
@@ -185,15 +199,31 @@ async function applyFileOperations(
     }
   }
 }
-export type FileOperation = {
-  position: "start" | "end";
-  header: null | string;
-  frontmatter?: {
-    jobId: string;
-    status: string;
+
+export function extractYamlFrontmatter(parent: Root) {
+  let frontmatter: Record<string, unknown> = {};
+
+  const yamlNode: RootContent = parent.children.find(
+    (n) => n.type === "yaml",
+  ) ?? {
+    type: "yaml",
+    value: "",
   };
-  content?: string | RootContent;
-};
+
+  if (yamlNode.type === "yaml") {
+    // Parse and merge
+    try {
+      frontmatter = (yaml.load(yamlNode.value) || {}) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      // skip invalid frontmatter
+    }
+  }
+  return { yamlNode, frontmatter };
+}
+
 export function fileMatchesSources(
   file: VaultFile,
   sources: Source[],

@@ -37,7 +37,6 @@ ENV FASTER_WHISPER_DOWNLOAD_ROOT=/state/faster-whisper-cache
 ENV PYTHONUNBUFFERED=1
 
 COPY package*.json ./
-RUN npm install
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist

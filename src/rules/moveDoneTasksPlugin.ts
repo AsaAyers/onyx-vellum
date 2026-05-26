@@ -44,9 +44,12 @@ export const moveDoneTasksPlugin = makePlugin(
               });
 
               if (destExists) {
-                ctx.updateFile(vaultFile, {
-                  header: null,
-                  position: "end",
+                ctx.updateFile({
+                  location: {
+                    file: vaultFile,
+                    header: null,
+                    position: "end",
+                  },
                   content: item,
                 });
                 return false; // Remove from current file

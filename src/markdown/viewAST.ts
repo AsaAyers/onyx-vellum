@@ -8,6 +8,9 @@ import { buildJobId } from "../transcription/queue.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import { userLocalTime } from "../engine/timezone.js";
 
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
+
 async function main() {
   const filename = process.argv[2];
   if (!filename) {
@@ -36,11 +39,10 @@ async function main() {
   };
   const processor = createParseProcessor(config, ruleContext);
 
-  console.log({ filename, contents });
   let tree = processor.parse(vfile);
   tree = (await processor.run(tree, vfile)) as Root;
 
-  console.log(
+  log(
     JSON.stringify(
       tree,
       (key, value) => {
@@ -51,9 +53,9 @@ async function main() {
       2,
     ),
   );
-  console.log("=======================");
+  log("=======================");
   const normalized = processor.stringify(tree, vfile);
-  console.log(normalized);
+  log(normalized);
 }
 
 main();

@@ -8,7 +8,8 @@ import {
   markDone,
   markFailed,
 } from "../src/transcription/queue.js";
-import type { TranscriptionPipelineJob } from "../src/transcription/types.js";
+import type { Job } from "../src/transcription/types.js";
+import { zVaultFile } from "../src/engine/io.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -18,13 +19,22 @@ async function createStateDir(): Promise<string> {
   return stateDir;
 }
 
-function makeJob(id: string): TranscriptionPipelineJob {
+function makeJob(id: string): Job {
   return {
-    type: "transcription-pipeline",
+    type: "transcribe",
     id,
+    vaultPath: "/vault",
     audioPath: `/vault/audio/${id}.m4a`,
-    transcriptPath: `/vault/audio/${id}.transcript.md`,
-    sourceNotePath: "/vault/daily.md",
+    target: {
+      location: {
+        file: zVaultFile.parse({
+          absolutePath: `/vault/audio/${id}.transcript.md`,
+          relativePath: `audio/${id}.transcript.md`,
+        }),
+        header: "Transcript",
+        position: "end",
+      },
+    },
     createdAt: "2026-05-03T00:00:00.000Z",
   };
 }

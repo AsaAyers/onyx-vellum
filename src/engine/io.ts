@@ -104,6 +104,32 @@ export class FileWriteManager {
   unstageAll() {
     this.pending.clear();
   }
+
+  static isWriting = false;
+
+  static recentFiles = new Set<string>();
+
+  static canWatch(path: string): boolean {
+    if (this.isWriting) {
+      debug(`Cannot write ${path} because another write is in progress`);
+      return false;
+    }
+    if (this.recentFiles.has(path)) {
+      debug(
+        `Cannot write ${path} because it was recently written (possible self-trigger)`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  private markFileAsWritten(path: string) {
+    FileWriteManager.recentFiles.add(path);
+    setTimeout(() => {
+      FileWriteManager.recentFiles.delete(path);
+    }, 1000);
+  }
+
   /**
    * Flush all staged changes.
    * In dry-run mode, files are NOT written to disk; the staged changes are
@@ -112,11 +138,13 @@ export class FileWriteManager {
    */
   async commit(dryRun: boolean): Promise<ChangesArray> {
     const changes: ChangesArray = [];
+    FileWriteManager.isWriting = !dryRun;
     for (const [relativePath, content] of this.pending) {
       const vaultFile = zVaultFile.parse({
         absolutePath: join(this.vaultPath, relativePath),
         relativePath,
       });
+      this.markFileAsWritten(vaultFile.absolutePath);
 
       if (!dryRun) {
         await fs.mkdir(dirname(vaultFile.absolutePath), { recursive: true });
@@ -125,6 +153,7 @@ export class FileWriteManager {
       changes.push({ vaultFile, content });
     }
     this.pending.clear();
+    FileWriteManager.isWriting = false;
     return changes;
   }
 }

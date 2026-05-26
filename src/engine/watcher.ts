@@ -1,5 +1,13 @@
 import { watch } from "node:fs";
 import { resolve, relative } from "node:path";
+import { FileWriteManager } from "./io.js";
+import { writeFile } from "node:fs/promises";
+import createDebug from "debug";
+
+const debug = createDebug("onyx:watcher");
+
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
 
 export type WatcherOptions = {
   /** Debounce duration in milliseconds. Defaults to 60 000 (60 s). */
@@ -14,62 +22,6 @@ export type WatcherOptions = {
 };
 
 /**
- * Creates a per-file debouncer.
- *
- * Each call to `notify(relPath, eventType)` starts (or resets) a timer for
- * that file.  After `debounceMs` milliseconds of inactivity the `onProcess`
- * callback is invoked with the relative path.
- *
- * Exported separately from `startVaultWatcher` so that unit tests can drive
- * the debounce logic directly without needing a real filesystem or timers.
- */
-export function createFileDebouncer(
-  debounceMs: number,
-  onProcess: (relPath: string) => Promise<void>,
-): {
-  /**
-   * Record a file-change event.  Starts or resets the debounce timer for
-   * `relPath` and logs the event to the console.
-   */
-  notify: (relPath: string, eventType: string) => void;
-  /** Cancel all pending timers and release resources. */
-  dispose: () => void;
-} {
-  const timers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  const notify = (relPath: string, eventType: string): void => {
-    console.log(`[watch] ${eventType}: ${relPath}`);
-
-    const existing = timers.get(relPath);
-    if (existing !== undefined) {
-      clearTimeout(existing);
-    }
-
-    const timer = setTimeout(() => {
-      timers.delete(relPath);
-      console.log(`[watch] Processing after idle: ${relPath}`);
-      onProcess(relPath).catch((err: unknown) => {
-        console.error(
-          `[watch] Error processing ${relPath}:`,
-          (err as Error).message,
-        );
-      });
-    }, debounceMs);
-
-    timers.set(relPath, timer);
-  };
-
-  const dispose = (): void => {
-    for (const timer of timers.values()) {
-      clearTimeout(timer);
-    }
-    timers.clear();
-  };
-
-  return { notify, dispose };
-}
-
-/**
  * Creates a vault-wide debouncer that batches all changed files into one run.
  *
  * Each call to `notify(relPath, eventType)` adds `relPath` to a pending set and
@@ -77,9 +29,10 @@ export function createFileDebouncer(
  * milliseconds of inactivity, `onProcess` is invoked once with all changed
  * files since the previous run.
  */
-export function createGlobalDebouncer(
+export function createDebouncer(
   debounceMs: number,
   onProcess: (relPaths: string[]) => Promise<void>,
+  backoff = false,
 ): {
   notify: (relPath: string, eventType: string) => void;
   dispose: () => void;
@@ -87,26 +40,38 @@ export function createGlobalDebouncer(
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pending = new Set<string>();
 
+  let calls = 0;
   const notify = (relPath: string, eventType: string): void => {
-    console.log(`[watch] ${eventType}: ${relPath}`);
+    calls++;
+    // Quiet extra logs that may happen while typing.
+    if (!pending.has(relPath)) {
+      log(`[watch] ${eventType}: ${relPath}`);
+    }
     pending.add(relPath);
 
     if (timer !== undefined) {
       clearTimeout(timer);
     }
 
+    const ms = backoff
+      ? Math.min(60_000, Math.log(calls * 3 + 1) * debounceMs)
+      : debounceMs;
+    debug(
+      `Timer set for ${(ms / 1000).toFixed(0)} s (${calls} call${calls > 1 ? "s" : ""})`,
+    );
     timer = setTimeout(() => {
       timer = undefined;
+      calls = 0;
       const relPaths = [...pending].sort();
       pending.clear();
-      console.log(`[watch] Processing after idle: ${relPaths.join(", ")}`);
+      log(`[watch] Processing after idle: ${relPaths.join(", ")}`);
       onProcess(relPaths).catch((err: unknown) => {
         console.error(
           `[watch] Error processing files:`,
           (err as Error).message,
         );
       });
-    }, debounceMs);
+    }, ms);
   };
 
   const dispose = (): void => {
@@ -142,17 +107,42 @@ export function startVaultWatcher(
 ): () => void {
   const debounceMs = opts.debounce ?? 60_000;
   const extraFiles = new Set(opts.additionalFiles ?? []);
-  const debouncer = createGlobalDebouncer(debounceMs, onProcess);
+  const debouncer = createDebouncer(debounceMs, onProcess);
+
+  let heartbeatTimestamp = 0;
+  const heartbeat = setInterval(async () => {
+    if (heartbeatTimestamp !== 0) {
+      console.warn(
+        `[watch] No file changes detected for ${(
+          (Date.now() - heartbeatTimestamp) /
+          1000
+        ).toFixed(
+          0,
+        )} s. If this continues, the watcher may be stuck and need to be restarted.`,
+      );
+    }
+
+    heartbeatTimestamp = Date.now();
+    await writeFile(
+      resolve(vaultPath, `.onyx-watch-timestamp`),
+      String(new Date()),
+    );
+  }, 30_000);
 
   const watcher = watch(
     vaultPath,
     { recursive: true },
     (eventType, filename) => {
       if (!filename) return;
+      if (filename.endsWith(".onyx-watch-timestamp")) {
+        heartbeatTimestamp = 0;
+        return;
+      }
 
       // resolve + relative normalises any platform path separators.
       const absPath = resolve(vaultPath, filename);
       const relPath = relative(vaultPath, absPath);
+      if (!FileWriteManager.canWatch(absPath)) return;
 
       if (extraFiles.has(relPath)) {
         // Explicitly registered files (e.g. the config file) are always
@@ -176,5 +166,6 @@ export function startVaultWatcher(
   return (): void => {
     watcher.close();
     debouncer.dispose();
+    clearInterval(heartbeat);
   };
 }

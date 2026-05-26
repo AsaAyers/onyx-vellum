@@ -1,11 +1,10 @@
-import type { FileOperation } from "../engine/FileOperationExecutor.js";
-import type { VaultFile } from "../engine/io.js";
+import type { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import type { UserLocalTime } from "../engine/timezone.js";
 import type { Job } from "../transcription/types.js";
 
 export type PluginContext = {
-  updateFile(file: VaultFile, arg1: FileOperation): unknown;
-  queueJob: (job: Job) => Promise<void>;
+  updateFile: FileOperationExecutor["updateFile"];
+  queueJob: (job: Job) => void;
   jobIdFactory: (createdAt: Date) => string;
   env: NodeJS.ProcessEnv;
   mode: "normalize" | "all" | "fast" | "alert";
