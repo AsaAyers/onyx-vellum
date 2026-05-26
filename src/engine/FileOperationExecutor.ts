@@ -201,11 +201,14 @@ async function applyFileOperations(
       } else {
         contentNodes = [op.content];
       }
-    }
-    if (newNodes.length > 0) {
-      contentNodes.unshift(...newNodes);
+      if (newNodes.length > 0) {
+        contentNodes.unshift(...newNodes);
+      }
     }
 
+    debug(
+      `Applying file operation at ${op.location.file.relativePath} - replacing ${numDelete} nodes with ${contentNodes.length} new nodes`,
+    );
     parent.children.splice(childIndex, numDelete, ...contentNodes);
     if (!parent.children.includes(yamlNode)) {
       parent.children.unshift(yamlNode);

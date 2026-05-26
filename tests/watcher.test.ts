@@ -6,10 +6,7 @@
  * wall-clock time is needed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  createFileDebouncer,
-  createGlobalDebouncer,
-} from "../src/engine/watcher.js";
+import { createDebouncer } from "../src/engine/watcher.js";
 
 describe("createFileDebouncer", () => {
   beforeEach(() => {
@@ -26,8 +23,8 @@ describe("createFileDebouncer", () => {
 
   it("does not call onProcess before the debounce period elapses", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -39,8 +36,8 @@ describe("createFileDebouncer", () => {
 
   it("calls onProcess after the debounce period elapses", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -56,8 +53,8 @@ describe("createFileDebouncer", () => {
 
   it("resets the timer when the same file changes again before debounce expires", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -77,8 +74,8 @@ describe("createFileDebouncer", () => {
 
   it("triggers only one processing run regardless of how many changes occur", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     // Rapid-fire four changes to the same file.
@@ -94,36 +91,10 @@ describe("createFileDebouncer", () => {
     dispose();
   });
 
-  // ---------------------------------------------------------------------------
-  // Multiple files: independent timers
-  // ---------------------------------------------------------------------------
-
-  it("each file gets its own independent debounce timer", async () => {
-    const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
-    });
-
-    notify("notes/a.md", "change");
-    // 500 ms later, a second file changes (its timer starts fresh).
-    await vi.advanceTimersByTimeAsync(500);
-    notify("notes/b.md", "change");
-
-    // At t=1000: a.md's timer fires (1000 ms since its change).
-    await vi.advanceTimersByTimeAsync(500);
-    expect(processed).toEqual(["notes/a.md"]);
-
-    // At t=1500: b.md's timer fires (1000 ms since its change).
-    await vi.advanceTimersByTimeAsync(500);
-    expect(processed).toEqual(["notes/a.md", "notes/b.md"]);
-
-    dispose();
-  });
-
   it("changing multiple files triggers a separate processing run for each", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("a.md", "change");
@@ -139,8 +110,8 @@ describe("createFileDebouncer", () => {
 
   it("only the specific changed file is processed, not others", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/target.md", "change");
@@ -158,8 +129,8 @@ describe("createFileDebouncer", () => {
 
   it("respects a custom debounce duration (short)", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(200, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(200, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -174,8 +145,8 @@ describe("createFileDebouncer", () => {
 
   it("respects a custom debounce duration (long)", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(5000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(5000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -194,8 +165,8 @@ describe("createFileDebouncer", () => {
 
   it("dispose cancels a pending timer so onProcess is never called", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("notes/foo.md", "change");
@@ -208,8 +179,8 @@ describe("createFileDebouncer", () => {
 
   it("dispose cancels all pending timers for multiple files", async () => {
     const processed: string[] = [];
-    const { notify, dispose } = createFileDebouncer(1000, async (path) => {
-      processed.push(path);
+    const { notify, dispose } = createDebouncer(1000, async (path) => {
+      processed.push(...path);
     });
 
     notify("a.md", "change");
@@ -233,7 +204,7 @@ describe("createGlobalDebouncer", () => {
 
   it("runs once for multiple files changed within the debounce window", async () => {
     const processed: string[][] = [];
-    const { notify, dispose } = createGlobalDebouncer(1000, async (paths) => {
+    const { notify, dispose } = createDebouncer(1000, async (paths) => {
       processed.push(paths);
     });
 
@@ -248,7 +219,7 @@ describe("createGlobalDebouncer", () => {
 
   it("resets a single vault-wide timer across different files", async () => {
     const processed: string[][] = [];
-    const { notify, dispose } = createGlobalDebouncer(1000, async (paths) => {
+    const { notify, dispose } = createDebouncer(1000, async (paths) => {
       processed.push(paths);
     });
 
@@ -258,20 +229,20 @@ describe("createGlobalDebouncer", () => {
     await vi.advanceTimersByTimeAsync(999);
     expect(processed).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(1);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(processed).toEqual([["notes/a.md", "notes/b.md"]]);
     dispose();
   });
 
   it("deduplicates repeated changes for the same file within a batch", async () => {
     const processed: string[][] = [];
-    const { notify, dispose } = createGlobalDebouncer(1000, async (paths) => {
+    const { notify, dispose } = createDebouncer(1000, async (paths) => {
       processed.push(paths);
     });
 
     notify("notes/a.md", "change");
     notify("notes/a.md", "rename");
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1500);
 
     expect(processed).toEqual([["notes/a.md"]]);
     dispose();

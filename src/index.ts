@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { runAllRules, runInitPass } from "./engine/runner.js";
-import { createGlobalDebouncer, startVaultWatcher } from "./engine/watcher.js";
+import { createDebouncer, startVaultWatcher } from "./engine/watcher.js";
 import {
   createAlertScheduler,
   normalizeAlertSchedule,
@@ -12,6 +12,9 @@ import { loadConfig, CONFIG_FILENAME } from "./config.js";
 import type { PluginContext } from "./markdown/PluginContext.js";
 import { enqueue, resolveStateDir } from "./transcription/queue.js";
 import type { Job } from "./transcription/types.js";
+
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
@@ -36,7 +39,7 @@ const onlyGlob: string[] | undefined =
 const positional = args.filter((a) => !a.startsWith("-"));
 
 if (help) {
-  console.log(HELP_TEXT);
+  log(HELP_TEXT);
   process.exit(0);
 }
 
@@ -46,16 +49,16 @@ if (!vaultPath) {
   process.exit(1);
 }
 
-console.log(`Starting Markdown automation pipeline...`);
-console.log(`Vault: ${vaultPath}`);
+log(`Starting Markdown automation pipeline...`);
+log(`Vault: ${vaultPath}`);
 
 if (init) {
   if (watch) {
     console.error("Error: --watch is not compatible with --init.");
     process.exit(1);
   }
-  console.log(`Mode: init${dryRun ? " (dry run)" : ""}`);
-  console.log("");
+  log(`Mode: init${dryRun ? " (dry run)" : ""}`);
+  log("");
 
   runInitPass(vaultPath, dryRun).catch((err: unknown) => {
     console.error("Fatal error:", (err as Error).message);
@@ -109,24 +112,34 @@ if (init) {
     });
 
     if (changes.length > 0 || queue.length > 0) {
-      console.log(`=== Report ===`);
-      console.log(report);
-      console.log(`Jobs queued:`);
-      console.log(
-        JSON.stringify(
-          queue,
-          (key, value) => {
-            if (key === "id" || key === "vaultPath") {
-              return undefined;
-            }
-            if (key === "file" && value.absolutePath) {
-              return value.absolutePath;
-            }
-            return value;
-          },
-          2,
-        ),
-      );
+      log(`=== Report ===`);
+      log(report);
+      log(`Jobs queued:`);
+      queue.forEach((job) => {
+        switch (job.type) {
+          case "transcribe":
+            log(
+              `- Transcribe ${job.audioPath} to ${job.target.location.file.relativePath}`,
+            );
+            break;
+          case "clean-transcription":
+            log(
+              `- Clean transcription in ${job.target.location.file.relativePath}`,
+            );
+            break;
+          case "find-tasks":
+            log(
+              `- Find tasks in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
+            );
+            break;
+          case "summarize-text":
+            log(
+              `- Summarize text in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
+            );
+            break;
+        }
+      });
+      queue.length = 0;
     }
   };
 
@@ -140,30 +153,29 @@ if (init) {
     let alertSchedule: string[] = initialSchedule.valid;
     let timezone = config.timezone ?? "UTC";
 
-    console.log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
-    console.log(`Debounce: ${debounce}ms`);
+    log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
+    log(`Debounce: ${debounce}ms`);
     if (alertSchedule.length > 0) {
-      console.log(`Alert schedule: ${alertSchedule.join(", ")}`);
+      log(`Alert schedule: ${alertSchedule.join(", ")}`);
     } else {
-      console.log(`Alert schedule: (none configured — alert will not fire)`);
+      log(`Alert schedule: (none configured — alert will not fire)`);
     }
     if (initialSchedule.invalid.length > 0) {
       console.warn(
         `[watch] Ignoring invalid alert schedule entries: ${initialSchedule.invalid.join(", ")}`,
       );
     }
-    console.log("");
-    console.log(`Watching vault for markdown changes...`);
-    console.log(`Press Ctrl+C to stop.`);
-    console.log("");
+    log("");
+    log(`Watching vault for markdown changes...`);
+    log(`Press Ctrl+C to stop.`);
+    log("");
 
-    console.log(`[watch] Running all rules on startup...`);
+    log(`[watch] Running all rules on startup...`);
     run("all");
 
     const fastDebounce = 5_000;
-    const fullDebouncer = createGlobalDebouncer(
-      debounce - fastDebounce,
-      (relPaths) => run("all", relPaths),
+    const fullDebouncer = createDebouncer(debounce - fastDebounce, (relPaths) =>
+      run("all", relPaths),
     );
 
     const stop = startVaultWatcher(
@@ -171,7 +183,7 @@ if (init) {
       async (relPaths) => {
         const configChanged = relPaths.includes(CONFIG_FILENAME);
         if (configChanged) {
-          console.log(`[watch] Config changed, reloading...`);
+          log(`[watch] Config changed, reloading...`);
           try {
             const newConfig = await loadConfig(vaultPath);
             const normalized = normalizeAlertSchedule(
@@ -180,11 +192,11 @@ if (init) {
             alertSchedule = normalized.valid;
             timezone = newConfig.timezone ?? "UTC";
             if (alertSchedule.length > 0) {
-              console.log(
+              log(
                 `[watch] Alert schedule updated: ${alertSchedule.join(", ")}`,
               );
             } else {
-              console.log(
+              log(
                 `[watch] Alert schedule updated: (none — alert will not fire)`,
               );
             }
@@ -211,7 +223,7 @@ if (init) {
     const stopScheduler = createAlertScheduler(
       () => alertSchedule,
       async () => {
-        console.log("[watch] Running scheduled alert...");
+        log("[watch] Running scheduled alert...");
         await runAllRules({
           ...ruleContext,
           mode: "alert",
@@ -224,17 +236,17 @@ if (init) {
     const stopAll = createStopAll([stop, stopScheduler]);
 
     process.on("SIGINT", () => {
-      console.log("\n[watch] Stopping watcher...");
+      log("\n[watch] Stopping watcher...");
       stopAll();
       process.exit(0);
     });
   } else {
     if (dryRun) {
-      console.log(`Dry run: true`);
+      log(`Dry run: true`);
     } else {
-      console.log(`Dry run: false`);
+      log(`Dry run: false`);
     }
-    console.log("");
+    log("");
 
     await run(mode, onlyGlob).catch((err: unknown) => {
       console.error("Fatal error:", (err as Error).message);

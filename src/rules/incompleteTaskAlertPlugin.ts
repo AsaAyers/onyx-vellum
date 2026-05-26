@@ -9,12 +9,10 @@ export const ALERT_FILE = "onyx_alert.md";
 
 export const incompleteTaskAlertPlugin = makePlugin(
   "incompleteTaskAlert",
-  function ({ tree, ruleConfig, ctx, file }) {
+  function ({ tree, ruleConfig, ctx, file, debug }) {
     if (ctx.mode !== "alert") return;
     if (!ruleConfig?.alertUrl) {
-      console.log(
-        "[incompleteTaskAlert] No alertUrl configured, skipping plugin",
-      );
+      debug("[incompleteTaskAlert] No alertUrl configured, skipping plugin");
       return;
     }
     if (file.path === ALERT_FILE) return;

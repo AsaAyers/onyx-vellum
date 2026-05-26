@@ -11,6 +11,7 @@ export type WorkerContext<T extends Job> = {
   options: WorkerOptions;
   job: T;
   fileOperations: FileOperationExecutor;
+  debug: ReturnType<typeof import("debug")>;
 };
 
 export type JobWorker<T extends Job> = (

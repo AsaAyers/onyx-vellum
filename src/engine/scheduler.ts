@@ -12,6 +12,9 @@ import createDebug from "debug";
 
 const debug = createDebug("onyx:scheduler");
 
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
+
 /**
  * Start a recurring schedule check.
  *
@@ -94,7 +97,7 @@ export function createAlertScheduler(
     debug({ firedKey, lastFiredKey });
     if (firedKey !== lastFiredKey) {
       lastFiredKey = firedKey;
-      console.log(`[watch] Alert schedule: firing at ${currentMinute}`);
+      log(`[watch] Alert schedule: firing at ${currentMinute}`);
       onAlert().catch((err: unknown) => {
         console.error(
           "[watch] Error running scheduled alert:",

@@ -1,14 +1,13 @@
-import { SKIP, visitParents } from "unist-util-visit-parents";
+import { EXIT, SKIP, visitParents } from "unist-util-visit-parents";
 import { makePlugin } from "./makePlugin.js";
 import { zVaultFile } from "../engine/io.js";
-import { relative } from "path";
+import { join, relative } from "path";
 import type { ContentLocation, FileOperation } from "../transcription/types.js";
-import { ONYX_COMMANDS_FILE } from "../onyx_vellum_commands.js";
 
 export const onyxVellumCommands = makePlugin(
   "commands",
   function ({ tree, ctx, file }) {
-    if (file.path.endsWith(ONYX_COMMANDS_FILE)) {
+    if (file.path?.endsWith(ONYX_COMMANDS_FILE)) {
       return;
     }
 
@@ -38,7 +37,9 @@ export const onyxVellumCommands = makePlugin(
         relativePath: relative(ctx.vaultPath, file.path),
       });
 
-      const id = ctx.jobIdFactory(new Date());
+      const now = new Date();
+      const id = ctx.jobIdFactory(now);
+      const createdAt = now.toISOString();
       const source: ContentLocation = {
         header: headerText,
         file: vaultFile,
@@ -64,7 +65,48 @@ export const onyxVellumCommands = makePlugin(
             vaultPath: ctx.vaultPath,
             source,
             target,
+            createdAt,
           });
+          break;
+        }
+        case "#onyx/transcribe": {
+          let audioPath: string | null = null;
+
+          visitParents(ancestors[0], "wikiLink", (node) => {
+            if (node.value.toLowerCase().endsWith(".m4a")) {
+              audioPath = join(ctx.vaultPath, node.value);
+              return EXIT;
+            }
+          });
+
+          if (!audioPath) {
+            console.warn(
+              `No audio file found for transcription command in ${file.path}`,
+            );
+            break;
+          }
+
+          const target: FileOperation = {
+            frontmatter: {
+              transcribe: id,
+            },
+            location: {
+              header: "Transcript",
+              position: "end",
+              file: vaultFile,
+            },
+          };
+
+          const vaultPath = ctx.vaultPath;
+          ctx.queueJob({
+            type: "transcribe",
+            vaultPath,
+            id,
+            audioPath,
+            createdAt,
+            target,
+          });
+
           break;
         }
         case "#onyx/summarize": {
@@ -74,7 +116,7 @@ export const onyxVellumCommands = makePlugin(
             },
             location: {
               header: "Summary",
-              position: "end",
+              position: "start",
               file: vaultFile,
             },
           };
@@ -101,3 +143,11 @@ export const onyxVellumCommands = makePlugin(
     });
   },
 );
+export const commandsMarkdown = `Commands:
+
+* #onyx/transcribe
+  * Re-run transcription against the source audio file
+* #onyx/tasks
+  * Extract tasks from the current section and add a new "Tasks" section at the bottom of the file
+`;
+export const ONYX_COMMANDS_FILE = "onyx-commands.md";

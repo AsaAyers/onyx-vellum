@@ -96,24 +96,33 @@ function createCleanupRequest(
 export const summarizeTextWorker: JobWorker<CleanTranscript> = async function (
   ctx,
 ) {
-  const { job, fileOperations } = ctx;
+  const { job, fileOperations, debug } = ctx;
 
   const sourceText = await extractSourceText(
     ctx.job.vaultPath,
     ctx.job.source,
     ctx,
   );
+  if (!sourceText) {
+    throw new Error("Source text not found for transcription");
+  }
 
+  debug(`Extracted source text: ${sourceText.slice(0, 100)}...`);
   const r = await processRawTranscript(sourceText);
-  job.target.frontmatter ??= {};
-  job.target.frontmatter.filename = r.filename;
-  job.target.content = r.cleanedTranscript;
-  fileOperations.updateFile(job.target);
+
+  fileOperations.updateFile({
+    location: job.source,
+    content: r.cleanedTranscript.split(/\n\n+/).join("\n"),
+    frontmatter: {
+      filename: r.filename,
+      cleanText: new Date().toISOString(),
+    },
+  });
   fileOperations.updateFile({
     location: {
       file: job.target.location.file,
       header: "Summary",
-      position: "end",
+      position: "start",
     },
     content: r.summary,
   });

@@ -73,15 +73,6 @@ export async function trimDeadAir({
     "window=0.02,asetpts=N/SR/TB", // Shortened window to 20ms for precise speech tracking
   ].join(":");
 
-  // const controller = new AbortController();
-  // const cancelSignal = controller.signal;
-  // setTimeout(() => {
-  //   controller.abort();
-  // }, 30_000);
-
-  const i = setInterval(() => {
-    console.log("Working on dead air...");
-  }, 1_000);
   await execa(
     ffmpegPath,
     [
@@ -110,5 +101,4 @@ export async function trimDeadAir({
       // cancelSignal,
     },
   );
-  clearInterval(i);
 }

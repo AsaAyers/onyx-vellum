@@ -69,6 +69,7 @@ describe("Command: #onyx/tasks", () => {
       ),
     );
 
+    delete j[0].createdAt;
     expect(j).toMatchInlineSnapshot(`
       [
         {

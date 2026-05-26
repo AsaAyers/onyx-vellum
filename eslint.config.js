@@ -23,6 +23,7 @@ export default tseslint.config(
             "Barrel re-exports (export { X } from) are not allowed. Import directly from the source file.",
         },
       ],
+      "no-console": ["error", { allow: ["warn", "error"] }],
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -36,6 +37,6 @@ export default tseslint.config(
 
   {
     // Exclude compiled output and dependencies
-    ignores: ["dist/**", "node_modules/**"],
+    ignores: ["dist/**", "node_modules/**", "coverage/**"],
   },
 );

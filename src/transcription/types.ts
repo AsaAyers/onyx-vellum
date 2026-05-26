@@ -32,15 +32,6 @@ export const zFileOperation = z.object({
 
 export type FileOperation = z.infer<typeof zFileOperation>;
 
-export const zTranscriptionPipelineJob = z.object({
-  type: z.literal("transcription-pipeline"),
-  vaultPath: z.string(),
-  id: z.string(),
-  audioPath: z.string(),
-  transcriptPath: z.string(),
-  sourceNotePath: z.string(),
-  createdAt: z.string().optional(),
-});
 export const zTranscribeJob = z.object({
   type: z.literal("transcribe"),
   vaultPath: z.string(),
@@ -77,10 +68,9 @@ export const zFindTasksJob = z.object({
   createdAt: z.string().optional(),
 });
 
-export const zJob = zTranscriptionPipelineJob
+export const zJob = zTranscribeJob
   .or(zCleanTranscript)
   .or(zSummarizeTextJob)
-  .or(zTranscribeJob)
   .or(zFindTasksJob);
 
 export const zTranscriberBackend = z.object({
@@ -99,9 +89,6 @@ export const zWorkerOptions = z.object({
 });
 
 export type Job = z.infer<typeof zJob>;
-export type TranscriptionPipelineJob = z.infer<
-  typeof zTranscriptionPipelineJob
->;
 export type TranscribeJob = z.infer<typeof zTranscribeJob>;
 export type CleanTranscript = z.infer<typeof zCleanTranscript>;
 export type SummarizeTextJob = z.infer<typeof zSummarizeTextJob>;

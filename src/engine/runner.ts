@@ -25,10 +25,11 @@ import {
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
 import { type UserLocalTime } from "./timezone.js";
-import {
-  commandsMarkdown,
-  ONYX_COMMANDS_FILE,
-} from "../onyx_vellum_commands.js";
+import { ONYX_COMMANDS_FILE } from "../rules/onyxVellumCommands.js";
+import { commandsMarkdown } from "../rules/onyxVellumCommands.js";
+
+// eslint-disable-next-line no-console
+const log = console.log.bind(console);
 
 /**
  * Run all registered rules against the vault.
@@ -297,7 +298,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
   if (dryRun) {
     if (changes.length > 0) {
       for (const change of changes) {
-        console.log(
+        log(
           createPatch(
             change.vaultFile.relativePath,
             await fs
@@ -308,7 +309,7 @@ export async function runInitPass(vaultPath: string, dryRun: boolean) {
         );
       }
     } else {
-      console.log("No changes.");
+      log("No changes.");
     }
   } else {
     for (const change of changes) {

@@ -7,7 +7,7 @@ import type { TranscribeJob } from "../types.js";
 import type { JobWorker } from "./types.js";
 
 export const transcriptWorker: JobWorker<TranscribeJob> =
-  async function transcriptJob({ options, job, fileOperations }) {
+  async function transcriptJob({ options, job, fileOperations, debug }) {
     let srcAudio = job.audioPath;
     if (options.trimDeadAir) {
       srcAudio =
@@ -28,23 +28,23 @@ export const transcriptWorker: JobWorker<TranscribeJob> =
         });
       }
     }
+    debug(`Transcribing ${srcAudio} ${options.trimDeadAir ? "(trimmed)" : ""}`);
     const transcriptText = await options
       .getWhisperBackend()
       .transcribe(srcAudio);
-    job.target.content = transcriptText;
-    fileOperations.updateFile(job.target);
-
-    fileOperations.updateFile({
-      location: job.target.location,
-      frontmatter: {
-        cleanText: job.id,
-      },
-    });
+    debug(`Transcript: ${transcriptText}`);
 
     const createdAt = new Date();
+    const id = buildJobId(createdAt);
+    job.target.content = transcriptText;
+    job.target.frontmatter ??= {};
+    job.target.frontmatter.cleanText = id;
+    job.target.frontmatter.transcribe = new Date().toISOString();
+    fileOperations.updateFile(job.target);
+
     enqueue(options.stateDir, {
       type: "clean-transcription",
-      id: buildJobId(createdAt),
+      id,
       vaultPath: job.vaultPath,
       createdAt: createdAt.toISOString(),
       source: job.target.location,
