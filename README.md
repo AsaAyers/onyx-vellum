@@ -2,7 +2,7 @@
 
 A TypeScript-based Markdown automation pipeline for an [Obsidian](https://obsidian.md/) vault.
 
-Reads and writes Markdown files structurally (AST-based, not regex) using the [unified/remark](https://github.com/remarkjs/remark) ecosystem. Rules are declared in one central registry and run sequentially.
+Reads and writes Markdown files structurally (AST-based, not regex) using the [unified/remark](https://github.com/remarkjs/remark) ecosystem. Rules are remark plugins wired together in `src/markdown/createParseProcessor.ts`.
 
 ## Inline Fields
 
@@ -228,8 +228,8 @@ watch invocation:
 # Dry-run all rules once
 VAULT_PATH=/path/to/your/vault docker compose run --rm onyx-vellum --dry-run all
 
-# Run only the stampDone rule
-VAULT_PATH=/path/to/your/vault docker compose run --rm onyx-vellum stampDone
+# Run the pipeline once and exit
+VAULT_PATH=/path/to/your/vault docker compose run --rm onyx-vellum all
 
 # Watch with dry-run
 VAULT_PATH=/path/to/your/vault docker compose run --rm onyx-vellum --watch --dry-run all
@@ -286,8 +286,8 @@ onyx-vellum --help
 # Dry-run all rules against your vault
 VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run all
 
-# Run only the stampDone rule (dependencies included automatically)
-VAULT_PATH=/path/to/your/vault onyx-vellum stampDone
+# Run the full pipeline
+VAULT_PATH=/path/to/your/vault onyx-vellum all
 
 # Normalize the vault with --init
 VAULT_PATH=/path/to/your/vault onyx-vellum --init
@@ -328,21 +328,19 @@ VAULT_PATH=/path/to/your/vault onyx-vellum --help
 VAULT_PATH=/path/to/your/vault onyx-vellum all
 ```
 
-### Run specific rules
+### Run the pipeline
 
-Pass one or more rule names as positional arguments. The runner
-automatically includes each rule's transitive dependencies and executes
-them in the correct order.
+The only positional modes are `all` (run the full pipeline) and `alert` (run
+only the `incompleteTaskAlert` plugin).
 
 ```bash
-# Stamp done dates only (normalizeTodayLiteral runs first automatically
-# because it is a declared dependency of stampDone)
-VAULT_PATH=/path/to/your/vault onyx-vellum stampDone
+VAULT_PATH=/path/to/your/vault onyx-vellum all
 ```
 
+To restrict which files are processed, use `--only <glob>`:
+
 ```bash
-# Run multiple rules explicitly
-VAULT_PATH=/path/to/your/vault onyx-vellum normalizeTodayLiteral stampDone
+VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run --only "daily/**" all
 ```
 
 ### Run with dry-run (prints a unified diff, no files written)
@@ -352,13 +350,12 @@ VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run all
 ```
 
 ```bash
-# Dry-run for a single rule (dependencies included automatically)
-VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run stampDone
+# Dry-run with a file filter
+VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run --only "daily/**" all
 ```
 
 `--dry-run` outputs a unified diff (one patch per changed file, sorted by path) to
-stdout without writing anything to disk. The format is the same as the
-`tests/vault.diff` snapshot used by the test suite.
+stdout without writing anything to disk.
 
 Add `--verbose` to also print rule-progress logs and the run summary:
 
@@ -433,99 +430,51 @@ npm run lint:fix
 
 ## Git Hooks (Husky)
 
-A Husky pre-commit hook runs `npm run lint` before every commit. If lint fails the commit is aborted, so all committed code is guaranteed to be lint-clean.
-
-The hook is installed automatically when you run `npm install` (via the `prepare` script).
+A Husky pre-commit hook runs `typecheck → format → lint → test` before every
+commit. If any step fails the commit is aborted. The hook is installed
+automatically when you run `npm install` (via the `prepare` script).
 
 ## Rules
 
-Rules run sequentially in dependency order. Each rule declares which other
-rules must complete before it, and the runner performs a stable topological
-sort so the order is correct regardless of how rules are listed in the
-registry.
+Rules are remark plugins created via `makePlugin()` from `src/rules/makePlugin.ts`
+and wired in `src/markdown/createParseProcessor.ts`. Plugins execute in the order
+they are `.use()`'d — no declared dependencies or topological sort.
 
-| Rule                          | What it does                                                                                                                                                 |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `normalizeTodayLiteral`       | Replaces `today` / `yesterday` / `tomorrow` inline date literals with ISO dates.                                                                             |
-| `stampDone`                   | Adds `done:YYYY-MM-DD` to newly completed tasks that do not already have one.                                                                                |
-| `completedTaskRollover`       | Clones recurring completed tasks forward to their next cycle.                                                                                                |
-| `removeEphemeralOverdueTasks` | Removes unchecked overdue tasks marked `ephemeral`.                                                                                                          |
-| `moveDoneTasks`               | Moves checked tasks with `done:YYYY-MM-DD` from transcript notes into the matching daily note when that daily file already exists.                           |
-| `sortTasks`                   | Sorts same-level task lists so incomplete tasks stay at the top, and completed tasks are ordered by newest `done:` date first.                               |
-| `ensureAudioTranscripts`      | For each embedded `.m4a`, inserts a mirrored transcript embed, creates a sibling `.transcript.md` placeholder when needed, and enqueues async transcription. |
-| `incompleteTaskAlert`         | Groups incomplete tasks and optionally posts them to a configured alert endpoint.                                                                            |
+| Rule                          | Source file                                      | What it does                                                                                                                                                 |
+| ----------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `normalizeTodayLiteral`       | `src/rules/normalizeTodayPlugin.ts`              | Replaces `today` / `yesterday` / `tomorrow` inline date literals with ISO dates.                                                                             |
+| `commands`                    | `src/rules/onyxVellumCommands.ts`                | Processes `#onyx/` command tags — transcribe, extract tasks, summarize.                                                                                      |
+| `ensureAudioTranscripts`      | `src/rules/ensureAudioTranscriptsPlugin.ts`      | For each embedded `.m4a`, inserts a mirrored transcript embed, creates a sibling `.transcript.md` placeholder when needed, and enqueues async transcription. |
+| `stampDone`                   | `src/rules/stampDonePlugin.ts`                   | Adds `done:YYYY-MM-DD` to newly completed tasks that do not already have one.                                                                                |
+| `rollover`                    | `src/rules/rolloverPlugin.ts`                    | Clones recurring completed tasks forward to their next cycle.                                                                                                |
+| `removeEphemeralOverdueTasks` | `src/rules/removeEphemeralOverdueTasksPlugin.ts` | Removes unchecked overdue tasks marked `ephemeral`.                                                                                                          |
+| `moveDoneTasks`               | `src/rules/moveDoneTasksPlugin.ts`               | Moves checked tasks with `done:YYYY-MM-DD` from notes into matching daily notes.                                                                             |
+| `sortTasks`                   | `src/rules/sortTasksPlugin.ts`                   | Sorts same-level task lists so incomplete tasks stay at the top, and completed tasks are ordered by newest `done:` date first.                               |
+| `incompleteTaskAlert`         | `src/rules/incompleteTaskAlertPlugin.ts`         | Groups incomplete tasks and optionally posts them to a configured alert endpoint.                                                                            |
 
-### Rule 1 – Normalize Today Literal
+### normalizeTodayLiteral
 
-**Source:** `src/rules/normalizeTodayLiteral.ts`
+**Source:** `src/rules/normalizeTodayPlugin.ts`
 
-Scans all `**/*.md` files and replaces relative date literals (`today`,
-`yesterday`, `tomorrow`) in inline date fields with resolved ISO dates
-(`YYYY-MM-DD`). This runs first so all subsequent rules always operate on
-real dates rather than relative keywords.
+Replaces relative date literals (`today`, `yesterday`, `tomorrow`) in inline
+date fields with resolved ISO dates (`YYYY-MM-DD`). Runs early so all subsequent
+rules always operate on real dates.
 
-**Dependencies:** none
+### commands
 
-### Rule 2 – Stamp Done
+**Source:** `src/rules/onyxVellumCommands.ts`
 
-**Source:** `src/rules/stampDone.ts`
+Processes Obsidian tags as commands:
 
-Scans all `**/*.md` files in the vault for completed (checked) tasks and stamps each one that does **not** already carry a `done:` inline field with `done:YYYY-MM-DD` (today's date). This ensures every freshly completed task has an explicit completion date before later rules run.
+- `#onyx/transcribe` — re-run transcription for an `.m4a` in the same section.
+- `#onyx/tasks` — extract tasks from current section and append a "Tasks" section.
+- `#onyx/summarize` — enqueue a text summarization job.
 
-**Dependencies:** `normalizeTodayLiteral`
-
-### Rule 3 – Completed Task Rollover
-
-**Source:** `src/rules/completedTaskRollover.ts`
-
-Finds every **recurring** checked task (one that has a `repeat:` field) whose `done:` date equals **today** and that does not already carry a `copied:1` marker, then:
-
-1. Appends `copied:1` to the completed task so it is not re-processed on subsequent runs (idempotency guard).
-2. Inserts a fresh **incomplete** copy of the task immediately after the completed one, with the clone's date fields (`due`, `start`, `snooze`) advanced according to the `repeat:` schedule. The `done:` field is **not** included on the clone.
-
-Tasks without a `repeat:` field are **never** duplicated and never receive `copied:1`, even if they are checked and have a `done:` date.
-
-**Meaning of `copied:1`:** A task marked `copied:1` has already been rolled over in a previous pipeline run. The rollover rule skips it on all subsequent runs. Tasks completed before today (i.e. `done:` is an older date) are also skipped.
-
-**Dependencies:** `stampDone`
-
-### Rule 4 – Incomplete Task Alert
-
-**Source:** `src/rules/incompleteTaskAlert.ts`
-
-Finds all **incomplete** (unchecked) tasks across all `**/*.md` files in the vault and:
-
-1. Groups them by file and sorts them by due date.
-2. If `rules.incompleteTaskAlert.alertUrl` is set in `.onyx-vellum.json`, performs an HTTP POST of the content to that URL with `Content-Type: text/markdown` and, if `rules.incompleteTaskAlert.alertToken` is set, `Authorization: Bearer <token>`.
-
-**Dependencies:** `stampDone`
-
-### Rule 5 – Remove Ephemeral Overdue Tasks
-
-**Source:** `src/rules/removeEphemeralOverdueTasks.ts`
-
-Removes **unchecked** tasks that carry an `ephemeral` field, have a `due:` date, and whose due date is **strictly before today** (yesterday or earlier). A task that was not completed by its deadline is considered expired and is deleted from the file.
-
-**Behavior:**
-
-- Completed (checked) tasks are **never** removed, even if overdue — if you finished it, it stays.
-- An ephemeral task with **no `due:` field** is not removed (safe default; no deadline means no expiry).
-- Idempotent: re-running after removal produces no further changes.
-- `--dry-run` shows the diff of what would be removed without writing.
-
-**Usage:**
-
-```markdown
-- [ ] Read the article ephemeral:1 due:2026-05-10
-```
-
-If today is 2026-05-11 and the task is still unchecked, it is silently deleted on the next pipeline run.
-
-**Dependencies:** `normalizeTodayLiteral`
+Tags are removed from the source note when the job is created.
 
 ### ensureAudioTranscripts
 
-**Source:** `src/rules/ensureAudioTranscripts.ts`
+**Source:** `src/rules/ensureAudioTranscriptsPlugin.ts`
 
 Scans configured markdown files for embedded `.m4a` audio files and supports
 both embed forms:
@@ -594,46 +543,168 @@ To run the background GPU worker that fulfills queued jobs, start the Docker
 Compose stack described above with `docker compose up --build` (see the Docker /
 Docker Compose section for details).
 
-**Dependencies:** none
+### stampDone
+
+**Source:** `src/rules/stampDonePlugin.ts`
+
+Scans all configured markdown files for completed (checked) tasks and stamps
+each one that does **not** already carry a `done:` inline field with
+`done:YYYY-MM-DD` (today's date). Ensures every freshly completed task has an
+explicit completion date before later rules run.
+
+### rollover
+
+**Source:** `src/rules/rolloverPlugin.ts`
+
+Finds every **recurring** checked task (one that has a `repeat:` field) whose
+`done:` date equals **today** and that does not already carry a `copied:1`
+marker, then:
+
+1. Appends `copied:1` to the completed task so it is not re-processed on
+   subsequent runs (idempotency guard).
+2. Inserts a fresh **incomplete** copy of the task immediately after the
+   completed one, with the clone's date fields (`due`, `start`, `snooze`)
+   advanced according to the `repeat:` schedule. The `done:` field is **not**
+   included on the clone.
+
+Tasks without a `repeat:` field are **never** duplicated and never receive
+`copied:1`, even if they are checked and have a `done:` date.
+
+**Meaning of `copied:1`:** A task marked `copied:1` has already been rolled
+over in a previous pipeline run. The rollover rule skips it on all subsequent
+runs. Tasks completed before today (i.e. `done:` is an older date) are also
+skipped.
+
+### removeEphemeralOverdueTasks
+
+**Source:** `src/rules/removeEphemeralOverdueTasksPlugin.ts`
+
+Removes **unchecked** tasks that carry an `ephemeral` field, have a `due:`
+date, and whose due date is **strictly before today** (yesterday or earlier).
+A task that was not completed by its deadline is considered expired and is
+deleted from the file.
+
+**Behavior:**
+
+- Completed (checked) tasks are **never** removed, even if overdue — if you
+  finished it, it stays.
+- An ephemeral task with **no `due:` field** is not removed (safe default; no
+  deadline means no expiry).
+- Idempotent: re-running after removal produces no further changes.
+- `--dry-run` shows the diff of what would be removed without writing.
+
+**Usage:**
+
+```markdown
+- [ ] Read the article ephemeral:1 due:2026-05-10
+```
+
+If today is 2026-05-11 and the task is still unchecked, it is silently deleted
+on the next pipeline run.
+
+### moveDoneTasks
+
+**Source:** `src/rules/moveDoneTasksPlugin.ts`
+
+Moves checked tasks with a `done:` date from their current note into the
+matching daily note (`daily/<done-date>.md`) when that daily file already
+exists on disk. Removes the task from the source file.
+
+Configure the daily notes folder via `rules.moveDoneTasks.dailyNotesFolder` in
+`.onyx-vellum.json` (default: `"daily"`).
+
+### sortTasks
+
+**Source:** `src/rules/sortTasksPlugin.ts`
+
+Sorts same-level task lists inline — incomplete tasks stay at the top, then
+ordered by `sleep:` (ascending), then `due:` (ascending), then completed tasks
+ordered by `done:` descending (newest first).
+
+### incompleteTaskAlert
+
+**Source:** `src/rules/incompleteTaskAlertPlugin.ts`
+
+Finds all **incomplete** (unchecked) tasks that are not `start:`- or
+`snooze:`-blocked, and writes them to `onyx_alert.md`. Only runs in `alert`
+mode.
+
+If `rules.incompleteTaskAlert.alertUrl` is set in `.onyx-vellum.json`,
+performs an HTTP POST of the alert content to that URL with
+`Content-Type: text/plain`, `Markdown: yes`, and optionally
+`Authorization: Bearer <alertToken>`.
 
 ## Project Structure
 
 ```
 src/
-├── index.ts                    # CLI entrypoint
-├── helpText.ts                 # --help output text (exported for testing)
-├── config.ts                   # Vault-level config (.onyx-vellum.json) — zod schemas + load/apply helpers
+├── index.ts                     # CLI entrypoint
+├── ConfiguredRules.ts           # Type exports for rule config shapes
+├── helpText.ts                  # --help output text (exported for testing)
+├── loadConfig.ts                # Vault-level config — zod schemas + load/apply
+├── viewAST.ts                   # Debug utility to view parsed AST
+├── worker.ts                    # GPU worker entrypoint (transcription)
 ├── markdown/
-│   ├── parse.ts                # unified/remark parse + stringify + gray-matter helpers
-│   ├── tasks.ts                # extract / toggle / remove / update GFM task items
-│   ├── headings.ts             # append-under-heading with auto-create + trim
-│   └── inlineFields.ts         # getInlineField / setInlineField utilities
+│   ├── PluginContext.ts         # Context type passed through the pipeline
+│   ├── createParseProcessor.ts  # ← Plugin wiring: unified processor factory
+│   ├── inlineFieldsPlugin.ts    # Inline field remark plugin + get/set helpers
+│   ├── remarkObsidianPlugin.ts  # Obsidian wiki link / embed / tag parser
+│   ├── Task.ts                  # Task type definitions
+│   └── types.ts                 # Embedded node type defs
 ├── engine/
-│   ├── io.ts                   # readFile, FileWriteManager (stage/commit)
-│   └── runner.ts               # rule runner, sortRuleSpecs, selectRuleSpecs, runInitPass
-└── rules/
-    ├── index.ts                # ← central rule registry (add new rules here)
-    ├── types.ts                # Rule / RuleContext / FileChange / RuleResult types
-    ├── scheduleUtils.ts        # parseRepeat, computeNextDue, date helpers
-    ├── normalizeTodayLiteral.ts # Rule 1
-    ├── stampDone.ts            # Rule 2
-    ├── completedTaskRollover.ts # Rule 3
-    ├── moveDoneTasks.ts # Transcript -> daily-note move rule
-    ├── sortTasks.ts            # Sorts incomplete-first and done-date-desc
-    ├── removeEphemeralOverdueTasks.ts # Rule 5
-    └── incompleteTaskAlert.ts  # Rule 4
+│   ├── runner.ts                # Pipeline runner, init pass, normalizeFileContent
+│   ├── FileWriteManager.ts      # File read/stage/commit with vault path helpers
+│   ├── FileOperationExecutor.ts # Deferred file operations (write AST back to files)
+│   ├── vaultWatcher.ts          # fs.watch-based recursive file watcher
+│   ├── createAlertScheduler.ts  # Cron-style scheduler for alert mode
+│   └── userLocalTime.ts         # Timezone-aware date helpers
+├── rules/
+│   ├── makePlugin.ts            # Plugin factory — wraps core logic with source filtering
+│   ├── scheduleUtils.ts         # parseRepeat, computeNextDue, date helpers
+│   ├── normalizeTodayPlugin.ts
+│   ├── stampDonePlugin.ts
+│   ├── rolloverPlugin.ts
+│   ├── removeEphemeralOverdueTasksPlugin.ts
+│   ├── moveDoneTasksPlugin.ts
+│   ├── sortTasksPlugin.ts
+│   ├── incompleteTaskAlertPlugin.ts
+│   ├── ensureAudioTranscriptsPlugin.ts
+│   ├── onyxVellumCommands.ts
+│   └── types.ts
+├── transcription/
+│   ├── queue.ts                 # File-based job queue (pending/processing/done/failed)
+│   ├── types.ts                 # Job, FileOperation, ContentLocation types
+│   └── worker/
+│       ├── index.ts             # Worker loop — polls queue, processes jobs
+│       └── transcribe.ts        # Transcribe/Clean/Summarize job handlers
 tests/
-├── cli.test.ts                 # --help text
-├── config.test.ts              # vault-level config: create, merge, validation
-├── tasks.test.ts               # extract tasks, toggle, remove, update
-├── headings.test.ts            # append-under-heading with trim + create
-├── inlineFields.test.ts        # getInlineField / setInlineField
-├── scheduleUtils.test.ts       # parseRepeat, computeNextDue, date helpers
-└── ruleSpecRunner.test.ts      # runRuleSpec, sortRuleSpecs, selectRuleSpecs
+├── vault.test.ts                # E2E vault snapshot test (primary coverage)
+├── cli.test.ts                  # --help text
+├── config.test.ts               # vault-level config: create, merge, validation
+├── inlineFieldsPlugin.test.ts   # Inline field get/set utilities
+├── parse.test.ts                # Markdown parse/stringify round-trip
+├── roundtrip.test.ts            # Pipeline round-trip stability
+├── scheduleUtils.test.ts        # parseRepeat, computeNextDue
+├── moveDoneTranscriptTasksToDailyNote.test.ts
+├── commandFindTasks.test.ts
+├── fileOperationExecutor.test.ts
+├── scheduler.test.ts
+├── fasterWhisperBackend.test.ts
+├── transcriptionRuntime.test.ts
+├── watcher.test.ts
+├── worker.test.ts
+├── workerQueue.test.ts
+├── testDate.ts                  # Pinned date: 2026-05-03 America/Los_Angeles
+├── createTempDir.ts
+└── test_vault/                  # 37+ scenario directories with .md.expected snapshots
 ```
 
 ## Adding a New Rule
 
-1. Create `src/rules/myRule.ts` and define a `RuleSpec` object with a unique `name`.
-2. Declare any other rule names that must run before yours in the optional `dependencies` array.
-3. Import and add it to the array in **`src/rules/index.ts`** — that is the single central place rules are declared. The runner automatically topologically sorts rules by their declared dependencies, so registration order does not matter.
+1. Create `src/rules/myPlugin.ts` using the `makePlugin()` factory from
+   `src/rules/makePlugin.ts`. The factory handles source filtering and context
+   injection.
+2. The `coreLogic` callback receives `{ tree, file, ctx, ruleConfig, config, debug }`.
+   Mutate the AST directly — no declarative predicate/action model.
+3. Import and `.use()` the plugin in **`src/markdown/createParseProcessor.ts`**
+   at the appropriate position in the plugin chain.
