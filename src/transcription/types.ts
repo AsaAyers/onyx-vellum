@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 import type { RootContent } from "mdast";
 export const zContentLocation = z.strictObject({
-  file: zVaultFile,
+  file: VaultFile.schema,
   position: z.enum(["start", "end"]),
   header: z.string().nullable(),
 });
@@ -32,40 +32,31 @@ export const zFileOperation = z.object({
 
 export type FileOperation = z.infer<typeof zFileOperation>;
 
-export const zTranscribeJob = z.object({
+export const zBaseJob = z.object({
+  vaultPath: z.string(),
+  id: z.string(),
+  target: zFileOperation,
+  createdAt: z.string().optional(),
+});
+
+export const zTranscribeJob = zBaseJob.extend({
   type: z.literal("transcribe"),
-  vaultPath: z.string(),
-  id: z.string(),
   audioPath: z.string(),
-  target: zFileOperation,
-  createdAt: z.string().optional(),
 });
 
-export const zCleanTranscript = z.object({
+export const zCleanTranscript = zBaseJob.extend({
   type: z.literal("clean-transcription"),
-  vaultPath: z.string(),
-  id: z.string(),
-  target: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string().optional(),
 });
 
-export const zSummarizeTextJob = z.object({
+export const zSummarizeTextJob = zBaseJob.extend({
   type: z.literal("summarize-text"),
-  vaultPath: z.string(),
-  id: z.string(),
-  target: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string().optional(),
 });
 
-export const zFindTasksJob = z.object({
+export const zFindTasksJob = zBaseJob.extend({
   type: z.literal("find-tasks"),
-  vaultPath: z.string(),
-  id: z.string(),
-  target: zFileOperation,
   source: zContentLocation,
-  createdAt: z.string().optional(),
 });
 
 export const zJob = zTranscribeJob

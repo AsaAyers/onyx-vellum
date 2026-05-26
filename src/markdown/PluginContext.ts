@@ -12,4 +12,6 @@ export type PluginContext = {
   dates: UserLocalTime;
   dryRun: boolean;
   vaultPath: string;
+  verbose?: boolean;
+  report?: (msg: string) => void;
 };

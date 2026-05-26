@@ -40,7 +40,10 @@ export const createParseProcessor = (
   config: Config,
   ctx: PluginContext,
 ): MarkdownProcessor<Root, string> => {
-  debug("Creating markdown processor with ruleContext:", ctx);
+  debug("Creating markdown processor with ruleContext:", {
+    ...ctx,
+    env: "REDACTED",
+  });
   let processor: MarkdownProcessor = unified()
     .data({
       settings: {

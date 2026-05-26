@@ -2,15 +2,23 @@ import { describe, it, expect } from "vitest";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import { inlineFieldsPlugin } from "../src/markdown/inlineFieldsPlugin.js";
-import type { Root } from "mdast";
 import type { InlineFieldsNode } from "../src/markdown/types.js";
 import { visit } from "unist-util-visit";
+import { VaultFile } from "../src/engine/FileWriteManager.js";
 
 describe("inlineFieldsPlugin", () => {
   function extractInlineFields(markdown: string) {
     const processor = unified().use(remarkParse).use(inlineFieldsPlugin);
-    const tree = processor.parse(markdown) as Root;
-    processor.runSync(tree);
+
+    const vaultPath = "/tmp";
+    const file = new VaultFile({
+      absolutePath: "/tmp/test.md",
+      relativePath: "test.md",
+      value: markdown,
+      vaultPath,
+    });
+    const tree = processor.parse(file);
+    processor.runSync(tree, file);
 
     // Collect all listItems and their inlineFields
     const items: Array<InlineFieldsNode> = [];

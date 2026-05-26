@@ -6,14 +6,12 @@ import { type PluginContext } from "../markdown/PluginContext.js";
 import {
   FileWriteManager,
   walkMarkdownFiles,
-  zVaultFile,
+  VaultFile,
   type ChangesArray,
-  type VaultFile,
 } from "./FileWriteManager.js";
 import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../loadConfig.js";
 import type { Root } from "mdast";
-import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
 import {
   fileMatchesSources,
@@ -62,6 +60,9 @@ export async function runner(
     // console.log(msg);
     lines.push(msg);
   };
+  const report = (msg: string): void => {
+    lines.push(msg);
+  };
   // Load config
   const config: Config = await loadConfig(baseCtx.vaultPath).catch(
     (err: Error) => {
@@ -79,6 +80,7 @@ export async function runner(
     updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     vaultPath: baseCtx.vaultPath,
+    report,
   };
   await ensureCommandFile(baseCtx, fileManager);
 
@@ -112,9 +114,10 @@ export async function runner(
   ).filter((filePath) => fileMatchesSources(filePath, globalGlobs));
   const alertFile =
     baseCtx.mode === "alert"
-      ? zVaultFile.parse({
+      ? new VaultFile({
           absolutePath: join(baseCtx.vaultPath, ALERT_FILE),
           relativePath: ALERT_FILE,
+          vaultPath: baseCtx.vaultPath,
         })
       : null;
   if (alertFile) {
@@ -123,19 +126,23 @@ export async function runner(
   for (const vaultFile of matchingFiles) {
     let original: string;
     try {
+      if (baseCtx.verbose) {
+        log(`Processing: ${vaultFile.relativePath}`);
+      }
       original = await fileManager.read(vaultFile);
     } catch {
+      if (baseCtx.verbose) {
+        log(`Skipping unreadable: ${vaultFile.relativePath}`);
+      }
       continue;
     }
     if (!original) {
       console.warn("Empty file:", vaultFile.relativePath);
     }
 
-    const vfile = new VFile({ path: vaultFile.absolutePath, value: original });
-
-    const tree = processor.parse(vfile);
-    const processed = (await processor.run(tree, vfile)) as Root;
-    const normalized = String(processor.stringify(processed, vfile));
+    const tree = processor.parse(vaultFile);
+    const processed = (await processor.run(tree, vaultFile)) as Root;
+    const normalized = String(processor.stringify(processed, vaultFile));
     if (normalized !== original) {
       fileManager.stage(vaultFile, normalized);
     }
@@ -150,13 +157,9 @@ export async function runner(
       mode: "alert",
     });
 
-    const vfile = new VFile({
-      path: alertFile.absolutePath,
-      value: alertFileContent,
-    });
-    const tree = processor2.parse(vfile);
-    const processed = (await processor2.run(tree, vfile)) as Root;
-    const content = String(processor2.stringify(processed, vfile));
+    const tree = processor2.parse(alertFile);
+    const processed = (await processor2.run(tree, alertFile)) as Root;
+    const content = String(processor2.stringify(processed, alertFile));
     fileManager.unstageAll();
     fileManager.stage(alertFile, content);
   }
@@ -216,9 +219,10 @@ async function ensureCommandFile(
   > & { jobIdFactory?: PluginContext["jobIdFactory"] },
   fileManager: FileWriteManager,
 ) {
-  const commandsFile = zVaultFile.parse({
+  const commandsFile = new VaultFile({
     absolutePath: join(baseCtx.vaultPath, ONYX_COMMANDS_FILE),
     relativePath: ONYX_COMMANDS_FILE,
+    vaultPath: baseCtx.vaultPath,
   });
   const commandsMd = await fileManager.read(commandsFile);
   if (commandsMd.trim() !== commandsMarkdown.trim()) {
@@ -358,8 +362,14 @@ export async function normalizeFileContent({
    * Skip executing when normalizing single files.
    */
   // fileOperations.execute(processor, []);
+  const relativePath = "temp.md";
+  const vfile = new VaultFile({
+    absolutePath: join(vaultPath, relativePath),
+    relativePath,
+    value: content,
+    vaultPath,
+  });
 
-  const vfile = new VFile({ path: "tmp.md", value: content });
   const tree = processor.parse(vfile);
   const processed = (await processor.run(tree, vfile)) as Root;
   const normalized = String(processor.stringify(processed, vfile));

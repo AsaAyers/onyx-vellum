@@ -1,6 +1,6 @@
 import { EXIT, SKIP, visitParents } from "unist-util-visit-parents";
 import { makePlugin } from "./makePlugin.js";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 import { join, relative } from "path";
 import type { ContentLocation, FileOperation } from "../transcription/types.js";
 
@@ -32,9 +32,10 @@ export const onyxVellumCommands = makePlugin(
         }
       }
 
-      const vaultFile = zVaultFile.parse({
+      const vaultFile = new VaultFile({
         absolutePath: file.path,
         relativePath: relative(ctx.vaultPath, file.path),
+        vaultPath: ctx.vaultPath,
       });
 
       const now = new Date();

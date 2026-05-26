@@ -5,8 +5,7 @@ import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/FileOperationExecutor.js";
 import type { PluginContext } from "../markdown/PluginContext.js";
-import { join } from "node:path";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 import createDebug from "debug";
 
 export function makePlugin<
@@ -16,7 +15,7 @@ export function makePlugin<
   pluginName: PluginName,
   coreLogic: (args: {
     tree: Root;
-    file: VFile;
+    file: VaultFile;
     ctx: PluginContext;
     ruleConfig?: ThisRuleConfig;
     config: Config;
@@ -34,40 +33,36 @@ export function makePlugin<
     const { config, ctx } = settings;
     const ruleConfig = config.rules?.[pluginName] as ThisRuleConfig | undefined;
 
-    return function (tree: Root, file: VFile): Root | void {
+    return function (tree: Root, f: VFile): Root | void {
       try {
         invariant(
           ctx.vaultPath,
           `[${pluginName}] vaultPath must be provided in plugin context`,
         );
-        const relativePath = file.path?.replace(ctx.vaultPath + "/", "");
 
-        const vaultFile = file.path
-          ? zVaultFile.parse({
-              relativePath,
-              absolutePath: join(ctx.vaultPath, relativePath),
-            })
-          : null;
+        const file = VaultFile.fromVFile(f, ctx.vaultPath);
         if (
           ruleConfig?.sources &&
-          vaultFile &&
-          !fileMatchesSources(vaultFile, ruleConfig.sources)
+          file &&
+          !fileMatchesSources(file, ruleConfig.sources)
         ) {
           debugMakePlugin(
-            `[${pluginName}] Skipping file ${vaultFile.relativePath} due to source filter`,
+            `[${pluginName}] Skipping file ${file.relativePath} due to source filter`,
           );
           return tree;
         }
 
         debugMakePlugin(
-          `[${pluginName}] running plugin on file ${vaultFile?.relativePath ?? "unknown"}`,
+          `[${pluginName}] running plugin on file ${file?.relativePath ?? "unknown"}`,
         );
 
         return (
           coreLogic({ tree, file, ctx, ruleConfig, config, debug }) ?? tree
         );
       } catch (err) {
-        console.error(`[${pluginName}] Plugin error:`, err);
+        const msg = `[${pluginName}] Plugin error in ${f.path}: ${(err as Error).message}`;
+        console.error(msg);
+        ctx.report?.(msg);
         return tree;
       }
     };

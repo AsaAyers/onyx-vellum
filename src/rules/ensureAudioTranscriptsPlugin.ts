@@ -3,11 +3,11 @@ import invariant from "tiny-invariant";
 import { makePlugin } from "./makePlugin.js";
 import path, { relative, dirname, isAbsolute, resolve } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 import type { FileOperation } from "../transcription/types.js";
 import { existsSync, realpathSync } from "node:fs";
 
-export type LinkActionContext = {
+type LinkActionContext = {
   vaultPath: string;
   sourceNotePath: string;
   today: Date;
@@ -115,9 +115,10 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
           transcriptPath,
         );
 
-        const vaultFile = zVaultFile.parse({
+        const vaultFile = new VaultFile({
           absolutePath: absoluteTranscriptPath,
           relativePath: relative(ctx.vaultPath, absoluteTranscriptPath),
+          vaultPath: ctx.vaultPath,
         });
 
         const id = ctx.jobIdFactory(todayDate);

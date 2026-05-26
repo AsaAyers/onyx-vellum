@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FileOperationExecutor } from "../src/engine/FileOperationExecutor.js";
-import {
-  FileWriteManager,
-  zVaultFile,
-} from "../src/engine/FileWriteManager.js";
+import { FileWriteManager, VaultFile } from "../src/engine/FileWriteManager.js";
 import { createParseProcessor } from "../src/markdown/createParseProcessor.js";
 import { buildJobId } from "../src/transcription/queue.js";
 import { testDate } from "./testDate.js";
@@ -44,10 +41,11 @@ describe("FileOperationExecutor", () => {
       dryRun: false,
     },
   );
-  // const file = new VFile({ path: "test.md", value: markdownContent });
-  const vaultFile = zVaultFile.parse({
+  const vaultFile = new VaultFile({
     absolutePath: "/tmp/fake-vault/test.md",
     relativePath: "test.md",
+    value: markdownContent,
+    vaultPath,
   });
 
   beforeEach(() => {
@@ -131,9 +129,10 @@ describe("FileOperationExecutor", () => {
         `);
       });
       it("Should replace the whole file when there are no headers", async () => {
-        const vaultFile = zVaultFile.parse({
+        const vaultFile = new VaultFile({
           absolutePath: "/tmp/fake-vault/no-headers.md",
           relativePath: "no-headers.md",
+          vaultPath,
         });
         fileWriter.stage(
           vaultFile,
@@ -172,9 +171,10 @@ Source audio: [[A1_transcription_failure_audio.m4a]]
         `);
       });
       it("Can create and then update a header in an empty file", async () => {
-        const emptyVaultFile = zVaultFile.parse({
+        const emptyVaultFile = new VaultFile({
           absolutePath: "/tmp/fake-vault/empty.md",
           relativePath: "empty.md",
+          vaultPath,
         });
         fileOperator.updateFile({
           location: {
