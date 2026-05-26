@@ -1,4 +1,4 @@
-export const HELP_TEXT = `\
+export const helpText = `\
 Usage:
   VAULT_PATH=<path> onyx-vellum [--dry-run] [--verbose] [--only <glob>] (all | <rule> [<rule>...])
   VAULT_PATH=<path> onyx-vellum --watch [--dry-run] [--verbose] (all | <rule> [<rule>...])

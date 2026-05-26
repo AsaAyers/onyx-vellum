@@ -1,11 +1,60 @@
 import { visit } from "unist-util-visit";
 import invariant from "tiny-invariant";
-import { resolveTranscriptContext } from "../engine/actions/linkTranscriptionContext.js";
 import { makePlugin } from "./makePlugin.js";
-import path, { relative } from "node:path";
+import path, { relative, dirname, isAbsolute, resolve } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
-import { zVaultFile } from "../engine/io.js";
+import { zVaultFile } from "../engine/FileWriteManager.js";
 import type { FileOperation } from "../transcription/types.js";
+import { existsSync, realpathSync } from "node:fs";
+
+export type LinkActionContext = {
+  vaultPath: string;
+  sourceNotePath: string;
+  today: Date;
+  jobIdFactory: (createdAt: Date) => string;
+};
+
+type ResolvedTranscriptContext = {
+  audioPath: string;
+  transcriptPath: string;
+  transcriptEmbed: string;
+  transcriptExists: boolean;
+};
+
+function isWithinVault(vaultPath: string, filePath: string): boolean {
+  try {
+    const vaultRealPath = realpathSync(vaultPath);
+    const fileRealPath = realpathSync(filePath);
+    const rel = relative(vaultRealPath, fileRealPath);
+    return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  } catch {
+    return false;
+  }
+}
+
+export function resolveTranscriptContext(
+  link: ObsidianEmbedNode | undefined,
+  ctx: LinkActionContext | undefined,
+): ResolvedTranscriptContext | undefined {
+  if (!link || !ctx) return undefined;
+
+  const transcriptPath = link.target.replace(/\.m4a$/, ".transcript.md");
+  const audioPath = resolve(dirname(ctx.sourceNotePath), link.target);
+  const exists = existsSync(audioPath);
+  if (!exists) return undefined;
+  if (!isWithinVault(ctx.vaultPath, audioPath)) return undefined;
+
+  const transcriptEmbed = `![[${transcriptPath}]]`;
+
+  return {
+    audioPath,
+    transcriptPath,
+    transcriptEmbed,
+    transcriptExists: existsSync(
+      resolve(dirname(ctx.sourceNotePath), transcriptPath),
+    ),
+  };
+}
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.

@@ -3,7 +3,7 @@ import type { Root, List, ListItem } from "mdast";
 import { makePlugin } from "./makePlugin.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 
-function sortTaskItems(items: ListItem[]): ListItem[] {
+export function sortTasksPlugin(items: ListItem[]): ListItem[] {
   return items
     .map((item, index) => ({
       item,
@@ -54,7 +54,7 @@ export const sortTasksSpecPlugin = makePlugin("sortTasks", function ({ tree }) {
   visit(tree as Root, "list", (listNode: List) => {
     const children = listNode.children;
     if (!Array.isArray(children)) return;
-    listNode.children = sortTaskItems(children);
+    listNode.children = sortTasksPlugin(children);
 
     if (
       listNode.children.some(

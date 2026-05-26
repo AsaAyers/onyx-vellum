@@ -6,7 +6,7 @@
  * wall-clock time is needed.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createDebouncer } from "../src/engine/watcher.js";
+import { createDebouncer } from "../src/engine/vaultWatcher.js";
 
 describe("createFileDebouncer", () => {
   beforeEach(() => {

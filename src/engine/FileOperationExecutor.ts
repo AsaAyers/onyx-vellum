@@ -3,7 +3,11 @@ import type { Heading, Root, RootContent } from "mdast";
 import type { Processor } from "unified";
 import { VFile } from "vfile";
 import createDebug from "debug";
-import { zVaultFile, type FileWriteManager, type VaultFile } from "./io.js";
+import {
+  zVaultFile,
+  type FileWriteManager,
+  type VaultFile,
+} from "./FileWriteManager.js";
 import { join } from "node:path";
 import micromatch from "micromatch";
 import type { Source } from "../rules/types.js";

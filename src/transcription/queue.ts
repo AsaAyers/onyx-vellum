@@ -23,7 +23,7 @@ function ensureQueueDirs(stateDir: string): void {
   );
 }
 
-export function enqueue(stateDir: string, job: Job): void {
+export function queue(stateDir: string, job: Job): void {
   ensureQueueDirs(stateDir);
   writeFileSync(
     jobPath(stateDir, "pending", job.id),
@@ -95,4 +95,4 @@ export function resolveStateDir(
     ? resolve(configured)
     : join(dirname(vaultPath), DEFAULT_STATE_DIRNAME);
 }
-export const DEFAULT_STATE_DIRNAME = ".onyx-vellum-state";
+const DEFAULT_STATE_DIRNAME = ".onyx-vellum-state";

@@ -1,17 +1,17 @@
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { enqueue } from "../src/transcription/queue.js";
-import { startWorker } from "../src/transcription/worker.js";
+import { queue } from "../src/transcription/queue.js";
+import { startWorker } from "../src/transcription/startWorker.js";
 import { type ContentLocation, type Job } from "../src/transcription/types.js";
-import { zVaultFile } from "../src/engine/io.js";
+import { zVaultFile } from "../src/engine/FileWriteManager.js";
 import { createTempDir } from "./createTempDir.js";
 
 const isoRegex = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/g;
 
 async function runWorkerForSingleJob(job: Job) {
   const stateDir = await createTempDir("onyx-vellum-worker-state-");
-  enqueue(stateDir, job);
+  queue(stateDir, job);
   return runWorkerForSingleStateDir(stateDir);
 }
 
@@ -148,9 +148,8 @@ chislic doner corned beef
       });
       const content = await fs.readFile(transcriptPath, "utf-8");
 
-      expect(
-        content.replaceAll(isoRegex, "2024-01-01T00:00:00.000Z"),
-      ).toMatchInlineSnapshot(`
+      expect(content.replaceAll(isoRegex, "2024-01-01T00:00:00.000Z"))
+        .toMatchInlineSnapshot(`
         "---
         filename: some-serious-content.md
         cleanText: '2024-01-01T00:00:00.000Z'

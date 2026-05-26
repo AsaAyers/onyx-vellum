@@ -1,8 +1,8 @@
-import type { Config } from "../config.js";
+import type { Config } from "../loadConfig.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
-import { zVaultFile } from "../engine/io.js";
+import { zVaultFile } from "../engine/FileWriteManager.js";
 import { join } from "node:path";
 import { extractYamlFrontmatter } from "../engine/FileOperationExecutor.js";
 

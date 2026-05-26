@@ -28,7 +28,7 @@ const sarcasm = (text: string) =>
     .join("");
 
 export type TranscriptResult = z.infer<typeof zTranscriptResult>;
-export async function processRawTranscript(
+async function processRawTranscript(
   rawTranscript: string,
 ): Promise<TranscriptResult> {
   if (process.env.NODE_ENV === "test") {
@@ -93,7 +93,7 @@ function createCleanupRequest(
   };
 }
 
-export const summarizeTextWorker: JobWorker<CleanTranscript> = async function (
+export const cleanTranscript: JobWorker<CleanTranscript> = async function (
   ctx,
 ) {
   const { job, fileOperations, debug } = ctx;

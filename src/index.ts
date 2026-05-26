@@ -1,16 +1,15 @@
 #!/usr/bin/env node
-import { runAllRules, runInitPass } from "./engine/runner.js";
-import { createDebouncer, startVaultWatcher } from "./engine/watcher.js";
+import { runner, runInitPass } from "./engine/runner.js";
+import { createDebouncer, vaultWatcher } from "./engine/vaultWatcher.js";
 import {
   createAlertScheduler,
   normalizeAlertSchedule,
-} from "./engine/scheduler.js";
-import { createStopAll } from "./engine/watchMode.js";
-import { userLocalTime } from "./engine/timezone.js";
-import { HELP_TEXT } from "./helpText.js";
-import { loadConfig, CONFIG_FILENAME } from "./config.js";
+} from "./engine/createAlertScheduler.js";
+import { userLocalTime } from "./engine/userLocalTime.js";
+import { helpText } from "./helpText.js";
+import { loadConfig, CONFIG_FILENAME } from "./loadConfig.js";
 import type { PluginContext } from "./markdown/PluginContext.js";
-import { enqueue, resolveStateDir } from "./transcription/queue.js";
+import { queue, resolveStateDir } from "./transcription/queue.js";
 import type { Job } from "./transcription/types.js";
 
 // eslint-disable-next-line no-console
@@ -39,7 +38,7 @@ const onlyGlob: string[] | undefined =
 const positional = args.filter((a) => !a.startsWith("-"));
 
 if (help) {
-  log(HELP_TEXT);
+  log(helpText);
   process.exit(0);
 }
 
@@ -78,14 +77,14 @@ if (init) {
     process.exit(1);
   }
   const stateDir = resolveStateDir(process.env, vaultPath);
-  const queue: Job[] = [];
+  const queuedJobs: Job[] = [];
   function queueJob(job: Job) {
-    queue.push(job);
+    queuedJobs.push(job);
     if (!dryRun) {
-      enqueue(stateDir, job);
+      queue(stateDir, job);
     }
   }
-  const ruleContext: Omit<Parameters<typeof runAllRules>[0], "dates"> = {
+  const ruleContext: Omit<Parameters<typeof runner>[0], "dates"> = {
     mode,
     vaultPath,
     queueJob,
@@ -104,18 +103,18 @@ if (init) {
     const dates = userLocalTime({
       tz: config.timezone ?? "UTC",
     });
-    const { changes, report } = await runAllRules({
+    const { changes, report } = await runner({
       ...ruleContext,
       mode,
       dates,
       onlyGlob: glob,
     });
 
-    if (changes.length > 0 || queue.length > 0) {
+    if (changes.length > 0 || queuedJobs.length > 0) {
       log(`=== Report ===`);
       log(report);
       log(`Jobs queued:`);
-      queue.forEach((job) => {
+      queuedJobs.forEach((job) => {
         switch (job.type) {
           case "transcribe":
             log(
@@ -139,7 +138,7 @@ if (init) {
             break;
         }
       });
-      queue.length = 0;
+      queuedJobs.length = 0;
     }
   };
 
@@ -178,7 +177,7 @@ if (init) {
       run("all", relPaths),
     );
 
-    const stop = startVaultWatcher(
+    const stop = vaultWatcher(
       vaultPath,
       async (relPaths) => {
         const configChanged = relPaths.includes(CONFIG_FILENAME);
@@ -224,7 +223,7 @@ if (init) {
       () => alertSchedule,
       async () => {
         log("[watch] Running scheduled alert...");
-        await runAllRules({
+        await runner({
           ...ruleContext,
           mode: "alert",
           dates: userLocalTime({ tz: timezone }),
@@ -253,4 +252,12 @@ if (init) {
       process.exit(1);
     });
   }
+}
+
+function createStopAll(stops: Array<() => void>): () => void {
+  return (): void => {
+    for (const stop of stops) {
+      stop();
+    }
+  };
 }

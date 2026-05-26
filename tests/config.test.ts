@@ -11,7 +11,11 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadConfig, CONFIG_FILENAME, DEFAULT_SOURCES } from "../src/config.js";
+import {
+  loadConfig,
+  CONFIG_FILENAME,
+  DEFAULT_SOURCES,
+} from "../src/loadConfig.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

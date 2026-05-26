@@ -1,17 +1,17 @@
-import { createParseProcessor } from "./parse.js";
-import { type PluginContext } from "./PluginContext.js";
-import { EMPTY_CONFIG } from "./defaultConfig.js";
+import { createParseProcessor } from "./markdown/createParseProcessor.js";
+import { type PluginContext } from "./markdown/PluginContext.js";
+import { EMPTY_CONFIG } from "./engine/runner.js";
 import fs from "node:fs/promises";
 import { VFile } from "vfile";
 import type { Root } from "mdast";
-import { buildJobId } from "../transcription/queue.js";
-import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
-import { userLocalTime } from "../engine/timezone.js";
+import { buildJobId } from "./transcription/queue.js";
+import { FileOperationExecutor } from "./engine/FileOperationExecutor.js";
+import { userLocalTime } from "./engine/userLocalTime.js";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
-async function main() {
+export async function viewAST() {
   const filename = process.argv[2];
   if (!filename) {
     console.error("Usage: viewAST <markdown-file>");
@@ -58,4 +58,4 @@ async function main() {
   log(normalized);
 }
 
-main();
+viewAST();

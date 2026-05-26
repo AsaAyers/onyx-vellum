@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { HELP_TEXT } from "../src/helpText.js";
+import { helpText } from "../src/helpText.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -21,47 +21,47 @@ const ROOT = resolve(__dirname, "..");
 
 describe("HELP_TEXT", () => {
   it("mentions --dry-run", () => {
-    expect(HELP_TEXT).toContain("--dry-run");
+    expect(helpText).toContain("--dry-run");
   });
 
   it("mentions --verbose", () => {
-    expect(HELP_TEXT).toContain("--verbose");
+    expect(helpText).toContain("--verbose");
   });
 
   it("mentions --only", () => {
-    expect(HELP_TEXT).toContain("--only");
+    expect(helpText).toContain("--only");
   });
 
   it("mentions --watch", () => {
-    expect(HELP_TEXT).toContain("--watch");
+    expect(helpText).toContain("--watch");
   });
 
   it("mentions --init", () => {
-    expect(HELP_TEXT).toContain("--init");
+    expect(helpText).toContain("--init");
   });
 
   it("mentions --help", () => {
-    expect(HELP_TEXT).toContain("--help");
+    expect(helpText).toContain("--help");
   });
 
   it('mentions the "all" keyword', () => {
-    expect(HELP_TEXT).toContain("all");
+    expect(helpText).toContain("all");
   });
 
   it("lists known rule names", () => {
-    expect(HELP_TEXT).toContain("normalizeTodayLiteral");
-    expect(HELP_TEXT).toContain("stampDone");
-    expect(HELP_TEXT).toContain("completedTaskRollover");
-    expect(HELP_TEXT).toContain("ensureAudioTranscripts");
-    expect(HELP_TEXT).toContain("incompleteTaskAlert");
+    expect(helpText).toContain("normalizeTodayLiteral");
+    expect(helpText).toContain("stampDone");
+    expect(helpText).toContain("completedTaskRollover");
+    expect(helpText).toContain("ensureAudioTranscripts");
+    expect(helpText).toContain("incompleteTaskAlert");
   });
 
   it("mentions VAULT_PATH environment variable", () => {
-    expect(HELP_TEXT).toContain("VAULT_PATH");
+    expect(helpText).toContain("VAULT_PATH");
   });
 
   it("shows a usage example with a single rule name", () => {
-    expect(HELP_TEXT).toContain("stampDone");
+    expect(helpText).toContain("stampDone");
   });
 });
 

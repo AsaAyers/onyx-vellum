@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createFasterWhisperBackend } from "../src/transcription/fasterWhisperBackend.js";
+import { fasterWhisperBackend } from "../src/transcription/fasterWhisperBackend.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -53,7 +53,7 @@ process.stdin.on("data", (chunk) => {
       "utf-8",
     );
 
-    const backend = createFasterWhisperBackend({
+    const backend = fasterWhisperBackend({
       executablePath: process.execPath,
       scriptPath,
     });
@@ -96,7 +96,7 @@ process.stdin.on("data", (chunk) => {
       "utf-8",
     );
 
-    const backend = createFasterWhisperBackend({
+    const backend = fasterWhisperBackend({
       executablePath: process.execPath,
       scriptPath,
     });

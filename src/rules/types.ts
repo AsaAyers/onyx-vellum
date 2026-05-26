@@ -1,5 +1,5 @@
-import type { Task } from "../markdown/tasks.js";
-import type { Config } from "../config.js";
+import type { Task } from "../markdown/Task.js";
+import type { Config } from "../loadConfig.js";
 
 export type RuleContext = {
   vaultPath: string;

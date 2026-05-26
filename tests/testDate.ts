@@ -1,4 +1,4 @@
-import { userLocalTime } from "../src/engine/timezone.js";
+import { userLocalTime } from "../src/engine/userLocalTime.js";
 
 // Pin the date so the test produces the same output regardless of when it runs.
 export const testDate = userLocalTime({

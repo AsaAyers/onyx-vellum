@@ -14,7 +14,7 @@ const WEEKDAY_MAP = {
   a: 6,
 } as const;
 
-export type RepeatSchedule = {
+type RepeatSchedule = {
   skipWeeks: number;
   days: Set<number>;
 };

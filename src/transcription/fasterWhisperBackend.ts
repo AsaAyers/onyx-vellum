@@ -27,7 +27,7 @@ type ErrorMessage = {
 
 type BackendMessage = ReadyMessage | ResultMessage | ErrorMessage;
 
-export function createFasterWhisperBackend(
+export function fasterWhisperBackend(
   options: FasterWhisperBackendOptions = {},
 ): TranscriberBackend {
   const executablePath = options.executablePath ?? "python3";

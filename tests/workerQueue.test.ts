@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   claimNext,
-  enqueue,
+  queue,
   markDone,
   markFailed,
 } from "../src/transcription/queue.js";
 import type { Job } from "../src/transcription/types.js";
-import { zVaultFile } from "../src/engine/io.js";
+import { zVaultFile } from "../src/engine/FileWriteManager.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -52,7 +52,7 @@ describe("transcription queue", () => {
     const stateDir = await createStateDir();
     const job = makeJob("01j0-a");
 
-    await enqueue(stateDir, job);
+    await queue(stateDir, job);
 
     const pendingJson = await fs.readFile(
       join(stateDir, "pending", "01j0-a.json"),
@@ -71,8 +71,8 @@ describe("transcription queue", () => {
     // Queue ordering is filename-lexicographic, so this test uses sortable IDs.
     const older = makeJob("01j0-a");
     const newer = makeJob("01j0-b");
-    await enqueue(stateDir, newer);
-    await enqueue(stateDir, older);
+    await queue(stateDir, newer);
+    await queue(stateDir, older);
 
     const claimed = await claimNext(stateDir);
 
@@ -88,7 +88,7 @@ describe("transcription queue", () => {
   it("markDone moves a processing job to done", async () => {
     const stateDir = await createStateDir();
     const job = makeJob("01j0-a");
-    await enqueue(stateDir, job);
+    await queue(stateDir, job);
     await claimNext(stateDir);
 
     await markDone(stateDir, job.id);
@@ -104,7 +104,7 @@ describe("transcription queue", () => {
   it("markFailed moves a processing job to failed and writes error sidecar", async () => {
     const stateDir = await createStateDir();
     const job = makeJob("01j0-a");
-    await enqueue(stateDir, job);
+    await queue(stateDir, job);
     await claimNext(stateDir);
 
     await markFailed(stateDir, job.id, "backend unavailable");
@@ -122,8 +122,8 @@ describe("transcription queue", () => {
 
   it("concurrent claimNext calls never claim the same job", async () => {
     const stateDir = await createStateDir();
-    await enqueue(stateDir, makeJob("01j0-a"));
-    await enqueue(stateDir, makeJob("01j0-b"));
+    await queue(stateDir, makeJob("01j0-a"));
+    await queue(stateDir, makeJob("01j0-b"));
 
     const [first, second] = await Promise.all([
       claimNext(stateDir),

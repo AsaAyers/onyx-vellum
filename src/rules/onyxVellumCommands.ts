@@ -1,6 +1,6 @@
 import { EXIT, SKIP, visitParents } from "unist-util-visit-parents";
 import { makePlugin } from "./makePlugin.js";
-import { zVaultFile } from "../engine/io.js";
+import { zVaultFile } from "../engine/FileWriteManager.js";
 import { join, relative } from "path";
 import type { ContentLocation, FileOperation } from "../transcription/types.js";
 

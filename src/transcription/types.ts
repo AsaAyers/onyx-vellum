@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { zVaultFile } from "../engine/io.js";
+import { zVaultFile } from "../engine/FileWriteManager.js";
 import type { RootContent } from "mdast";
 export const zContentLocation = z.strictObject({
   file: zVaultFile,

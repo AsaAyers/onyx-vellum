@@ -2,8 +2,8 @@ import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runAllRules } from "../src/engine/runner.js";
-import { enqueue, resolveStateDir } from "../src/transcription/queue.js";
+import { runner } from "../src/engine/runner.js";
+import { queue, resolveStateDir } from "../src/transcription/queue.js";
 import { testDate } from "./testDate.js";
 import type { Job } from "../src/transcription/types.js";
 
@@ -36,10 +36,10 @@ describe("transcription runtime", () => {
     await fs.writeFile(join(vaultPath, "audio", "clip.m4a"), "audio", "utf-8");
 
     async function queueJob(job: Job) {
-      enqueue(stateDir, job);
+      queue(stateDir, job);
     }
 
-    await runAllRules({
+    await runner({
       vaultPath,
       dates: testDate,
       dryRun: false,

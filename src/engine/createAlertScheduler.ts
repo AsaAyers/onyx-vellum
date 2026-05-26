@@ -7,7 +7,7 @@
  * not already fired in this minute window, `onAlert` is invoked.
  */
 
-import { userLocalTime } from "./timezone.js";
+import { userLocalTime } from "./userLocalTime.js";
 import createDebug from "debug";
 
 const debug = createDebug("onyx:scheduler");

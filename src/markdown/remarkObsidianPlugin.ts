@@ -23,7 +23,7 @@ export const remarkObsidianPlugin = makePlugin(
  * Mutates `tree` in place — call just before stringification.
  */
 
-export function protectObsidianEmbeds(tree: Root): void {
+function protectObsidianEmbeds(tree: Root): void {
   visitParents(tree, "text", (node: Text, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     if (!parent) return;
@@ -38,7 +38,7 @@ export function protectObsidianEmbeds(tree: Root): void {
 
 const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 
-export function splitObsidianEmbedText(
+function splitObsidianEmbedText(
   value: string,
 ): Array<Text | ObsidianEmbedNode> {
   const parts: Array<Text | ObsidianEmbedNode> = [];
@@ -68,7 +68,7 @@ export function splitObsidianEmbedText(
 }
 
 const CALLOUT_REGEX = /^\[\!(\w+)\]\+?/g;
-export function protectObsidianCallouts(tree: Root): void {
+function protectObsidianCallouts(tree: Root): void {
   visitParents(tree, "text", (node, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     const grandparent = ancestors[ancestors.length - 2];
@@ -123,7 +123,7 @@ function splitObsidianTagText(value: string): Array<Text | ObsidianTagNode> {
  *
  * Mutates `tree` in place — call just before stringification.
  */
-export function protectObsidianTags(tree: Root): void {
+function protectObsidianTags(tree: Root): void {
   visitParents(tree, "text", (node: Text, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     if (!parent) return;
@@ -228,7 +228,7 @@ function inertAsteriskPositions(value: string): Set<number> {
  *
  * Mutates `tree` in place — call just before stringification.
  */
-export function protectInertAsterisks(tree: Root): void {
+function protectInertAsterisks(tree: Root): void {
   visitParents(tree, "text", (node, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     if (!parent) return;

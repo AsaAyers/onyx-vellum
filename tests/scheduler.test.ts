@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createAlertScheduler,
   normalizeAlertSchedule,
-} from "../src/engine/scheduler.js";
+} from "../src/engine/createAlertScheduler.js";
 
 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 

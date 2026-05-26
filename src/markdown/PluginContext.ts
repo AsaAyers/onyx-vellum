@@ -1,5 +1,5 @@
 import type { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
-import type { UserLocalTime } from "../engine/timezone.js";
+import type { UserLocalTime } from "../engine/userLocalTime.js";
 import type { Job } from "../transcription/types.js";
 
 export type PluginContext = {

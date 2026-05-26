@@ -1,6 +1,6 @@
 import { watch } from "node:fs";
 import { resolve, relative } from "node:path";
-import { FileWriteManager } from "./io.js";
+import { FileWriteManager } from "./FileWriteManager.js";
 import { writeFile } from "node:fs/promises";
 import createDebug from "debug";
 
@@ -100,7 +100,7 @@ export function createDebouncer(
  * @returns          A stop function — call it to close the watcher and cancel
  *                   any pending timers.
  */
-export function startVaultWatcher(
+export function vaultWatcher(
   vaultPath: string,
   onProcess: (relPaths: string[]) => Promise<void>,
   opts: WatcherOptions = {},

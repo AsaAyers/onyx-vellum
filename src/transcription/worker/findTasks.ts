@@ -1,7 +1,7 @@
 import { type ChatRequest } from "ollama";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { taskArraySchema } from "../../markdown/tasks.js";
+import { Task, taskArraySchema } from "../../markdown/Task.js";
 import { callModel } from "../callModel.js";
 import type { FindTasksJob } from "../types.js";
 import type { JobWorker } from "./types.js";
@@ -40,16 +40,6 @@ const fakeTasks = taskArraySchema.parse([
     },
   },
 ]);
-export async function gatherTasks(cleanTranscript: string) {
-  if (process.env.NODE_ENV === "test") {
-    return fakeTasks;
-  }
-
-  return callModel(
-    taskArraySchema,
-    createTaskRequest(cleanTranscript, taskArraySchema),
-  );
-}
 
 function createTaskRequest(
   cleanTranscript: string,
@@ -124,13 +114,21 @@ function createTaskRequest(
   };
 }
 
-export const findTasksWorker: JobWorker<FindTasksJob> = async function (ctx) {
-  const sourceText = await extractSourceText(
-    ctx.job.vaultPath,
-    ctx.job.source,
-    ctx,
-  );
-  const tasks = await gatherTasks(sourceText);
+export const findTasks: JobWorker<FindTasksJob> = async function (ctx) {
+  let tasks: Task[] = [];
+  if (process.env.NODE_ENV === "test") {
+    tasks = fakeTasks;
+  } else {
+    const sourceText = await extractSourceText(
+      ctx.job.vaultPath,
+      ctx.job.source,
+      ctx,
+    );
+    tasks = await callModel(
+      taskArraySchema,
+      createTaskRequest(sourceText, taskArraySchema),
+    );
+  }
 
   const list: List = {
     type: "list",

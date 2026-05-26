@@ -1,25 +1,19 @@
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createFasterWhisperBackend } from "./fasterWhisperBackend.js";
-import {
-  buildJobId,
-  claimNext,
-  enqueue,
-  markDone,
-  markFailed,
-} from "./queue.js";
+import { fasterWhisperBackend } from "./fasterWhisperBackend.js";
+import { buildJobId, claimNext, queue, markDone, markFailed } from "./queue.js";
 import { resolveStateDir } from "./queue.js";
 import { type Job, type WorkerOptions } from "./types.js";
-import { FileWriteManager } from "../engine/io.js";
+import { FileWriteManager } from "../engine/FileWriteManager.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
-import { createParseProcessor } from "../markdown/parse.js";
-import { loadConfig } from "../config.js";
+import { createParseProcessor } from "../markdown/createParseProcessor.js";
+import { loadConfig } from "../loadConfig.js";
 import type { PluginContext } from "../markdown/PluginContext.js";
-import { userLocalTime } from "../engine/timezone.js";
-import { transcriptWorker } from "./worker/transcript.js";
-import { summarizeTextWorker } from "./worker/cleanTranscript.js";
+import { userLocalTime } from "../engine/userLocalTime.js";
+import { transcribe } from "./worker/transcribe.js";
+import { cleanTranscript } from "./worker/cleanTranscript.js";
 import type { JobWorker } from "./worker/types.js";
-import { findTasksWorker } from "./worker/findTasks.js";
+import { findTasks } from "./worker/findTasks.js";
 import createDebug from "debug";
 import { unreachable } from "../unreachable.js";
 
@@ -63,7 +57,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     updateFile: fileOperations.updateFile,
     jobIdFactory: buildJobId,
     async queueJob(job) {
-      await enqueue(options.stateDir, job);
+      await queue(options.stateDir, job);
     },
     env: process.env,
     mode: "normalize",
@@ -111,14 +105,14 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       };
       switch (job.type) {
         case "transcribe":
-          await transcriptWorker(jobArgs);
+          await transcribe(jobArgs);
           break;
         case "summarize-text":
         case "clean-transcription":
-          await summarizeTextWorker(jobArgs);
+          await cleanTranscript(jobArgs);
           break;
         case "find-tasks":
-          await findTasksWorker(jobArgs);
+          await findTasks(jobArgs);
           break;
         default:
           logger.error(`Unknown job type: ${JSON.stringify(job)}`);
@@ -157,11 +151,11 @@ async function main(): Promise<void> {
   log(`Vault: ${vaultPath}`);
   log(`State dir: ${stateDir}`);
 
-  let backend: ReturnType<typeof createFasterWhisperBackend> | null = null;
+  let backend: ReturnType<typeof fasterWhisperBackend> | null = null;
   await startWorker({
     stateDir,
     getWhisperBackend: () => {
-      backend ??= createFasterWhisperBackend({
+      backend ??= fasterWhisperBackend({
         executablePath: process.env["FASTER_WHISPER_EXECUTABLE"],
         scriptPath: process.env["FASTER_WHISPER_SCRIPT"],
         model: process.env["FASTER_WHISPER_MODEL"],

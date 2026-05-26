@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "path";
 import { dirname } from "path/posix";
-import { enqueue, buildJobId } from "../queue.js";
+import { queue, buildJobId } from "../queue.js";
 import { trimDeadAir } from "../trimDeadAir.js";
 import type { TranscribeJob } from "../types.js";
 import type { JobWorker } from "./types.js";
 
-export const transcriptWorker: JobWorker<TranscribeJob> =
+export const transcribe: JobWorker<TranscribeJob> =
   async function transcriptJob({ options, job, fileOperations, debug }) {
     let srcAudio = job.audioPath;
     if (options.trimDeadAir) {
@@ -42,7 +42,7 @@ export const transcriptWorker: JobWorker<TranscribeJob> =
     job.target.frontmatter.transcribe = new Date().toISOString();
     fileOperations.updateFile(job.target);
 
-    enqueue(options.stateDir, {
+    queue(options.stateDir, {
       type: "clean-transcription",
       id,
       vaultPath: job.vaultPath,

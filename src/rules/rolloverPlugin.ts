@@ -5,7 +5,7 @@ import type { ListItem, Root } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { format } from "date-fns-tz";
-import { userLocalTime } from "../engine/timezone.js";
+import { userLocalTime } from "../engine/userLocalTime.js";
 
 /**
  * remark plugin to perform completed task rollover using inline field data.

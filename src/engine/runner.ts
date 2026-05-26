@@ -1,7 +1,7 @@
 import { createPatch } from "diff";
 import fs from "node:fs/promises";
 import { join } from "node:path";
-import { createParseProcessor } from "../markdown/parse.js";
+import { createParseProcessor } from "../markdown/createParseProcessor.js";
 import { type PluginContext } from "../markdown/PluginContext.js";
 import {
   FileWriteManager,
@@ -9,11 +9,10 @@ import {
   zVaultFile,
   type ChangesArray,
   type VaultFile,
-} from "./io.js";
+} from "./FileWriteManager.js";
 import type { Source } from "../rules/types.js";
-import { loadConfig, type Config } from "../config.js";
+import { loadConfig, type Config } from "../loadConfig.js";
 import type { Root } from "mdast";
-import { EMPTY_CONFIG } from "../markdown/defaultConfig.js";
 import { VFile } from "vfile";
 import { buildJobId } from "../transcription/queue.js";
 import {
@@ -24,9 +23,11 @@ import {
   ALERT_FILE,
   sendNotification,
 } from "../rules/incompleteTaskAlertPlugin.js";
-import { type UserLocalTime } from "./timezone.js";
-import { ONYX_COMMANDS_FILE } from "../rules/onyxVellumCommands.js";
-import { commandsMarkdown } from "../rules/onyxVellumCommands.js";
+import { type UserLocalTime } from "./userLocalTime.js";
+import {
+  ONYX_COMMANDS_FILE,
+  commandsMarkdown,
+} from "../rules/onyxVellumCommands.js";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
@@ -47,7 +48,7 @@ const log = console.log.bind(console);
  * @returns        `changes` — staged file writes (path + content), sorted by path.
  *                 `report`  — everything printed to console during the run.
  */
-export async function runAllRules(
+export async function runner(
   baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "updateFile"> & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
@@ -365,3 +366,7 @@ export async function normalizeFileContent({
 
   return normalized;
 }
+export const EMPTY_CONFIG: Config = {
+  sources: [{ type: "glob", pattern: "**/*.md" }],
+  rules: {},
+};

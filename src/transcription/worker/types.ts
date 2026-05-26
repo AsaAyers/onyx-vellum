@@ -1,6 +1,6 @@
 import type { FileOperationExecutor } from "../../engine/FileOperationExecutor.js";
-import type { FileWriteManager } from "../../engine/io.js";
-import type { createParseProcessor } from "../../markdown/parse.js";
+import type { FileWriteManager } from "../../engine/FileWriteManager.js";
+import type { createParseProcessor } from "../../markdown/createParseProcessor.js";
 import type { Job, WorkerOptions } from "../types.js";
 
 export type WorkerContext<T extends Job> = {

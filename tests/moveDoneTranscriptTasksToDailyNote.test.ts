@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import { runAllRules } from "../src/engine/runner.js";
+import { runner } from "../src/engine/runner.js";
 import { testDate } from "./testDate.js";
 import { createTempDir } from "./createTempDir.js";
 
@@ -20,7 +20,7 @@ describe("moveDoneTasks - config opt-in", () => {
       "utf-8",
     );
 
-    await runAllRules({
+    await runner({
       vaultPath,
       dates: testDate,
       dryRun: false,

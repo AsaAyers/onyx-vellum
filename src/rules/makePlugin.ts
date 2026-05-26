@@ -1,12 +1,12 @@
 import type { Plugin, Processor } from "unified";
-import { type Config, type RuleConfig } from "../config.js";
+import { type Config, type RuleConfig } from "../loadConfig.js";
 import type { Root } from "mdast";
 import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/FileOperationExecutor.js";
 import type { PluginContext } from "../markdown/PluginContext.js";
 import { join } from "node:path";
-import { zVaultFile } from "../engine/io.js";
+import { zVaultFile } from "../engine/FileWriteManager.js";
 import createDebug from "debug";
 
 export function makePlugin<

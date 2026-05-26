@@ -1,7 +1,7 @@
 import { execa } from "execa";
 import fs from "node:fs/promises";
 
-export type TrimDeadAirOptions = {
+type TrimDeadAirOptions = {
   input: string;
   output: string;
 

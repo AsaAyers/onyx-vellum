@@ -19,10 +19,10 @@ import type {
   Handle,
   ObsidianTagNode,
 } from "./types.js";
-import type { Config } from "../config.js";
+import type { Config } from "../loadConfig.js";
 import { stampDonePlugin } from "../rules/stampDonePlugin.js";
 import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
-import { sortTasksSpecPlugin } from "../rules/sortTasksSpecPlugin.js";
+import { sortTasksSpecPlugin } from "../rules/sortTasksPlugin.js";
 import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
 import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";

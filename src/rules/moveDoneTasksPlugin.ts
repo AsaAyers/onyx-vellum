@@ -3,13 +3,8 @@ import { visit } from "unist-util-visit";
 import type { Root, List } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
-import type { RuleConfig } from "../config.js";
 import { join } from "node:path";
-import { zVaultFile } from "../engine/io.js";
-
-export type MoveDoneTasksConfig = RuleConfig & {
-  dailyNotesFolder?: string;
-};
+import { zVaultFile } from "../engine/FileWriteManager.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.

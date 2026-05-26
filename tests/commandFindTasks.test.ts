@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTempDir } from "./createTempDir.js";
 import { join } from "node:path";
-import { runAllRules } from "../src/engine/runner.js";
+import { runner } from "../src/engine/runner.js";
 import { testDate } from "./testDate.js";
 import fs from "node:fs/promises";
 import type { Job } from "../src/transcription/types.js";
@@ -43,7 +43,7 @@ describe("Command: #onyx/tasks", () => {
 
     expect(await readTranscriptFile()).toContain("#onyx/tasks");
     const jobs: Job[] = [];
-    await runAllRules({
+    await runner({
       vaultPath,
       dates: testDate,
       dryRun: false,

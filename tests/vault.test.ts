@@ -10,12 +10,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runAllRules } from "../src/engine/runner.js";
-import { walkMarkdownFiles } from "../src/engine/io.js";
+import { runner } from "../src/engine/runner.js";
+import { walkMarkdownFiles } from "../src/engine/FileWriteManager.js";
 import fs, { promises as fsp } from "node:fs";
 import { testDate } from "./testDate.js";
 import { createTempDir } from "./createTempDir.js";
-import { enqueue } from "../src/transcription/queue.js";
+import { queue } from "../src/transcription/queue.js";
 import type { Job } from "../src/transcription/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -73,9 +73,9 @@ describe("test vault — .md.expected snapshots", () => {
   const pipelineReady: Promise<void> = (async () => {
     const stateDir = await createTempDir("onyx-vellum-worker-state-");
     async function queueJob(job: Job) {
-      await enqueue(stateDir, job);
+      await queue(stateDir, job);
     }
-    const { changes } = await runAllRules({
+    const { changes } = await runner({
       vaultPath: TEST_VAULT,
       dates: testDate,
       queueJob,
@@ -146,10 +146,10 @@ describe("test vault — .md.expected snapshots", () => {
     );
     const stateDir = await createTempDir("onyx-vellum-worker-state-");
     async function queueJob(job: Job) {
-      await enqueue(stateDir, job);
+      await queue(stateDir, job);
     }
 
-    await runAllRules({
+    await runner({
       vaultPath: TEST_VAULT,
       dates: testDate,
       dryRun: true,
