@@ -21,7 +21,7 @@ Entrypoint: `src/index.ts` (CLI). Runner: `src/engine/runner.ts`.
 | `npm run format`     | `prettier --write .`                 |
 | `npm test`           | `vitest run`                         |
 | `npm run run`        | `tsx src/index.ts` (no build needed) |
-| `npm run run:worker` | `tsx src/transcription/worker.ts`    |
+| `npm run run:worker` | `tsx src/worker.ts`                  |
 
 Pre-commit hook (`.husky/pre-commit`): `typecheck → format → lint → test`.
 Full test suite runs on every commit.

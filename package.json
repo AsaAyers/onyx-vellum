@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc",
     "run": "tsx src/index.ts",
-    "run:worker": "tsx src/transcription/worker.ts",
+    "run:worker": "tsx src/worker.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "viewAST": "tsx src/markdown/viewAST.ts",

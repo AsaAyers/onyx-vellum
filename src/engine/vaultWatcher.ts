@@ -10,8 +10,23 @@ const debug = createDebug("onyx:watcher");
 const log = console.log.bind(console);
 
 export type WatcherOptions = {
-  /** Debounce duration in milliseconds. Defaults to 60 000 (60 s). */
+  /** Base debounce duration in milliseconds. Defaults to 60_000 (60 s). */
   debounce?: number;
+
+  /**
+   * Maximum debounce delay in milliseconds when exponential backoff is active.
+   * When omitted (or equal to `debounce`), the delay is fixed and no backoff
+   * is applied.
+   */
+  maxDebounce?: number;
+
+  /**
+   * Growth factor for exponential backoff.  Each successive change without
+   * a processing run multiplies the current delay by this factor.
+   * Defaults to 1.5.  Only used when `maxDebounce > debounce`.
+   */
+  growthFactor?: number;
+
   /**
    * Extra vault-relative file paths to watch in addition to `*.md` files.
    * A file-change event is forwarded to `onProcess` whenever the changed
@@ -19,6 +34,14 @@ export type WatcherOptions = {
    * configuration files such as `.onyx-vellum.json`.
    */
   additionalFiles?: string[];
+
+  /**
+   * Callback invoked for every qualifying file-change event before the
+   * internal debounce timer is scheduled.  Use this to pipe raw events
+   * to an external debouncer (e.g. a "full run" debouncer) so that both
+   * debouncers are reset by every change.
+   */
+  onRawNotify?: (relPath: string, eventType: string) => void;
 };
 
 /**
@@ -29,14 +52,16 @@ export type WatcherOptions = {
  * milliseconds of inactivity, `onProcess` is invoked once with all changed
  * files since the previous run.
  */
-export function createDebouncer(
-  debounceMs: number,
-  onProcess: (relPaths: string[]) => Promise<void>,
-  backoff = false,
-): {
+export function createDebouncer(options: {
+  baseMs: number;
+  maxMs: number;
+  onProcess: (relPaths: string[]) => Promise<void>;
+  growthFactor?: number;
+}): {
   notify: (relPath: string, eventType: string) => void;
   dispose: () => void;
 } {
+  const { baseMs, maxMs, onProcess, growthFactor = 1.5 } = options;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pending = new Set<string>();
 
@@ -53,9 +78,10 @@ export function createDebouncer(
       clearTimeout(timer);
     }
 
-    const ms = backoff
-      ? Math.min(60_000, Math.log(calls * 3 + 1) * debounceMs)
-      : debounceMs;
+    const ms = Math.min(
+      maxMs,
+      Math.round(baseMs * Math.pow(growthFactor, calls - 1)),
+    );
     debug(
       `Timer set for ${(ms / 1000).toFixed(0)} s (${calls} call${calls > 1 ? "s" : ""})`,
     );
@@ -105,9 +131,12 @@ export function vaultWatcher(
   onProcess: (relPaths: string[]) => Promise<void>,
   opts: WatcherOptions = {},
 ): () => void {
-  const debounceMs = opts.debounce ?? 60_000;
+  const baseMs = opts.debounce ?? 60_000;
+  const maxMs = opts.maxDebounce ?? baseMs;
+  const growthFactor = opts.growthFactor ?? 1.5;
   const extraFiles = new Set(opts.additionalFiles ?? []);
-  const debouncer = createDebouncer(debounceMs, onProcess);
+  const { onRawNotify } = opts;
+  const debouncer = createDebouncer({ baseMs, maxMs, onProcess, growthFactor });
 
   let heartbeatTimestamp = 0;
   const heartbeat = setInterval(async () => {
@@ -147,6 +176,7 @@ export function vaultWatcher(
       if (extraFiles.has(relPath)) {
         // Explicitly registered files (e.g. the config file) are always
         // forwarded regardless of extension or hidden status.
+        onRawNotify?.(relPath, eventType ?? "change");
         debouncer.notify(relPath, eventType ?? "change");
         return;
       }
@@ -159,6 +189,7 @@ export function vaultWatcher(
       const segments = relPath.split(/[/\\]/);
       if (segments.some((seg) => seg.startsWith("."))) return;
 
+      onRawNotify?.(relPath, eventType ?? "change");
       debouncer.notify(relPath, eventType ?? "change");
     },
   );

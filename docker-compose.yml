@@ -11,7 +11,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: ["node", "dist/src/transcription/worker.js"]
+    command: ["node", "dist/src/worker.js"]
     volumes:
       - ${VAULT_PATH:-./vault}:/vault
       - state:/state

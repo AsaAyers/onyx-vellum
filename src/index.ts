@@ -144,7 +144,8 @@ if (init) {
 
   if (watch) {
     // Watch mode: load config to read the debounce and schedule settings.
-    const debounce = config.watch?.debounce ?? 30_000;
+    const fullDebounceMs = config.watch?.debounce ?? 30_000;
+    const fastDebounce = 5_000;
     // Mutable so the scheduler picks up changes when the config is reloaded.
     const initialSchedule = normalizeAlertSchedule(
       config.watch?.alertSchedule ?? [],
@@ -153,7 +154,7 @@ if (init) {
     let timezone = config.timezone ?? "UTC";
 
     log(`Mode: watch${dryRun ? " (dry run)" : ""}`);
-    log(`Debounce: ${debounce}ms`);
+    log(`Debounce: ${fullDebounceMs}ms (full), ${fastDebounce}ms (fast)`);
     if (alertSchedule.length > 0) {
       log(`Alert schedule: ${alertSchedule.join(", ")}`);
     } else {
@@ -172,10 +173,12 @@ if (init) {
     log(`[watch] Running all rules on startup...`);
     run("all");
 
-    const fastDebounce = 5_000;
-    const fullDebouncer = createDebouncer(debounce - fastDebounce, (relPaths) =>
-      run("all", relPaths),
-    );
+    const fullDebouncer = createDebouncer({
+      baseMs: fullDebounceMs,
+      maxMs: Math.min(fullDebounceMs * 2, 60_000),
+      onProcess: (relPaths) => run("all", relPaths),
+      growthFactor: 1.15,
+    });
 
     const stop = vaultWatcher(
       vaultPath,
@@ -213,9 +216,15 @@ if (init) {
         }
 
         await run("fast", relPaths);
-        relPaths.forEach((p) => fullDebouncer.notify(p, "change"));
       },
-      { debounce: fastDebounce, additionalFiles: [CONFIG_FILENAME] },
+      {
+        debounce: fastDebounce,
+        maxDebounce: 30_000,
+        growthFactor: 1.5,
+        additionalFiles: [CONFIG_FILENAME],
+        onRawNotify: (relPath, eventType) =>
+          fullDebouncer.notify(relPath, eventType),
+      },
     );
 
     // Run incompleteTaskAlert (and its transitive deps) on schedule only.

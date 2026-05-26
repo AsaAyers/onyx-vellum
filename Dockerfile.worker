@@ -41,4 +41,4 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY scripts/faster_whisper_service.py ./scripts/faster_whisper_service.py
-CMD ["node", "dist/src/transcription/worker.js"]
+CMD ["node", "dist/src/worker.js"]
