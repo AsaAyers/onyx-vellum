@@ -1,7 +1,13 @@
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createFasterWhisperBackend } from "./fasterWhisperBackend.js";
-import { buildJobId, claimNext, enqueue, markDone } from "./queue.js";
+import {
+  buildJobId,
+  claimNext,
+  enqueue,
+  markDone,
+  markFailed,
+} from "./queue.js";
 import { resolveStateDir } from "./queue.js";
 import { type Job, type WorkerOptions } from "./types.js";
 import { FileWriteManager } from "../engine/io.js";
@@ -135,6 +141,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       continue;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      await markFailed(options.stateDir, lastJob!.id, message);
       console.error(err);
       logger.error(`worker loop error: [${lastJob?.type}] ${message}`);
       await sleep(pollIntervalMs);

@@ -163,30 +163,11 @@ async function applyFileOperations(
     const [parent, childIndex, numDelete, newNodes] = target;
 
     // Prepare new nodes: YAML frontmatter + content
-    let existingFrontmatter: Record<string, unknown> = {};
-
-    const yamlNode: RootContent = parent.children.find(
-      (n) => n.type === "yaml",
-    ) ?? {
-      type: "yaml",
-      value: "",
-    };
-
-    if (yamlNode.type === "yaml") {
-      // Parse and merge
-      try {
-        existingFrontmatter = (yaml.load(yamlNode.value) || {}) as Record<
-          string,
-          unknown
-        >;
-      } catch {
-        // skip invalid frontmatter
-      }
-    }
+    const { yamlNode, frontmatter } = extractYamlFrontmatter(parent);
     // Overwrite with op.frontmatter
     if (op.frontmatter) {
       yamlNode.value = yaml
-        .dump({ ...existingFrontmatter, ...op.frontmatter })
+        .dump({ ...frontmatter, ...op.frontmatter })
         .trimEnd();
     }
 
@@ -217,6 +198,30 @@ async function applyFileOperations(
       parent.children.splice(parent.children.indexOf(yamlNode), 1);
     }
   }
+}
+
+export function extractYamlFrontmatter(parent: Root) {
+  let frontmatter: Record<string, unknown> = {};
+
+  const yamlNode: RootContent = parent.children.find(
+    (n) => n.type === "yaml",
+  ) ?? {
+    type: "yaml",
+    value: "",
+  };
+
+  if (yamlNode.type === "yaml") {
+    // Parse and merge
+    try {
+      frontmatter = (yaml.load(yamlNode.value) || {}) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      // skip invalid frontmatter
+    }
+  }
+  return { yamlNode, frontmatter };
 }
 
 export function fileMatchesSources(

@@ -1,8 +1,7 @@
 import { promises as fsp, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { resolve, dirname, join } from "node:path";
 import type { Job } from "./types.js";
 import { randomUUID } from "crypto";
-import { resolve, dirname } from "path/posix";
 
 const QUEUE_DIRS = ["pending", "processing", "done", "failed"] as const;
 

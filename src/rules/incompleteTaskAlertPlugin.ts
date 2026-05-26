@@ -4,6 +4,7 @@ import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
 import { zVaultFile } from "../engine/io.js";
 import { join } from "node:path";
+import { extractYamlFrontmatter } from "../engine/FileOperationExecutor.js";
 
 export const ALERT_FILE = "onyx_alert.md";
 
@@ -21,6 +22,9 @@ export const incompleteTaskAlertPlugin = makePlugin(
       relativePath: ALERT_FILE,
     });
 
+    const { frontmatter } = extractYamlFrontmatter(tree);
+    const priority = frontmatter?.priority ?? "medium";
+    let numTasks = 0;
     visit(tree, "listItem", (node) => {
       if (node.checked === false) {
         const fields = getInlineFields(node);
@@ -31,16 +35,32 @@ export const incompleteTaskAlertPlugin = makePlugin(
           return; // Snoozed, skip alert
         }
 
+        if (priority === "low") {
+          numTasks++;
+          return;
+        }
+
         ctx.updateFile({
           location: {
             file: vaultFile,
-            header: file.path,
+            header: file.path.replace(ctx.vaultPath, ""),
             position: "end",
           },
           content: node,
         });
       }
     });
+
+    ctx.updateFile({
+      location: {
+        file: vaultFile,
+        header: "",
+        position: "end",
+      },
+      content: `* ${numTasks} tasks in ${file.path.replace(ctx.vaultPath, "")}
+          `,
+    });
+    return;
   },
 );
 

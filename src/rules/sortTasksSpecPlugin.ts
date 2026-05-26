@@ -23,11 +23,23 @@ function sortTaskItems(items: ListItem[]): ListItem[] {
       const bDone = b.item.checked === true;
       if (aDone !== bDone) return Number(aDone) - Number(bDone);
 
-      if (!aDone) return a.index - b.index;
       const fieldsA = getInlineFields(a.item);
       const fieldsB = getInlineFields(b.item);
+      if (fieldsA.sleep && fieldsB.sleep) {
+        return fieldsA.sleep.localeCompare(fieldsB.sleep);
+      }
+      if (fieldsA.sleep || fieldsB.sleep) {
+        return fieldsA.sleep ? 1 : -1;
+      }
+      if (fieldsA.due && fieldsB.due) {
+        return fieldsA.due.localeCompare(fieldsB.due);
+      }
+      if (fieldsA.due || fieldsB.due) {
+        return fieldsA.due ? -1 : 1;
+      }
+
       if (fieldsA.done && fieldsB.done) {
-        return fieldsB.done.localeCompare(fieldsA.done);
+        return -fieldsA.done.localeCompare(fieldsB.done);
       }
       return 0;
     })
