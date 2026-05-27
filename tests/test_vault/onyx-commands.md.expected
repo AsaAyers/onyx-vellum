@@ -1,0 +1,6 @@
+Commands:
+
+* #onyx/transcribe
+  * Re-run transcription against the source audio file
+* #onyx/tasks
+  * Extract tasks from the current section and add a new "Tasks" section at the bottom of the file

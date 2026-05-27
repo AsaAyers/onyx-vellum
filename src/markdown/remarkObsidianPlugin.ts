@@ -2,33 +2,33 @@ import type { Root, Text } from "mdast";
 import { visitParents, SKIP } from "unist-util-visit-parents";
 import { makePlugin } from "../rules/makePlugin.js";
 import type {
-  ObsidianEmbedNode,
+  EmbedNode,
   CalloutNode,
-  ObsidianTagNode,
+  TagNode,
   RawAsteriskNode,
 } from "./types.js";
 
 export const remarkObsidianPlugin = makePlugin(
   "obsidianProtections",
   ({ tree }) => {
-    protectObsidianEmbeds(tree);
+    protectEmbeds(tree);
     protectObsidianCallouts(tree);
-    protectObsidianTags(tree);
+    protectTags(tree);
     protectInertAsterisks(tree);
   },
 ); /**
- * Walk the AST and replace text nodes containing Obsidian embeds with a mix of
+ * Walk the AST and replace text nodes containing embed wikilinks with a mix of
  * `text` and `obsidianEmbed` nodes so the stringify step emits them verbatim.
  *
  * Mutates `tree` in place — call just before stringification.
  */
 
-function protectObsidianEmbeds(tree: Root): void {
+function protectEmbeds(tree: Root): void {
   visitParents(tree, "text", (node: Text, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     if (!parent) return;
-    if (!node.value.includes("![[")) return;
-    const parts = splitObsidianEmbedText(node.value);
+    if (!node.value.includes("![")) return;
+    const parts = splitEmbedText(node.value);
     if (parts.length === 1 && parts[0].type === "text") return;
     const index = [...parent.children].indexOf(node);
     parent.children.splice(index, 1, ...parts);
@@ -36,16 +36,14 @@ function protectObsidianEmbeds(tree: Root): void {
   });
 }
 
-const OBSIDIAN_EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
+const EMBED_RE = /(!\[\[(?:[^\][]|\][^\]])*\]\])/g;
 
-function splitObsidianEmbedText(
-  value: string,
-): Array<Text | ObsidianEmbedNode> {
-  const parts: Array<Text | ObsidianEmbedNode> = [];
+function splitEmbedText(value: string): Array<Text | EmbedNode> {
+  const parts: Array<Text | EmbedNode> = [];
   let lastIndex = 0;
-  OBSIDIAN_EMBED_RE.lastIndex = 0;
+  EMBED_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = OBSIDIAN_EMBED_RE.exec(value)) !== null) {
+  while ((match = EMBED_RE.exec(value)) !== null) {
     if (match.index > lastIndex) {
       parts.push({
         type: "text",
@@ -58,7 +56,7 @@ function splitObsidianEmbedText(
       value: match[1],
       target,
       alias,
-    } satisfies ObsidianEmbedNode);
+    } satisfies EmbedNode);
     lastIndex = match.index + match[1].length;
   }
   if (lastIndex < value.length) {
@@ -89,26 +87,26 @@ function protectObsidianCallouts(tree: Root): void {
 }
 
 /**
- * Matches an Obsidian hashtag: `#` immediately followed by a letter or
- * underscore (preventing pure-number tags which Obsidian disallows), then
+ * Matches a hashtag: `#` immediately followed by a letter or
+ * underscore (preventing pure-number tags which are disallowed), then
  * any run of word characters, hyphens, or forward slashes.
  * Supports Unicode letters via the `u` flag and `\p{L}` property.
  */
-const OBSIDIAN_TAG_RE = /#[\p{L}_][\p{L}\p{N}_\-/]*/gu;
+const TAG_RE = /#[\p{L}_][\p{L}\p{N}_\-/]*/gu;
 
-function splitObsidianTagText(value: string): Array<Text | ObsidianTagNode> {
-  const parts: Array<Text | ObsidianTagNode> = [];
+function splitTagText(value: string): Array<Text | TagNode> {
+  const parts: Array<Text | TagNode> = [];
   let lastIndex = 0;
-  OBSIDIAN_TAG_RE.lastIndex = 0;
+  TAG_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
-  while ((match = OBSIDIAN_TAG_RE.exec(value)) !== null) {
+  while ((match = TAG_RE.exec(value)) !== null) {
     if (match.index > lastIndex) {
       parts.push({
         type: "text",
         value: value.slice(lastIndex, match.index),
       } as Text);
     }
-    parts.push({ type: "obsidianTag", value: match[0] } as ObsidianTagNode);
+    parts.push({ type: "obsidianTag", value: match[0] } as TagNode);
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < value.length) {
@@ -118,17 +116,17 @@ function splitObsidianTagText(value: string): Array<Text | ObsidianTagNode> {
 }
 
 /**
- * Walk the AST and replace text nodes containing Obsidian hashtags with a mix
+ * Walk the AST and replace text nodes containing hashtags with a mix
  * of `text` and `obsidianTag` nodes so the stringify step emits them verbatim.
  *
  * Mutates `tree` in place — call just before stringification.
  */
-function protectObsidianTags(tree: Root): void {
+function protectTags(tree: Root): void {
   visitParents(tree, "text", (node: Text, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
     if (!parent) return;
     if (!node.value.includes("#")) return;
-    const parts = splitObsidianTagText(node.value);
+    const parts = splitTagText(node.value);
     if (parts.length === 0 || (parts.length === 1 && parts[0].type === "text"))
       return;
 

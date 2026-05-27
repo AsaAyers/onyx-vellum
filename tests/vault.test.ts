@@ -92,6 +92,11 @@ describe("test vault config schema", () => {
   });
 });
 
+const UPDATE_EXPECTED =
+  process.env["UPDATE_EXPECTED"] === "1" ||
+  process.env["UPDATE_EXPECTED"] === "true" ||
+  process.env["UPDATE_EXPECTED"] === "yes";
+
 describe("test vault — .md.expected snapshots", () => {
   let pipelineOutputs: Map<string, string>;
   const expectedFiles = walkExpectedFilesSync(TEST_VAULT);
@@ -112,6 +117,17 @@ describe("test vault — .md.expected snapshots", () => {
     pipelineOutputs = new Map(
       changes.map((c) => [c.vaultFile.absolutePath, c.content]),
     );
+    if (UPDATE_EXPECTED) {
+      for (const [absolutePath, content] of pipelineOutputs) {
+        const expectedPath = absolutePath + ".expected";
+        await fsp.mkdir(dirname(expectedPath), { recursive: true });
+        await fsp.writeFile(expectedPath, content, "utf-8");
+        // eslint-disable-next-line no-console
+        console.log(
+          `[UPDATE_EXPECTED] Wrote ${relative(TEST_VAULT, expectedPath)}`,
+        );
+      }
+    }
   })();
 
   type DirTree = { [name: string]: DirTree | string };
@@ -136,8 +152,9 @@ describe("test vault — .md.expected snapshots", () => {
         const absolutePath = expectedPath.slice(0, -".expected".length);
         const relPath = relative(TEST_VAULT, absolutePath);
         if (WORKER_ONLY_EXPECTED_OUTPUTS.has(absolutePath)) continue;
-        it(basename(relPath), async () => {
+        const runAssertion = async () => {
           await pipelineReady;
+          if (UPDATE_EXPECTED) return;
           const expectedContent = await fsp.readFile(expectedPath, "utf-8");
           const actualContent =
             pipelineOutputs.get(absolutePath) ??
@@ -146,7 +163,8 @@ describe("test vault — .md.expected snapshots", () => {
             throw new Error(`expected output file was not produced`);
           }
           expect(actualContent, relPath).toBe(expectedContent);
-        });
+        };
+        it(basename(relPath), runAssertion);
       } else {
         describe(fileName, () => {
           defineTests(expectedPath, pathArr.concat(fileName));

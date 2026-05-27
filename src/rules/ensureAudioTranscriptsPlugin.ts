@@ -2,7 +2,7 @@ import { visit } from "unist-util-visit";
 import invariant from "tiny-invariant";
 import { makePlugin } from "./makePlugin.js";
 import path, { relative, dirname, isAbsolute, resolve } from "node:path";
-import type { ObsidianEmbedNode } from "../markdown/types.js";
+import type { EmbedNode } from "../markdown/types.js";
 import { VaultFile } from "../engine/VaultFile.js";
 import { type FileOperation } from "../transcription/types.js";
 import { existsSync, realpathSync } from "node:fs";
@@ -33,7 +33,7 @@ function isWithinVault(vaultPath: string, filePath: string): boolean {
 }
 
 export function resolveTranscriptContext(
-  link: ObsidianEmbedNode | undefined,
+  link: EmbedNode | undefined,
   ctx: LinkActionContext | undefined,
 ): ResolvedTranscriptContext | undefined {
   if (!link || !ctx) return undefined;
@@ -92,7 +92,7 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
       });
 
       if (!hasTranscriptLink) {
-        const newLink: ObsidianEmbedNode = {
+        const newLink: EmbedNode = {
           type: "obsidianEmbed",
           target: transcriptPath,
           value: `[[${transcriptPath}]]`,

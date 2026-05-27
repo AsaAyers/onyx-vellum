@@ -29,15 +29,15 @@ declare module "unified" {
 export type Handlers = NonNullable<RemarkStringifyOptions["handlers"]>;
 export type Handle = Handlers[keyof Handlers];
 // ---------------------------------------------------------------------------
-// Obsidian embed wikilink support
+// Embed wikilink support
 // ---------------------------------------------------------------------------
 /**
- * `remark-wiki-link` handles standard Obsidian page links (`[[Page Name]]`)
+ * `remark-wiki-link` handles standard page links (`[[Page Name]]`)
  * but not embed wikilinks (`![[image.png]]`). We preserve embeds verbatim by
  * splitting text nodes containing embeds into `text` / `obsidianEmbed` nodes
  * just before stringification.
  */
-export interface ObsidianEmbedNode extends Literal {
+export interface EmbedNode extends Literal {
   type: "obsidianEmbed";
   value: string;
   target: string;
@@ -68,8 +68,8 @@ export interface InlineFieldsNode extends Literal {
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    obsidianEmbed: ObsidianEmbedNode;
-    obsidianTag: ObsidianTagNode;
+    obsidianEmbed: EmbedNode;
+    obsidianTag: TagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
     inlineFields: InlineFieldsNode;
@@ -81,27 +81,27 @@ declare module "mdast" {
   }
 
   interface RootContentMap {
-    obsidianEmbed: ObsidianEmbedNode;
-    obsidianTag: ObsidianTagNode;
+    obsidianEmbed: EmbedNode;
+    obsidianTag: TagNode;
     rawAsterisk: RawAsteriskNode;
     wikiLink: WikiLinkNode;
     inlineFields: InlineFieldsNode;
   }
 }
 // ---------------------------------------------------------------------------
-// Obsidian hashtag protection
+// Hashtag protection
 // ---------------------------------------------------------------------------
 /**
- * Obsidian tag syntax: `#tagname` or `#parent/child`.
+ * Tag syntax: `#tagname` or `#parent/child`.
  * remark-stringify escapes `#` at the start of a line (the CommonMark
  * "atBreak" unsafe rule) because `# text` opens a heading.  However,
- * `#feeling/good` is not a heading — Obsidian tags follow `#` immediately
+ * `#feeling/good` is not a heading — tags follow `#` immediately
  * with a non-space character.  We protect them by splitting text nodes that
  * contain `#tags` into alternating `text` / `obsidianTag` nodes before
  * stringification so the raw value is emitted verbatim.
  */
 
-export interface ObsidianTagNode extends Literal {
+export interface TagNode extends Literal {
   type: "obsidianTag";
   value: string;
 } // ---------------------------------------------------------------------------

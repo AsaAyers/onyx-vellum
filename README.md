@@ -120,6 +120,10 @@ times) is evaluated in that timezone instead of the server's local timezone.
 | `"glob"` | `pattern` (required), `exclude` (optional array) | Matches files using a glob pattern relative to the vault root. `exclude` patterns are also relative to vault root. |
 | `"path"` | `value` (required)                               | A single concrete file path relative to the vault root.                                                            |
 
+Per-rule sources interact with the `--only` CLI flag: `--only` replaces the
+default top-level source list (`**/*.md`), but each rule's own `sources` still
+gate independently. A file is only processed if it passes both filters.
+
 ### Auto-migration
 
 When a new rule is added in a future release, its default entry is merged into `rules` in your existing `.onyx-vellum.json` automatically on the next run. You do not need to edit the file by hand unless you want a non-default value.
@@ -147,7 +151,7 @@ VAULT_PATH=/my/vault onyx-vellum --watch stampDone
 
 1. **Native watcher** — Uses Node.js's built-in `fs.watch()` with `recursive: true`. No polling is ever used.
 2. **Per-file debouncing** — When a `.md` file changes, a debounce timer starts for that file. If the file changes again before the timer expires the timer resets. Rules are only run after the file has been idle for the full debounce period.
-3. **Targeted processing** — Only the changed file is processed (equivalent to passing `--only <changedFile>` on the command line). The rest of the vault is not touched.
+3. **Targeted processing** — Only the changed file is processed (the watcher passes the changed path as the `--only` filter). The rest of the vault is not touched.
 
 ### Log output
 
@@ -175,7 +179,7 @@ Set `debounce` to the number of milliseconds the file must be idle before rules 
 
 - `--watch` is **not** compatible with `--init`. Use them in separate invocations.
 - `--watch` can be combined with `--dry-run` and `--verbose`.
-- `--watch` does not use `--only`; the changed-file path is always used as the implicit filter.
+- `--watch` ignores `--only`; the changed-file path is always used as the implicit filter instead.
 
 ## Environment Variables
 
@@ -343,6 +347,11 @@ To restrict which files are processed, use `--only <glob>`:
 VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run --only "daily/**" all
 ```
 
+`--only` replaces the default `**/*.md` source list with the supplied glob or
+file path. Per-rule `sources` in `.onyx-vellum.json` are **still checked**
+independently — a file must pass both the `--only` filter AND the rule's own
+`sources` to be processed.
+
 ### Run with dry-run (prints a unified diff, no files written)
 
 ```bash
@@ -416,6 +425,16 @@ the other per invocation.
 npm test
 ```
 
+When snapshot tests fail because you changed pipeline output (e.g. after modifying a rule),
+re-bless all `.md.expected` files with `UPDATE_EXPECTED`:
+
+```bash
+UPDATE_EXPECTED=1 npx vitest run tests/vault.test.ts
+```
+
+This writes the current pipeline output to every `.md.expected` file and skips
+assertions. Run `npm test` afterwards to confirm everything is green.
+
 ### Lint
 
 ```bash
@@ -446,7 +465,7 @@ they are `.use()`'d — no declared dependencies or topological sort.
 | `commands`                    | `src/rules/onyxVellumCommands.ts`                | Processes `#onyx/` command tags — transcribe, extract tasks, summarize.                                                                                      |
 | `ensureAudioTranscripts`      | `src/rules/ensureAudioTranscriptsPlugin.ts`      | For each embedded `.m4a`, inserts a mirrored transcript embed, creates a sibling `.transcript.md` placeholder when needed, and enqueues async transcription. |
 | `stampDone`                   | `src/rules/stampDonePlugin.ts`                   | Adds `done:YYYY-MM-DD` to newly completed tasks that do not already have one.                                                                                |
-| `repeatTasks`                 | `src/rules/rolloverPlugin.ts`                    | Clones recurring completed tasks forward to their next cycle.                                                                                                |
+| `repeatTasks`                 | `src/rules/repeatTasksPlugin.ts`                 | Clones recurring completed tasks forward to their next cycle.                                                                                                |
 | `removeEphemeralOverdueTasks` | `src/rules/removeEphemeralOverdueTasksPlugin.ts` | Removes unchecked overdue tasks marked `ephemeral`.                                                                                                          |
 | `moveDoneTasks`               | `src/rules/moveDoneTasksPlugin.ts`               | Moves checked tasks with `done:YYYY-MM-DD` from notes into matching daily notes.                                                                             |
 | `sortTasks`                   | `src/rules/sortTasksPlugin.ts`                   | Sorts same-level task lists so incomplete tasks stay at the top, and completed tasks are ordered by newest `done:` date first.                               |
@@ -554,7 +573,7 @@ explicit completion date before later rules run.
 
 ### repeatTasks
 
-**Source:** `src/rules/rolloverPlugin.ts`
+**Source:** `src/rules/repeatTasksPlugin.ts`
 
 Finds every **recurring** checked task (one that has a `repeat:` field) whose
 `done:` date equals **today** and that does not already carry a `copied:1`
@@ -663,7 +682,7 @@ src/
 │   ├── scheduleUtils.ts         # parseRepeat, computeNextDue, date helpers
 │   ├── normalizeTodayPlugin.ts
 │   ├── stampDonePlugin.ts
-│   ├── rolloverPlugin.ts
+│   ├── repeatTasksPlugin.ts
 │   ├── removeEphemeralOverdueTasksPlugin.ts
 │   ├── moveDoneTasksPlugin.ts
 │   ├── sortTasksPlugin.ts

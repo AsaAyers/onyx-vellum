@@ -13,13 +13,10 @@ import { userLocalTime } from "../engine/userLocalTime.js";
  * - Appends copied:1 to the completed task
  * - Inserts a fresh incomplete copy after it, with advanced date fields
  */
-export const rolloverPlugin = makePlugin(
+export const repeatTasksPlugin = makePlugin(
   "repeatTasks",
   function ({ tree, ctx, debug, file }) {
-    // const { tz } = ctx.dates;
-    // console.log("rolloverPlugin", { tz });
-
-    const tz = "America/Los_Angeles";
+    const { tz } = ctx.dates;
 
     function formatDate(d: Date): string {
       return format(d, "yyyy-MM-dd", { timeZone: tz });

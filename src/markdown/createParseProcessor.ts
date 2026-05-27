@@ -11,14 +11,9 @@ import {
   inlineFieldsNodeHandler,
 } from "./inlineFieldsPlugin.js";
 import { normalizeTodayPlugin } from "../rules/normalizeTodayPlugin.js";
-import { rolloverPlugin } from "../rules/rolloverPlugin.js";
+import { repeatTasksPlugin } from "../rules/repeatTasksPlugin.js";
 import type { Root, Node, Link } from "mdast";
-import type {
-  ObsidianEmbedNode,
-  WikiLinkNode,
-  Handle,
-  ObsidianTagNode,
-} from "./types.js";
+import type { EmbedNode, WikiLinkNode, Handle, TagNode } from "./types.js";
 import type { Config } from "../loadConfig.js";
 import { stampDonePlugin } from "../rules/stampDonePlugin.js";
 import { removeEphemeralOverdueTasksPlugin } from "../rules/removeEphemeralOverdueTasksPlugin.js";
@@ -74,7 +69,7 @@ export const createParseProcessor = (
     debug("Creating processor");
     processor = processor
       .use(stampDonePlugin)
-      .use(rolloverPlugin)
+      .use(repeatTasksPlugin)
       .use(removeEphemeralOverdueTasksPlugin)
       .use(moveDoneTasksPlugin)
       .use(sortTasksSpecPlugin);
@@ -259,14 +254,12 @@ const customHandlers: Record<string, Handle> = {
 
   callout: rawHandler,
   obsidianEmbed: (node) =>
-    `![[${(node as ObsidianEmbedNode).target}${
-      (node as ObsidianEmbedNode).alias
-        ? `|${(node as ObsidianEmbedNode).alias}`
-        : ""
+    `![[${(node as EmbedNode).target}${
+      (node as EmbedNode).alias ? `|${(node as EmbedNode).alias}` : ""
     }]]`,
   rawAsterisk: () => "*",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  obsidianTag: (node: any) => (node as ObsidianTagNode).value,
+  obsidianTag: (node: any) => (node as TagNode).value,
   link: linkHandler,
   image: imageHandler,
   inlineFields: inlineFieldsNodeHandler,

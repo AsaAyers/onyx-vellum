@@ -29,10 +29,13 @@ Options:
   --dry-run                Print unified diffs to stdout; do not write any files.
   --verbose                Show rule-progress logs and the run summary (normally
                            suppressed in --dry-run mode).
-  --only <glob>            Restrict all rules (including dependencies) to files
-                           matching <glob> (relative to VAULT_PATH).  Rules still
-                           run in full dependency order; only the set of files each
-                           rule processes is narrowed to the overlap with <glob>.
+  --only <glob>            Replace the default "**/*.md" source list with a
+                             single glob or file path (relative to VAULT_PATH).
+                             Per-rule "sources" in .onyx-vellum.json still
+                             apply independently: a file must pass both the
+                             --only filter AND the rule's own sources to be
+                             processed. In watch mode the changed-file path
+                             is always used as the implicit --only filter.
   --watch                  Watch vault markdown files for changes and automatically
                            run selected rules after the vault has been idle for
                            the debounce period (default 60 s).  Only changed files

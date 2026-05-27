@@ -179,9 +179,9 @@ describe("VaultFile.fromVFile", () => {
 
   it("throws when no vaultPath is provided for a plain VFile", () => {
     const vfile = new VFile({ path: "notes/tasks.md" });
-    expect(() =>
-      VaultFile.fromVFile(vfile as unknown as VFile, ""),
-    ).toThrow("vaultPath is required");
+    expect(() => VaultFile.fromVFile(vfile as unknown as VFile, "")).toThrow(
+      "vaultPath is required",
+    );
   });
 });
 
