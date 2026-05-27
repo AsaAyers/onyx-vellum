@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { queue } from "../src/transcription/queue.js";
 import { startWorker } from "../src/transcription/startWorker.js";
-import { type ContentLocation, type Job } from "../src/transcription/types.js";
+import {
+  zJob,
+  type ContentLocation,
+  type Job,
+} from "../src/transcription/types.js";
 import { VaultFile } from "../src/engine/FileWriteManager.js";
 import { createTempDir } from "./createTempDir.js";
 
@@ -139,15 +143,17 @@ chislic doner corned beef
         header,
         position: "end",
       };
-      await runWorkerForSingleJob({
-        type: "clean-transcription",
-        vaultPath,
-        id: "01j-worker-a",
-        source,
-        target: {
-          location: source,
-        },
-      });
+      await runWorkerForSingleJob(
+        zJob.parse({
+          type: "clean-transcription",
+          vaultPath,
+          id: "01j-worker-a",
+          source,
+          target: {
+            location: source,
+          },
+        }),
+      );
       const content = await fs.readFile(transcriptPath, "utf-8");
 
       expect(content.replaceAll(isoRegex, "2024-01-01T00:00:00.000Z"))

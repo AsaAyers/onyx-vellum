@@ -1,5 +1,5 @@
 import { createParseProcessor } from "./markdown/createParseProcessor.js";
-import { type PluginContext } from "./markdown/PluginContext.js";
+import { type PluginContext } from "./markdown/types.js";
 import { EMPTY_CONFIG } from "./engine/runner.js";
 import fs from "node:fs/promises";
 import type { Root } from "mdast";
@@ -30,7 +30,7 @@ export async function viewAST() {
 
   const vfile = new VaultFile({
     absolutePath,
-    relativePath,
+    relativePath: relativePath,
     vaultPath,
     value: contents,
   });

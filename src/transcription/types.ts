@@ -59,10 +59,12 @@ export const zFindTasksJob = zBaseJob.extend({
   source: zContentLocation,
 });
 
-export const zJob = zTranscribeJob
-  .or(zCleanTranscript)
-  .or(zSummarizeTextJob)
-  .or(zFindTasksJob);
+export const zJob = z.union([
+  zTranscribeJob,
+  zCleanTranscript,
+  zSummarizeTextJob,
+  zFindTasksJob,
+]);
 
 export const zTranscriberBackend = z.object({
   transcribe: z.function().args(z.string()).returns(z.promise(z.string())),

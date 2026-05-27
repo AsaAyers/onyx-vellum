@@ -16,7 +16,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
       debug("[incompleteTaskAlert] No alertUrl configured, skipping plugin");
       return;
     }
-    if (file.path === ALERT_FILE) return;
+    if (file.relativePath === ALERT_FILE) return;
     const vaultFile = new VaultFile({
       absolutePath: join(ctx.vaultPath, ALERT_FILE),
       relativePath: ALERT_FILE,
@@ -41,7 +41,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
         ctx.updateFile({
           location: {
             file: vaultFile,
-            header: file.path.replace(ctx.vaultPath, ""),
+            header: file.relativePath,
             position: "end",
           },
           content: node,
@@ -55,7 +55,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
         header: "",
         position: "end",
       },
-      content: `* ${numTasks} tasks in ${file.path.replace(ctx.vaultPath, "")}
+      content: `* ${numTasks} tasks in ${file.relativePath.replace(ctx.vaultPath, "")}
           `,
     });
     return;

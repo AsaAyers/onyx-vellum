@@ -4,7 +4,7 @@ import type { Root } from "mdast";
 import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/FileOperationExecutor.js";
-import type { PluginContext } from "../markdown/PluginContext.js";
+import type { PluginContext } from "../markdown/types.js";
 import { VaultFile } from "../engine/FileWriteManager.js";
 import createDebug from "debug";
 
@@ -33,14 +33,17 @@ export function makePlugin<
     const { config, ctx } = settings;
     const ruleConfig = config.rules?.[pluginName] as ThisRuleConfig | undefined;
 
-    return function (tree: Root, f: VFile): Root | void {
+    return function (tree: Root, file: VFile): Root | void {
+      invariant(
+        file instanceof VaultFile,
+        `[${pluginName}] Expected file to be an instance of VaultFile, got ${file.constructor.name}`,
+      );
       try {
         invariant(
           ctx.vaultPath,
           `[${pluginName}] vaultPath must be provided in plugin context`,
         );
 
-        const file = VaultFile.fromVFile(f, ctx.vaultPath);
         if (
           ruleConfig?.sources &&
           file &&
@@ -53,14 +56,14 @@ export function makePlugin<
         }
 
         debugMakePlugin(
-          `[${pluginName}] running plugin on file ${file?.relativePath ?? "unknown"}`,
+          `[${pluginName}] running plugin on file ${file?.path ?? "unknown"}`,
         );
 
         return (
           coreLogic({ tree, file, ctx, ruleConfig, config, debug }) ?? tree
         );
       } catch (err) {
-        const msg = `[${pluginName}] Plugin error in ${f.path}: ${(err as Error).message}`;
+        const msg = `[${pluginName}] Plugin error in ${file.relativePath}: ${(err as Error).message}`;
         console.error(msg);
         ctx.report?.(msg);
         return tree;

@@ -30,7 +30,13 @@ export async function walkMarkdownFiles(
         !name.startsWith(".")
       ) {
         const relativePath = path.relative(vaultPath, absolutePath);
-        results.push(new VaultFile({ absolutePath, relativePath, vaultPath }));
+        results.push(
+          new VaultFile({
+            absolutePath,
+            relativePath: relativePath,
+            vaultPath,
+          }),
+        );
       }
     }
   } catch {
@@ -61,9 +67,18 @@ export class VaultFile extends VFile {
       absolutePath: z.string(),
       relativePath: z.string(),
       vaultPath: z.string(),
+      value: z.string().optional(),
     })
     .transform((val) => new VaultFile(val));
-  static fromVFile(vfile: VFile, vaultPath: string): VaultFile {
+  static fromVFile<T extends VFile>(
+    ...args: T extends VaultFile ? [T] : [T, string]
+  ): VaultFile {
+    const vfile = args[0];
+    let vaultPath: string = args[1] ?? "";
+    if (vfile instanceof VaultFile) {
+      vaultPath = vfile.vaultPath;
+    }
+    invariant(vaultPath, "vaultPath is required when converting from VFile");
     let relativePath = vfile.path;
     if (path.isAbsolute(relativePath) && relativePath.startsWith(vaultPath)) {
       relativePath = path.relative(vaultPath, relativePath);
@@ -73,13 +88,13 @@ export class VaultFile extends VFile {
     }
 
     return new VaultFile({
-      absolutePath: path.join(vaultPath, vfile.path),
-      relativePath,
+      absolutePath: path.join(vaultPath, relativePath),
+      relativePath: relativePath,
       vaultPath,
     });
   }
   constructor(options: FilePathInfo) {
-    super({ path: options.relativePath, value: options.value });
+    super({ path: options.relativePath, ...options });
 
     invariant(
       path.isAbsolute(options.absolutePath),
@@ -96,6 +111,14 @@ export class VaultFile extends VFile {
   vaultPath: string;
   absolutePath: string;
   relativePath: string;
+
+  toJSON() {
+    return {
+      absolutePath: this.absolutePath,
+      relativePath: this.relativePath,
+      vaultPath: this.vaultPath,
+    };
+  }
 }
 
 export type ChangesArray = Array<{
@@ -170,7 +193,7 @@ export class FileWriteManager {
     for (const [relativePath, content] of this.pending) {
       const vaultFile = new VaultFile({
         absolutePath: join(this.vaultPath, relativePath),
-        relativePath,
+        relativePath: relativePath,
         vaultPath: this.vaultPath,
       });
       this.markFileAsWritten(vaultFile.absolutePath);

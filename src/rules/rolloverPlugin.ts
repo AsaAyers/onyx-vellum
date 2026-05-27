@@ -78,7 +78,7 @@ export const rolloverPlugin = makePlugin(
         if (sleepDate) {
           const newSleep = addDays(sleepDate, deltaDays);
           cloneFields.sleep = formatDate(newSleep);
-          debug(file.path, "sleep", cloneFields.sleep);
+          debug(file.relativePath, "sleep", cloneFields.sleep);
         }
       }
 

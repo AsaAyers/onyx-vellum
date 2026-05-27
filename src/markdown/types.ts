@@ -1,7 +1,9 @@
 import type { Literal } from "mdast";
 import type { Options as RemarkStringifyOptions } from "remark-stringify";
 import type { Config } from "../loadConfig.js";
-import type { PluginContext } from "./PluginContext.js";
+import type { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
+import type { UserLocalTime } from "../engine/userLocalTime.js";
+import type { Job } from "../transcription/types.js";
 
 // import type { ListItem } from "mdast";
 
@@ -118,3 +120,16 @@ export interface RawAsteriskNode extends Literal {
   type: "rawAsterisk";
   value: "*";
 }
+export type PluginContext = {
+  updateFile: FileOperationExecutor["updateFile"];
+  queueJob: (job: Job) => void;
+  jobIdFactory: (createdAt: Date) => string;
+  env: NodeJS.ProcessEnv;
+  mode: "normalize" | "all" | "fast" | "alert";
+  onlyGlob?: string[];
+  dates: UserLocalTime;
+  dryRun: boolean;
+  vaultPath: string;
+  verbose?: boolean;
+  report?: (msg: string) => void;
+};

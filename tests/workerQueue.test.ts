@@ -60,7 +60,7 @@ describe("transcription queue", () => {
       join(stateDir, "pending", "01j0-a.json"),
       "utf-8",
     );
-    expect(JSON.parse(pendingJson)).toEqual(job);
+    expect(JSON.parse(pendingJson)).toEqual(JSON.parse(JSON.stringify(job)));
   });
 
   it("claimNext returns null when queue is empty", async () => {

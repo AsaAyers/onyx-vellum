@@ -28,13 +28,13 @@ export const moveDoneTasksPlugin = makePlugin(
             if (checked && fields.done) {
               const done = fields.done;
               const relativePath = join(dailyNotesFolder, `${done}.md`);
-              const vaultFile = new VaultFile({
+              const dailyFile = new VaultFile({
                 absolutePath: join(vaultPath, relativePath),
                 relativePath: relativePath,
                 vaultPath,
               });
-              const destExists = fs.existsSync(vaultFile.absolutePath);
-              debug(vaultFile.relativePath, {
+              const destExists = fs.existsSync(dailyFile.absolutePath);
+              debug(dailyFile.relativePath, {
                 destExists,
                 today: ctx.dates.today,
               });
@@ -42,7 +42,7 @@ export const moveDoneTasksPlugin = makePlugin(
               if (destExists) {
                 ctx.updateFile({
                   location: {
-                    file: vaultFile,
+                    file: dailyFile,
                     header: null,
                     position: "end",
                   },

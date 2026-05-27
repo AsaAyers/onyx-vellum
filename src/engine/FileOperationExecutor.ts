@@ -3,10 +3,11 @@ import type { Heading, Root, RootContent } from "mdast";
 import type { Processor } from "unified";
 import createDebug from "debug";
 import { VaultFile, type FileWriteManager } from "./FileWriteManager.js";
-import path, { join } from "node:path";
+import path from "node:path";
 import micromatch from "micromatch";
 import type { Source } from "../rules/types.js";
 import {
+  zFileOperation,
   type ContentLocation,
   type FileOperation,
 } from "../transcription/types.js";
@@ -20,8 +21,10 @@ export class FileOperationExecutor {
   }
   fileOperations: Record<string, FileOperation[]> = {};
 
-  updateFile = (fileOperation: FileOperation) => {
+  updateFile = (op: FileOperation) => {
+    const fileOperation = zFileOperation.parse(op);
     const relativePath = fileOperation.location.file.relativePath;
+    invariant(relativePath, `File operation missing relative path`);
     this.fileOperations[relativePath] ??= [];
     this.fileOperations[relativePath].push(fileOperation);
     debug(`Queued file operation for ${relativePath}`);
@@ -44,11 +47,7 @@ export class FileOperationExecutor {
         !path.isAbsolute(relativePath),
         `relativePath must be relative`,
       );
-      const file = new VaultFile({
-        absolutePath: join(fileManager.vaultPath, relativePath),
-        relativePath,
-        vaultPath: fileManager.vaultPath,
-      });
+      const file = ops[0].location.file;
       try {
         file.value = await fileManager.read(file);
       } catch {
@@ -180,8 +179,8 @@ async function applyFileOperations(
     let contentNodes: RootContent[] = [];
     if (op.content) {
       if (typeof op.content === "string") {
-        // Use mdast-util-from-markdown to parse content
-        const f = VaultFile.fromVFile(file, file.vaultPath);
+        // Copy the file to avoid overwriting the original content when parsing
+        const f = VaultFile.fromVFile(file);
         f.value = op.content;
         let parsed = processor.parse(f);
         parsed = (await processor.run(parsed, f)) as Root;

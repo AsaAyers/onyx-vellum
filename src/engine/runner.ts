@@ -2,7 +2,7 @@ import { createPatch } from "diff";
 import fs from "node:fs/promises";
 import { join } from "node:path";
 import { createParseProcessor } from "../markdown/createParseProcessor.js";
-import { type PluginContext } from "../markdown/PluginContext.js";
+import { type PluginContext } from "../markdown/types.js";
 import {
   FileWriteManager,
   walkMarkdownFiles,
@@ -111,7 +111,7 @@ export async function runner(
   // Filter all .md files in the vault
   const matchingFiles = (
     await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
-  ).filter((filePath) => fileMatchesSources(filePath, globalGlobs));
+  ).filter((file) => fileMatchesSources(file, globalGlobs));
   const alertFile =
     baseCtx.mode === "alert"
       ? new VaultFile({
@@ -140,6 +140,7 @@ export async function runner(
       console.warn("Empty file:", vaultFile.relativePath);
     }
 
+    vaultFile.value = original;
     const tree = processor.parse(vaultFile);
     const processed = (await processor.run(tree, vaultFile)) as Root;
     const normalized = String(processor.stringify(processed, vaultFile));
@@ -165,7 +166,6 @@ export async function runner(
   }
 
   // Sort by path for deterministic output
-  // fileManager.sort((a, b) => a.path.localeCompare(b.path));
   const changes = await fileManager.commit(baseCtx.dryRun);
   if (baseCtx.dryRun) {
     if (changes.length > 0) {
@@ -186,7 +186,7 @@ export async function runner(
     if (changes.length > 0) {
       log("\nFiles written:");
       for (const {
-        vaultFile: { relativePath: f },
+        vaultFile: { path: f },
       } of changes) {
         log(`  ${f}`);
       }
@@ -358,14 +358,10 @@ export async function normalizeFileContent({
     },
   );
 
-  /**
-   * Skip executing when normalizing single files.
-   */
-  // fileOperations.execute(processor, []);
   const relativePath = "temp.md";
   const vfile = new VaultFile({
     absolutePath: join(vaultPath, relativePath),
-    relativePath,
+    relativePath: relativePath,
     value: content,
     vaultPath,
   });

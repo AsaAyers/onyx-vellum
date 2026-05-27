@@ -1,6 +1,6 @@
 import { promises as fsp, mkdirSync, writeFileSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
-import type { Job } from "./types.js";
+import { zJob, type Job } from "./types.js";
 import { randomUUID } from "crypto";
 
 const QUEUE_DIRS = ["pending", "processing", "done", "failed"] as const;
@@ -24,6 +24,7 @@ function ensureQueueDirs(stateDir: string): void {
 }
 
 export function queue(stateDir: string, job: Job): void {
+  zJob.parse(job);
   ensureQueueDirs(stateDir);
   writeFileSync(
     jobPath(stateDir, "pending", job.id),
@@ -51,7 +52,7 @@ export async function claimNext(stateDir: string): Promise<Job | null> {
       throw err;
     }
     const raw = await fsp.readFile(to, "utf-8");
-    return JSON.parse(raw) as Job;
+    return zJob.parse(JSON.parse(raw));
   }
 
   return null;

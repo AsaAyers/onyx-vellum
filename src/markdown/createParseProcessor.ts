@@ -27,7 +27,7 @@ import { moveDoneTasksPlugin } from "../rules/moveDoneTasksPlugin.js";
 import { ensureAudioTranscriptsPlugin } from "../rules/ensureAudioTranscriptsPlugin.js";
 import { incompleteTaskAlertPlugin } from "../rules/incompleteTaskAlertPlugin.js";
 import { remarkObsidianPlugin } from "./remarkObsidianPlugin.js";
-import type { PluginContext } from "./PluginContext.js";
+import type { PluginContext } from "./types.js";
 import { onyxVellumCommands } from "../rules/onyxVellumCommands.js";
 
 const debug = createDebug("onyx:markdown:parse");

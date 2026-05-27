@@ -1,13 +1,12 @@
 import { EXIT, SKIP, visitParents } from "unist-util-visit-parents";
 import { makePlugin } from "./makePlugin.js";
-import { VaultFile } from "../engine/FileWriteManager.js";
-import { join, relative } from "path";
+import { join } from "path";
 import type { ContentLocation, FileOperation } from "../transcription/types.js";
 
 export const onyxVellumCommands = makePlugin(
   "commands",
   function ({ tree, ctx, file }) {
-    if (file.path?.endsWith(ONYX_COMMANDS_FILE)) {
+    if (file.relativePath?.endsWith(ONYX_COMMANDS_FILE)) {
       return;
     }
 
@@ -32,18 +31,12 @@ export const onyxVellumCommands = makePlugin(
         }
       }
 
-      const vaultFile = new VaultFile({
-        absolutePath: file.path,
-        relativePath: relative(ctx.vaultPath, file.path),
-        vaultPath: ctx.vaultPath,
-      });
-
       const now = new Date();
       const id = ctx.jobIdFactory(now);
       const createdAt = now.toISOString();
       const source: ContentLocation = {
         header: headerText,
-        file: vaultFile,
+        file: file,
         position: "end",
       };
 
@@ -56,7 +49,7 @@ export const onyxVellumCommands = makePlugin(
             location: {
               header: "Tasks",
               position: "end",
-              file: vaultFile,
+              file: file,
             },
           };
           ctx.updateFile(target);
@@ -82,7 +75,7 @@ export const onyxVellumCommands = makePlugin(
 
           if (!audioPath) {
             console.warn(
-              `No audio file found for transcription command in ${file.path}`,
+              `No audio file found for transcription command in ${file.relativePath}`,
             );
             break;
           }
@@ -94,7 +87,7 @@ export const onyxVellumCommands = makePlugin(
             location: {
               header: "Transcript",
               position: "end",
-              file: vaultFile,
+              file: file,
             },
           };
 
@@ -118,7 +111,7 @@ export const onyxVellumCommands = makePlugin(
             location: {
               header: "Summary",
               position: "start",
-              file: vaultFile,
+              file: file,
             },
           };
           ctx.updateFile(target);

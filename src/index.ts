@@ -9,7 +9,7 @@ import {
 import { userLocalTime } from "./engine/userLocalTime.js";
 import { helpText } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./loadConfig.js";
-import type { PluginContext } from "./markdown/PluginContext.js";
+import type { PluginContext } from "./markdown/types.js";
 import { queue, resolveStateDir } from "./transcription/queue.js";
 import type { Job } from "./transcription/types.js";
 import path from "path";
