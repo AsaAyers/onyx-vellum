@@ -66,7 +66,7 @@ If the pipeline does not modify the file, `tasks.md.expected` must be a copy of 
 | Directory                                 | What it covers                                              |
 | ----------------------------------------- | ----------------------------------------------------------- |
 | `repeat-basic`                            | `repeat:s` (Sunday-only, no skip)                           |
-| `repeat-rollover`                         | `repeat:a` with `start`/`sleep`/`due` shift                 |
+| `repeat-repeatTasks`                      | `repeat:a` with `start`/`sleep`/`due` shift                 |
 | `repeat-today-fallback`                   | `repeat:s` without pre-existing `done:`                     |
 | `repeat-daily-shorthand`                  | `repeat:d` (daily shorthand, no skip)                       |
 | `repeat-daily-skip`                       | `repeat:1d` (daily with 1-week skip)                        |
@@ -78,9 +78,9 @@ If the pipeline does not modify the file, `tasks.md.expected` must be a copy of 
 | `audio-embed-audio-missing`               | missing audio file is skipped without changes               |
 | `audio-embed-outside-vault-skipped`       | embeds resolving outside the vault are skipped              |
 | `audio-embed-transcription-failure`       | fake worker backend writes transcript failure content       |
-| `rollover-already-copied`                 | task with `copied:1` is not re-cloned                       |
-| `rollover-no-recurrence`                  | task without `repeat:` is never cloned                      |
-| `rollover-not-today`                      | task with past `done:` date is skipped                      |
+| `repeatTasks-already-copied`              | task with `copied:1` is not re-cloned                       |
+| `repeatTasks-no-recurrence`               | task without `repeat:` is never cloned                      |
+| `repeatTasks-not-today`                   | task with past `done:` date is skipped                      |
 
 ## Release policy
 

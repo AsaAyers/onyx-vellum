@@ -51,7 +51,7 @@ describe("HELP_TEXT", () => {
   it("lists known rule names", () => {
     expect(helpText).toContain("normalizeTodayLiteral");
     expect(helpText).toContain("stampDone");
-    expect(helpText).toContain("completedTaskRollover");
+    expect(helpText).toContain("repeatTasks");
     expect(helpText).toContain("ensureAudioTranscripts");
     expect(helpText).toContain("incompleteTaskAlert");
   });

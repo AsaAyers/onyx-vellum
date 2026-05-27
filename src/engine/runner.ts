@@ -86,26 +86,23 @@ export async function runner(
 
   const processor = createParseProcessor(config, ruleContext);
   // Accepts array or single object for config.sources
-  const globalGlobs: Source[] = Array.isArray(config.sources)
-    ? config.sources
+  let globalGlobs: Source[] = Array.isArray(config.sources)
+    ? [...config.sources]
     : config.sources
       ? [config.sources]
       : [{ type: "glob", pattern: "**/*.md" }];
 
   if (baseCtx.onlyGlob) {
-    globalGlobs.length = 0; // Clear config sources if onlyGlob is specified
-    globalGlobs.push(
-      ...baseCtx.onlyGlob
-        .filter(
-          (path) => path.endsWith(".md") && !path.endsWith(ONYX_COMMANDS_FILE),
-        )
-        .map(
-          (value): Source =>
-            value.includes("*")
-              ? { type: "glob", pattern: value }
-              : { type: "path", value },
-        ),
-    );
+    globalGlobs = baseCtx.onlyGlob
+      .filter(
+        (path) => path.endsWith(".md") && !path.endsWith(ONYX_COMMANDS_FILE),
+      )
+      .map(
+        (value): Source =>
+          value.includes("*")
+            ? { type: "glob", pattern: value }
+            : { type: "path", value },
+      );
   }
 
   // Filter all .md files in the vault
@@ -158,6 +155,7 @@ export async function runner(
       mode: "alert",
     });
 
+    alertFile.value = alertFileContent as string;
     const tree = processor2.parse(alertFile);
     const processed = (await processor2.run(tree, alertFile)) as Root;
     const content = String(processor2.stringify(processed, alertFile));

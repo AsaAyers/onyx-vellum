@@ -8,15 +8,15 @@ Reads and writes Markdown files structurally (AST-based, not regex) using the [u
 
 Tasks in any `.md` file in the vault may carry **inline fields** — `key:value` tokens embedded in the task text. All date-valued fields use the `YYYY-MM-DD` format.
 
-| Field       | Example            | Description                                                         |
-| ----------- | ------------------ | ------------------------------------------------------------------- |
-| `done`      | `done:2026-05-03`  | Date the task was checked off. Stamped automatically by Rule 2.     |
-| `due`       | `due:2026-05-10`   | Target/deadline date. Set automatically on repeat.                  |
-| `start`     | `start:2026-05-04` | Task should not be surfaced before this date.                       |
-| `sleep`     | `sleep:2026-05-06` | Suppress surfacing until this date (stronger than `start`).         |
-| `repeat`    | `repeat:1s`        | Recurrence schedule (see grammar below).                            |
-| `copied`    | `copied:1`         | Marker set by `completedTaskRollover` to prevent duplicate cloning. |
-| `ephemeral` | `ephemeral:1`      | Marks a task as ephemeral — auto-removed if missed (see Rule 5).    |
+| Field       | Example            | Description                                                      |
+| ----------- | ------------------ | ---------------------------------------------------------------- |
+| `done`      | `done:2026-05-03`  | Date the task was checked off. Stamped automatically by Rule 2.  |
+| `due`       | `due:2026-05-10`   | Target/deadline date. Set automatically on repeat.               |
+| `start`     | `start:2026-05-04` | Task should not be surfaced before this date.                    |
+| `sleep`     | `sleep:2026-05-06` | Suppress surfacing until this date (stronger than `start`).      |
+| `repeat`    | `repeat:1s`        | Recurrence schedule (see grammar below).                         |
+| `copied`    | `copied:1`         | Marker set by `repeatTasks` to prevent duplicate cloning.        |
+| `ephemeral` | `ephemeral:1`      | Marks a task as ephemeral — auto-removed if missed (see Rule 5). |
 
 ### `repeat` grammar
 
@@ -77,7 +77,7 @@ On first run, `onyx-vellum` creates a `.onyx-vellum.json` file in your vault roo
     "stampDone": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
-    "completedTaskRollover": {
+    "repeatTasks": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
     "removeEphemeralOverdueTasks": {
@@ -110,7 +110,7 @@ On first run, `onyx-vellum` creates a `.onyx-vellum.json` file in your vault roo
 
 `timezone` is optional and must be a valid IANA timezone (for example
 `"America/New_York"` or `"UTC"`). When set, all date-sensitive processing
-(`today`/`yesterday`/`tomorrow`, rollover comparisons, and watch alert schedule
+(`today`/`yesterday`/`tomorrow`, repeatTasks comparisons, and watch alert schedule
 times) is evaluated in that timezone instead of the server's local timezone.
 
 ### Source types
@@ -384,7 +384,7 @@ the vault:
    completed before `--init` was run. The `unknown` value is
    intentionally not a real date, so it is never matched by the
    date-based predicates in the normal rule pipeline (in particular,
-   `completedTaskRollover` will not clone tasks stamped by `--init`).
+   `repeatTasks` will not clone tasks stamped by `--init`).
 
 This is intended to be run once before making rule-driven changes so that
 subsequent diffs reflect only intentional semantic edits rather than incidental
@@ -446,7 +446,7 @@ they are `.use()`'d — no declared dependencies or topological sort.
 | `commands`                    | `src/rules/onyxVellumCommands.ts`                | Processes `#onyx/` command tags — transcribe, extract tasks, summarize.                                                                                      |
 | `ensureAudioTranscripts`      | `src/rules/ensureAudioTranscriptsPlugin.ts`      | For each embedded `.m4a`, inserts a mirrored transcript embed, creates a sibling `.transcript.md` placeholder when needed, and enqueues async transcription. |
 | `stampDone`                   | `src/rules/stampDonePlugin.ts`                   | Adds `done:YYYY-MM-DD` to newly completed tasks that do not already have one.                                                                                |
-| `rollover`                    | `src/rules/rolloverPlugin.ts`                    | Clones recurring completed tasks forward to their next cycle.                                                                                                |
+| `repeatTasks`                 | `src/rules/rolloverPlugin.ts`                    | Clones recurring completed tasks forward to their next cycle.                                                                                                |
 | `removeEphemeralOverdueTasks` | `src/rules/removeEphemeralOverdueTasksPlugin.ts` | Removes unchecked overdue tasks marked `ephemeral`.                                                                                                          |
 | `moveDoneTasks`               | `src/rules/moveDoneTasksPlugin.ts`               | Moves checked tasks with `done:YYYY-MM-DD` from notes into matching daily notes.                                                                             |
 | `sortTasks`                   | `src/rules/sortTasksPlugin.ts`                   | Sorts same-level task lists so incomplete tasks stay at the top, and completed tasks are ordered by newest `done:` date first.                               |
@@ -552,7 +552,7 @@ each one that does **not** already carry a `done:` inline field with
 `done:YYYY-MM-DD` (today's date). Ensures every freshly completed task has an
 explicit completion date before later rules run.
 
-### rollover
+### repeatTasks
 
 **Source:** `src/rules/rolloverPlugin.ts`
 
@@ -571,7 +571,7 @@ Tasks without a `repeat:` field are **never** duplicated and never receive
 `copied:1`, even if they are checked and have a `done:` date.
 
 **Meaning of `copied:1`:** A task marked `copied:1` has already been rolled
-over in a previous pipeline run. The rollover rule skips it on all subsequent
+over in a previous pipeline run. The repeatTasks rule skips it on all subsequent
 runs. Tasks completed before today (i.e. `done:` is an older date) are also
 skipped.
 
