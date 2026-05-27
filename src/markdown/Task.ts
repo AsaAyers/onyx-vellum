@@ -12,7 +12,7 @@ export const TaskInputSchema = z.object({
     .record(z.string())
     .default({})
     .describe(
-      "Inline fields (e.g. due:today snooze:2026-02-01 done:yesterday repeat:1s)." +
+      "Inline fields (e.g. due:today sleep:2026-02-01 done:yesterday repeat:1s)." +
         `
 # dates
 
@@ -84,7 +84,6 @@ export const taskArraySchema = z
 const KNOWN_INLINE_FIELD_ORDER = [
   "due",
   "sleep",
-  "snooze",
   "done",
   "repeat",
   "copied",

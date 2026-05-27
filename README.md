@@ -8,15 +8,15 @@ Reads and writes Markdown files structurally (AST-based, not regex) using the [u
 
 Tasks in any `.md` file in the vault may carry **inline fields** — `key:value` tokens embedded in the task text. All date-valued fields use the `YYYY-MM-DD` format.
 
-| Field       | Example             | Description                                                         |
-| ----------- | ------------------- | ------------------------------------------------------------------- |
-| `done`      | `done:2026-05-03`   | Date the task was checked off. Stamped automatically by Rule 2.     |
-| `due`       | `due:2026-05-10`    | Target/deadline date. Set automatically on repeat.                  |
-| `start`     | `start:2026-05-04`  | Task should not be surfaced before this date.                       |
-| `snooze`    | `snooze:2026-05-06` | Suppress surfacing until this date (stronger than `start`).         |
-| `repeat`    | `repeat:1s`         | Recurrence schedule (see grammar below).                            |
-| `copied`    | `copied:1`          | Marker set by `completedTaskRollover` to prevent duplicate cloning. |
-| `ephemeral` | `ephemeral:1`       | Marks a task as ephemeral — auto-removed if missed (see Rule 5).    |
+| Field       | Example            | Description                                                         |
+| ----------- | ------------------ | ------------------------------------------------------------------- |
+| `done`      | `done:2026-05-03`  | Date the task was checked off. Stamped automatically by Rule 2.     |
+| `due`       | `due:2026-05-10`   | Target/deadline date. Set automatically on repeat.                  |
+| `start`     | `start:2026-05-04` | Task should not be surfaced before this date.                       |
+| `sleep`     | `sleep:2026-05-06` | Suppress surfacing until this date (stronger than `start`).         |
+| `repeat`    | `repeat:1s`        | Recurrence schedule (see grammar below).                            |
+| `copied`    | `copied:1`         | Marker set by `completedTaskRollover` to prevent duplicate cloning. |
+| `ephemeral` | `ephemeral:1`      | Marks a task as ephemeral — auto-removed if missed (see Rule 5).    |
 
 ### `repeat` grammar
 
@@ -53,7 +53,7 @@ newDue  = first date ≥ minDate whose weekday is in <days>
 
 The `(n × 7 − 1)` offset for n > 0 keeps the task anchored to roughly the same weekday each cycle — completing a `repeat:1mwf` task on Monday produces a next due of Monday (~1 week later), not Tuesday.
 
-When a repeating task is completed, `due:` is always set to `newDue`. If `start:` or `snooze:` are present they are shifted forward by the same number of days as `due` moved (`delta = newDue − oldDue`; if no `due:` existed, `oldDue = done`).
+When a repeating task is completed, `due:` is always set to `newDue`. If `start:` or `sleep:` are present they are shifted forward by the same number of days as `due` moved (`delta = newDue − oldDue`; if no `due:` existed, `oldDue = done`).
 
 **Migration from `repeat:smtwhfa`:** replace with `repeat:d`. No other changes required.
 
@@ -563,7 +563,7 @@ marker, then:
 1. Appends `copied:1` to the completed task so it is not re-processed on
    subsequent runs (idempotency guard).
 2. Inserts a fresh **incomplete** copy of the task immediately after the
-   completed one, with the clone's date fields (`due`, `start`, `snooze`)
+   completed one, with the clone's date fields (`due`, `start`, `sleep`)
    advanced according to the `repeat:` schedule. The `done:` field is **not**
    included on the clone.
 
@@ -626,7 +626,7 @@ ordered by `done:` descending (newest first).
 **Source:** `src/rules/incompleteTaskAlertPlugin.ts`
 
 Finds all **incomplete** (unchecked) tasks that are not `start:`- or
-`snooze:`-blocked, and writes them to `onyx_alert.md`. Only runs in `alert`
+`sleep:`-blocked, and writes them to `onyx_alert.md`. Only runs in `alert`
 mode.
 
 If `rules.incompleteTaskAlert.alertUrl` is set in `.onyx-vellum.json`,

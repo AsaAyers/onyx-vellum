@@ -13,7 +13,7 @@ Available rules:
                            with resolved ISO dates in inline date fields.
   stampDone                Stamp done:<date> on checked tasks that lack one.
                            Depends on: normalizeTodayLiteral.
-  completedTaskRollover    Advance due/start/snooze on repeating completed tasks and
+  completedTaskRollover    Advance due/start/sleep on repeating completed tasks and
                            uncheck them for the next cycle.
   moveDoneTasks
                             Move checked transcript tasks with done:<date> into

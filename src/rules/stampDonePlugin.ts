@@ -14,7 +14,12 @@ export const stampDonePlugin = makePlugin(
     visit(tree as Root, "listItem", (node) => {
       if (!node.checked) return;
       const fields = getInlineFields(node);
-      fields.done ??= today;
+      if (!fields.done) {
+        fields.done = today;
+        delete fields.sleep; // Clear sleep when marking done
+        delete fields.due; // Clear due when marking done
+        delete fields.ephemeral; // Clear ephemeral when marking done
+      }
     });
   },
 );

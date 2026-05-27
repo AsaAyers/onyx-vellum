@@ -26,7 +26,7 @@ const fakeTasks = taskArraySchema.parse([
     checked: false,
     fields: {
       due: "today",
-      snooze: "yesterday",
+      sleep: "yesterday",
       repeat: "h",
     },
   },
@@ -74,7 +74,7 @@ function createTaskRequest(
           "See the schema for all known fields.",
           "",
           "example:",
-          "clean the car every other week on Saturdays. Take out the trash today, due today, snooze until yesterday on thursdays",
+          "clean the car every other week on Saturdays. Take out the trash today, due today, sleep until yesterday on thursdays",
           "",
           "Expected:",
           JSON.stringify(
@@ -95,7 +95,7 @@ function createTaskRequest(
                 checked: false,
                 fields: {
                   due: "today",
-                  snooze: "yesterday",
+                  sleep: "yesterday",
                   repeat: "h",
                 },
               },

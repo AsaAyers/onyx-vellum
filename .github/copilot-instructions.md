@@ -66,7 +66,7 @@ If the pipeline does not modify the file, `tasks.md.expected` must be a copy of 
 | Directory                                 | What it covers                                              |
 | ----------------------------------------- | ----------------------------------------------------------- |
 | `repeat-basic`                            | `repeat:s` (Sunday-only, no skip)                           |
-| `repeat-rollover`                         | `repeat:a` with `start`/`snooze`/`due` shift                |
+| `repeat-rollover`                         | `repeat:a` with `start`/`sleep`/`due` shift                 |
 | `repeat-today-fallback`                   | `repeat:s` without pre-existing `done:`                     |
 | `repeat-daily-shorthand`                  | `repeat:d` (daily shorthand, no skip)                       |
 | `repeat-daily-skip`                       | `repeat:1d` (daily with 1-week skip)                        |

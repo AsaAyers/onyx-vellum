@@ -8,7 +8,6 @@ export function sortTasksPlugin(items: ListItem[]): ListItem[] {
     .map((item, index) => ({
       item,
       index,
-      doneDate: getInlineFields(item).done,
     }))
     .sort((a, b) => {
       if (
@@ -21,27 +20,49 @@ export function sortTasksPlugin(items: ListItem[]): ListItem[] {
 
       const aDone = a.item.checked === true;
       const bDone = b.item.checked === true;
+
+      // 1. Incomplete before complete
       if (aDone !== bDone) return Number(aDone) - Number(bDone);
 
       const fieldsA = getInlineFields(a.item);
       const fieldsB = getInlineFields(b.item);
-      if (fieldsA.sleep && fieldsB.sleep) {
-        return fieldsA.sleep.localeCompare(fieldsB.sleep);
-      }
-      if (fieldsA.sleep || fieldsB.sleep) {
-        return fieldsA.sleep ? 1 : -1;
-      }
-      if (fieldsA.due && fieldsB.due) {
-        return fieldsA.due.localeCompare(fieldsB.due);
-      }
-      if (fieldsA.due || fieldsB.due) {
-        return fieldsA.due ? -1 : 1;
-      }
+      const numA = Object.keys(fieldsA).length;
+      const numB = Object.keys(fieldsB).length;
 
-      if (fieldsA.done && fieldsB.done) {
-        return -fieldsA.done.localeCompare(fieldsB.done);
+      // 2. No fields before fields (binary: only 0 vs >0 matters)
+      if (numA === 0 && numB > 0) return -1;
+      if (numA > 0 && numB === 0) return 1;
+
+      if (!aDone) {
+        // -- Incomplete tasks --
+        const aSleep = !!fieldsA.sleep;
+        const bSleep = !!fieldsB.sleep;
+
+        // 3. Non-sleeping before sleeping
+        if (aSleep !== bSleep) return aSleep ? 1 : -1;
+
+        if (aSleep) {
+          // 4a. Sleeping: sort by sleep date ascending
+          return fieldsA.sleep.localeCompare(fieldsB.sleep);
+        }
+
+        // 4b. Non-sleeping: sort by due date ascending
+        if (fieldsA.due && fieldsB.due) {
+          return fieldsA.due.localeCompare(fieldsB.due);
+        }
+        if (fieldsA.due && !fieldsB.due) return -1;
+        if (!fieldsA.due && fieldsB.due) return 1;
+        return 0;
+      } else {
+        // -- Complete tasks --
+        // Sort by done date descending
+        if (fieldsA.done && fieldsB.done) {
+          return -fieldsA.done.localeCompare(fieldsB.done);
+        }
+        if (fieldsA.done && !fieldsB.done) return -1;
+        if (!fieldsA.done && fieldsB.done) return 1;
+        return 0;
       }
-      return 0;
     })
     .map(({ item }) => item);
 }

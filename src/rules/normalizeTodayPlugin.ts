@@ -7,7 +7,7 @@ import type { ListItem } from "mdast";
 import { makePlugin } from "./makePlugin.js";
 
 /** Inline date fields that may contain relative date literals. */
-const DATE_KEYS = ["due", "snooze", "done"] as const;
+const DATE_KEYS = ["due", "sleep", "done"] as const;
 
 /**
  * remark plugin to normalize 'today' literals in date fields to the current date.

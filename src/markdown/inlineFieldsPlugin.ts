@@ -8,7 +8,7 @@ import createDebug from "debug";
 const debug = createDebug("onyx:inlineFieldsPlugin");
 
 export const EMOJI_MAP: Record<string, string> = {
-  snooze: "💤",
+  sleep: "💤",
   due: "📅",
   done: "✅",
   repeat: "🔁",
@@ -16,7 +16,7 @@ export const EMOJI_MAP: Record<string, string> = {
 };
 
 const EMOJI_REVERSE: Record<string, string> = {
-  "💤": "snooze",
+  "💤": "sleep",
   "📅": "due",
   "✅": "done",
   "🔁": "repeat",
@@ -123,10 +123,9 @@ export const inlineFieldsPlugin = function (this: Processor) {
 
 // Handler for remark-stringify to serialize inline fields from the nearest listItem
 const KNOWN_INLINE_FIELD_ORDER = [
-  "snooze",
+  "sleep",
   "due",
   "repeat",
-  "sleep",
   "done",
   "copied",
   "ephemeral",

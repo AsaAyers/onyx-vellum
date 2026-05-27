@@ -69,16 +69,16 @@ export const rolloverPlugin = makePlugin(
       const oldDue = oldDueDate ?? doneDate;
       const deltaDays = differenceInCalendarDays(newDue, oldDue);
 
-      if (fields.snooze) {
-        const snoozeDate = userLocalTime({
-          strDate: fields.snooze,
+      if (fields.sleep) {
+        const sleepDate = userLocalTime({
+          strDate: fields.sleep,
           tz,
         }).date;
-        debug({ snoozeDate });
-        if (snoozeDate) {
-          const newSnooze = addDays(snoozeDate, deltaDays);
-          cloneFields.snooze = formatDate(newSnooze);
-          debug(file.path, "snooze", cloneFields.snooze);
+        debug({ sleepDate });
+        if (sleepDate) {
+          const newSleep = addDays(sleepDate, deltaDays);
+          cloneFields.sleep = formatDate(newSleep);
+          debug(file.path, "sleep", cloneFields.sleep);
         }
       }
 
