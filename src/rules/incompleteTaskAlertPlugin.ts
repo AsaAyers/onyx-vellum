@@ -38,6 +38,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
           return;
         }
 
+        numTasks++;
         ctx.updateFile({
           location: {
             file: vaultFile,

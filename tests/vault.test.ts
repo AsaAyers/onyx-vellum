@@ -15,6 +15,7 @@ import { walkMarkdownFiles } from "../src/engine/FileWriteManager.js";
 import fs, { promises as fsp } from "node:fs";
 import { testDate } from "./testDate.js";
 import { createTempDir } from "./createTempDir.js";
+import { zConfig } from "../src/loadConfig.js";
 import { queue } from "../src/transcription/queue.js";
 import type { Job } from "../src/transcription/types.js";
 
@@ -66,6 +67,30 @@ function walkExpectedFilesSync(dir: string): string[] {
   }
   return expectedFiles;
 }
+
+describe("test vault config schema", () => {
+  it("zConfig must accept the test vault config file without errors", async () => {
+    const configPath = join(TEST_VAULT, ".onyx-vellum.json");
+    const raw = await fsp.readFile(configPath, "utf-8");
+    const parsed = JSON.parse(raw);
+    const result = zConfig.safeParse(parsed);
+
+    if (!result.success) {
+      const issues = result.error.issues
+        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+        .join("\n");
+      // Fail with a clear message listing every schema mismatch.
+      expect.fail(
+        `Config schema rejects the test vault .onyx-vellum.json:\n${issues}`,
+      );
+    }
+
+    // Sanity-check that known rule configs are parsed into their specific types.
+    expect(result.data.rules.moveDoneTasks?.dailyNotesFolder).toBe(
+      "scenarios/move-transcript-daily-notes/daily",
+    );
+  });
+});
 
 describe("test vault — .md.expected snapshots", () => {
   let pipelineOutputs: Map<string, string>;
