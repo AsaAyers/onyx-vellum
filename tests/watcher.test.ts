@@ -1,5 +1,40 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createDebouncer } from "../src/engine/vaultWatcher.js";
+import { createDebouncer, vaultWatcher } from "../src/engine/vaultWatcher.js";
+
+// ---------------------------------------------------------------------------
+// Mock node:fs (watch) — shared state for vaultWatcher tests
+// ---------------------------------------------------------------------------
+
+import type { FSWatcher } from "node:fs";
+
+const watchMockContext = vi.hoisted(() => {
+  const watchCallback: (
+    eventType: string,
+    filename: string | null,
+  ) => void = () => {};
+  const mockWatcher: FSWatcher = {
+    close: vi.fn(),
+    ref: vi.fn(),
+    unref: vi.fn(),
+  } as unknown as FSWatcher;
+  return { watchCallback, mockWatcher };
+});
+
+vi.mock("node:fs", () => ({
+  watch: (
+    _path: string,
+    _opts: { recursive: boolean },
+    callback: (eventType: string, filename: string | null) => void,
+  ) => {
+    watchMockContext.watchCallback = callback;
+    return watchMockContext.mockWatcher;
+  },
+}));
+
+// Silence heartbeat writes.
+vi.mock("node:fs/promises", () => ({
+  writeFile: vi.fn(),
+}));
 
 describe("createDebouncer", () => {
   beforeEach(() => {
@@ -229,7 +264,9 @@ describe("createDebouncer", () => {
 
     await vi.advanceTimersByTimeAsync(2_000); // t=2500
     expect(processed).toHaveLength(1);
-    expect(new Set(processed[0])).toEqual(new Set(["notes/a.md", "notes/b.md"]));
+    expect(new Set(processed[0])).toEqual(
+      new Set(["notes/a.md", "notes/b.md"]),
+    );
 
     dispose();
   });
@@ -254,5 +291,159 @@ describe("createDebouncer", () => {
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(processed).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// vaultWatcher
+// ---------------------------------------------------------------------------
+
+describe("vaultWatcher", () => {
+  const vaultPath = "/tmp/test-vault";
+  const onProcess = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    onProcess.mockClear();
+    watchMockContext.watchCallback = () => {};
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // -----------------------------------------------------------------------
+  // File filtering
+  // -----------------------------------------------------------------------
+
+  it("forwards .md file changes to the debouncer", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", "notes/test.md");
+
+    // Fast-forward past the default 60s debounce.
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).toHaveBeenCalledWith(["notes/test.md"]);
+
+    stop();
+  });
+
+  it("ignores non-.md files", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", "notes/data.json");
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+
+    stop();
+  });
+
+  it("ignores files inside hidden path segments (starting with '.')", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", ".obsidian/config.json");
+    watchMockContext.watchCallback("change", "notes/.trash/deleted.md");
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+
+    stop();
+  });
+
+  it("forwards additionalFiles regardless of extension or hidden segments", () => {
+    const stop = vaultWatcher(vaultPath, onProcess, {
+      additionalFiles: [".config.yml"],
+    });
+
+    // This file is listed in additionalFiles -> should be forwarded.
+    watchMockContext.watchCallback("change", ".config.yml");
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).toHaveBeenCalledWith([".config.yml"]);
+
+    stop();
+  });
+
+  it("ignores null filename events", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", null);
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+
+    stop();
+  });
+
+  // -----------------------------------------------------------------------
+  // Heartbeat
+  // -----------------------------------------------------------------------
+
+  it("resets heartbeatTimestamp when the timestamp file changes", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    // Simulate the watcher writing the timestamp file.
+    watchMockContext.watchCallback("change", ".onyx-watch-timestamp");
+    // This should reset heartbeatTimestamp without forwarding to onProcess.
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+
+    stop();
+  });
+
+  // -----------------------------------------------------------------------
+  // Stop / cleanup
+  // -----------------------------------------------------------------------
+
+  it("stop function closes the watcher and cancels pending debounce", () => {
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", "notes/foo.md");
+    stop();
+
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+    expect(watchMockContext.mockWatcher.close).toHaveBeenCalled();
+  });
+
+  // -----------------------------------------------------------------------
+  // canWatch gate
+  // -----------------------------------------------------------------------
+
+  it("respects FileWriteManager.canWatch (skips when writing is in progress)", async () => {
+    const { FileWriteManager } =
+      await import("../src/engine/FileWriteManager.js");
+    FileWriteManager.isWriting = true;
+    const stop = vaultWatcher(vaultPath, onProcess);
+
+    watchMockContext.watchCallback("change", "notes/doc.md");
+    vi.advanceTimersByTime(60_001);
+    expect(onProcess).not.toHaveBeenCalled();
+
+    FileWriteManager.isWriting = false;
+    stop();
+  });
+
+  // -----------------------------------------------------------------------
+  // createDebouncer error (error does not propagate to consumer)
+  // -----------------------------------------------------------------------
+
+  it("createDebouncer onProcess error does not reject the notify call", async () => {
+    // A createDebouncer that rejects -> error is caught and logged.
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const onProcess = vi.fn().mockRejectedValue(new Error("processing failed"));
+
+    const { notify, dispose } = createDebouncer({
+      baseMs: 100,
+      maxMs: 100,
+      onProcess,
+    });
+
+    notify("notes/err.md", "change");
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(onProcess).toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalled();
+
+    dispose();
+    consoleSpy.mockRestore();
   });
 });

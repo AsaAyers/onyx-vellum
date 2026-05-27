@@ -8,7 +8,7 @@ import {
   type ContentLocation,
   type Job,
 } from "../src/transcription/types.js";
-import { VaultFile } from "../src/engine/FileWriteManager.js";
+import { VaultFile } from "../src/engine/VaultFile.js";
 import { createTempDir } from "./createTempDir.js";
 
 const isoRegex = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/g;

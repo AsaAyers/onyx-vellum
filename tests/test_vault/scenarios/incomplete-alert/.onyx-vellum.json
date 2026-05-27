@@ -9,7 +9,7 @@
     "stampDone": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
-    "completedTaskRollover": {
+    "repeatTasks": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
     "removeEphemeralOverdueTasks": {

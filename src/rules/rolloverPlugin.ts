@@ -8,13 +8,13 @@ import { format } from "date-fns-tz";
 import { userLocalTime } from "../engine/userLocalTime.js";
 
 /**
- * remark plugin to perform completed task rollover using inline field data.
+ * remark plugin to perform completed task repeatTasks using inline field data.
  * - Finds checked, recurring tasks completed today (done:today, repeat, not copied)
  * - Appends copied:1 to the completed task
  * - Inserts a fresh incomplete copy after it, with advanced date fields
  */
 export const rolloverPlugin = makePlugin(
-  "rollover",
+  "repeatTasks",
   function ({ tree, ctx, debug, file }) {
     // const { tz } = ctx.dates;
     // console.log("rolloverPlugin", { tz });

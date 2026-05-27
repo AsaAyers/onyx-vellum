@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 import type { RootContent } from "mdast";
 export const zContentLocation = z.strictObject({
   file: VaultFile.schema,

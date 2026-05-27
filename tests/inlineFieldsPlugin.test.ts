@@ -4,7 +4,7 @@ import remarkParse from "remark-parse";
 import { inlineFieldsPlugin } from "../src/markdown/inlineFieldsPlugin.js";
 import type { InlineFieldsNode } from "../src/markdown/types.js";
 import { visit } from "unist-util-visit";
-import { VaultFile } from "../src/engine/FileWriteManager.js";
+import { VaultFile } from "../src/engine/VaultFile.js";
 
 describe("inlineFieldsPlugin", () => {
   function extractInlineFields(markdown: string) {

@@ -98,7 +98,27 @@ export async function trimDeadAir({
     {
       stdout: "inherit",
       stderr: "inherit",
-      // cancelSignal,
     },
   );
+}
+
+export async function getAudioDurationSeconds(
+  filePath: string,
+  ffprobePath = "ffprobe",
+): Promise<number | null> {
+  try {
+    const { stdout } = await execa(ffprobePath, [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "csv=p=0",
+      filePath,
+    ]);
+    const duration = Number.parseFloat(stdout.trim());
+    return Number.isNaN(duration) ? null : duration;
+  } catch {
+    return null;
+  }
 }

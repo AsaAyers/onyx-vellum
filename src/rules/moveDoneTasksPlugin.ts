@@ -4,7 +4,7 @@ import type { Root, List } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { join } from "node:path";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.

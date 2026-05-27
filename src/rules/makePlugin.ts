@@ -1,23 +1,20 @@
 import type { Plugin, Processor } from "unified";
-import { type Config, type RuleConfig } from "../loadConfig.js";
+import { type Config, type KnownRuleConfig } from "../loadConfig.js";
 import type { Root } from "mdast";
 import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/FileOperationExecutor.js";
 import type { PluginContext } from "../markdown/types.js";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 import createDebug from "debug";
 
-export function makePlugin<
-  PluginName extends string,
-  ThisRuleConfig extends RuleConfig = Config["rules"][PluginName],
->(
+export function makePlugin<PluginName extends keyof KnownRuleConfig>(
   pluginName: PluginName,
   coreLogic: (args: {
     tree: Root;
     file: VaultFile;
     ctx: PluginContext;
-    ruleConfig?: ThisRuleConfig;
+    ruleConfig?: Config["rules"][PluginName];
     config: Config;
     debug: ReturnType<typeof createDebug>;
   }) => Root | void,
@@ -31,7 +28,7 @@ export function makePlugin<
     invariant(settings, `[${pluginName}] onyxVellum settings must be provided`);
 
     const { config, ctx } = settings;
-    const ruleConfig = config.rules?.[pluginName] as ThisRuleConfig | undefined;
+    const ruleConfig = config.rules?.[pluginName];
 
     return function (tree: Root, file: VFile): Root | void {
       invariant(

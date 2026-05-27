@@ -41,17 +41,20 @@ const zPathSource = z.object({
 
 export const zSource = z.discriminatedUnion("type", [zGlobSource, zPathSource]);
 
-export const zAlertConfig = z.object({
+const zBaseRuleConfig = z.object({
   sources: z.array(zSource).optional(),
-  alertUrl: z.string().optional(),
-  alertToken: z.string().optional(),
 });
 
-const zRuleConfig = z.object({
-  sources: z.array(zSource).optional(),
+export type BaseRuleConfig = z.infer<typeof zBaseRuleConfig>;
+
+const zMoveDoneTasks = zBaseRuleConfig.extend({
+  dailyNotesFolder: z.string().optional(),
+});
+
+export const zAlertConfig = zBaseRuleConfig.extend({
   alertUrl: z.string().optional(),
   alertToken: z.string().optional(),
-  dailyNotesFolder: z.string().optional(),
+  schedule: z.array(z.string()).optional(),
 });
 
 const zWatchConfig = z.object({
@@ -64,11 +67,20 @@ const zWatchConfig = z.object({
    */
   alertSchedule: z.array(z.string()).optional(),
 });
-const zKnownRuleConfig = z
-  .object({
-    incompleteTaskAlert: zAlertConfig.optional(),
-  })
-  .catchall(zRuleConfig);
+const zKnownRuleConfig = z.strictObject({
+  incompleteTaskAlert: zAlertConfig.optional(),
+  moveDoneTasks: zMoveDoneTasks.optional(),
+  repeatTasks: zBaseRuleConfig.optional(),
+  stampDone: zBaseRuleConfig.optional(),
+  ensureAudioTranscripts: zBaseRuleConfig.optional(),
+  normalizeTodayLiteral: zBaseRuleConfig.optional(),
+  sortTasks: zBaseRuleConfig.optional(),
+  commands: zBaseRuleConfig.optional(),
+  obsidianProtections: zBaseRuleConfig.optional(),
+  removeEphemeralOverdueTasks: zBaseRuleConfig.optional(),
+});
+
+export type KnownRuleConfig = z.infer<typeof zKnownRuleConfig>;
 /**
  * Full config schema:
  *   - optional top-level timezone (IANA timezone, used for date processing)
@@ -107,7 +119,7 @@ export const zConfig = z
 // ---------------------------------------------------------------------------
 
 /** Per-rule configuration stored in `.onyx-vellum.json`. */
-export type RuleConfig = z.infer<typeof zRuleConfig>;
+export type RuleConfig = z.infer<typeof zBaseRuleConfig>;
 
 /** Watch-mode configuration stored under the `"watch"` key in JSON. */
 export type WatchConfig = z.infer<typeof zWatchConfig>;
@@ -147,7 +159,7 @@ export const DEFAULT_SOURCES: Array<z.infer<typeof zSource>> = [
 export async function loadConfig(vaultPath: string): Promise<Config> {
   const configPath = join(vaultPath, CONFIG_FILENAME);
 
-  const defaultConfig: Config = { sources: DEFAULT_SOURCES, rules: {} };
+  const defaultConfig: Config = { sources: [...DEFAULT_SOURCES], rules: {} };
 
   let raw: string;
   try {

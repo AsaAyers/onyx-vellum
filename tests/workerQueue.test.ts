@@ -9,7 +9,7 @@ import {
   markFailed,
 } from "../src/transcription/queue.js";
 import type { Job } from "../src/transcription/types.js";
-import { VaultFile } from "../src/engine/FileWriteManager.js";
+import { VaultFile } from "../src/engine/VaultFile.js";
 
 const CREATED_DIRS: string[] = [];
 
