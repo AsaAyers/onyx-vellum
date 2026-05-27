@@ -69,6 +69,7 @@ function createCleanupRequest(
           "Return ONLY JSON data conforming to the provided schema.  No introductory or concluding text, no Markdown formatting, and no extraneous information.",
           "Clean up the transcript of a voice recording to improve grammar, punctuation, and readability while preserving the original meaning, decisions, speaker labels, and any uncertainty or ambiguity in the transcript.  Do not add any information that is not present in the original transcript.",
           "Clean up newlines that got injected into the middle of sentences, but preserve newlines that represent actual pauses or speaker changes.",
+          "Clean up filler words like 'um', 'uh', 'like', 'you know', etc. only if they do not contribute to the meaning or tone of the conversation.",
           "File names should be lowercase kebab-case and end with .md.",
         ].join("\n"),
       },

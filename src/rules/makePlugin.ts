@@ -5,7 +5,7 @@ import invariant from "tiny-invariant";
 import type { VFile } from "vfile";
 import { fileMatchesSources } from "../engine/FileOperationExecutor.js";
 import type { PluginContext } from "../markdown/types.js";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 import createDebug from "debug";
 
 export function makePlugin<

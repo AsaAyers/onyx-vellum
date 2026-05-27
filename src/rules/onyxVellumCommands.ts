@@ -1,6 +1,6 @@
 import { EXIT, SKIP, visitParents } from "unist-util-visit-parents";
 import { makePlugin } from "./makePlugin.js";
-import { join } from "path";
+import { dirname, join } from "path";
 import type { ContentLocation, FileOperation } from "../transcription/types.js";
 
 export const onyxVellumCommands = makePlugin(
@@ -68,7 +68,7 @@ export const onyxVellumCommands = makePlugin(
 
           visitParents(ancestors[0], "wikiLink", (node) => {
             if (node.value.toLowerCase().endsWith(".m4a")) {
-              audioPath = join(ctx.vaultPath, node.value);
+              audioPath = join(dirname(file.absolutePath), node.value);
               return EXIT;
             }
           });

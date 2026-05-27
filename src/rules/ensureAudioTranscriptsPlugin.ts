@@ -3,7 +3,7 @@ import invariant from "tiny-invariant";
 import { makePlugin } from "./makePlugin.js";
 import path, { relative, dirname, isAbsolute, resolve } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 import { type FileOperation } from "../transcription/types.js";
 import { existsSync, realpathSync } from "node:fs";
 
