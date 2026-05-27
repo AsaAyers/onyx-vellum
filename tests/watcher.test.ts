@@ -229,7 +229,9 @@ describe("createDebouncer", () => {
 
     await vi.advanceTimersByTimeAsync(2_000); // t=2500
     expect(processed).toHaveLength(1);
-    expect(new Set(processed[0])).toEqual(new Set(["notes/a.md", "notes/b.md"]));
+    expect(new Set(processed[0])).toEqual(
+      new Set(["notes/a.md", "notes/b.md"]),
+    );
 
     dispose();
   });

@@ -6,9 +6,9 @@ import { type PluginContext } from "../markdown/types.js";
 import {
   FileWriteManager,
   walkMarkdownFiles,
-  VaultFile,
   type ChangesArray,
 } from "./FileWriteManager.js";
+import { VaultFile } from "./VaultFile.js";
 import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../loadConfig.js";
 import type { Root } from "mdast";

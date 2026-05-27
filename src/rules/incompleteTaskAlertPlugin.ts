@@ -2,7 +2,7 @@ import type { Config } from "../loadConfig.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
-import { VaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/VaultFile.js";
 import { join } from "node:path";
 import { extractYamlFrontmatter } from "../engine/FileOperationExecutor.js";
 

@@ -6,7 +6,7 @@ import type { Root } from "mdast";
 import { buildJobId } from "./transcription/queue.js";
 import { FileOperationExecutor } from "./engine/FileOperationExecutor.js";
 import { userLocalTime } from "./engine/userLocalTime.js";
-import { VaultFile } from "./engine/FileWriteManager.js";
+import { VaultFile } from "./engine/VaultFile.js";
 import path from "node:path";
 
 // eslint-disable-next-line no-console

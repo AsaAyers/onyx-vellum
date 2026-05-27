@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FileOperationExecutor } from "../src/engine/FileOperationExecutor.js";
-import { FileWriteManager, VaultFile } from "../src/engine/FileWriteManager.js";
+import { FileWriteManager } from "../src/engine/FileWriteManager.js";
+import { VaultFile } from "../src/engine/VaultFile.js";
 import { createParseProcessor } from "../src/markdown/createParseProcessor.js";
 import { buildJobId } from "../src/transcription/queue.js";
 import { testDate } from "./testDate.js";
