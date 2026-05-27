@@ -23,7 +23,12 @@ Available rules:
   ensureAudioTranscripts   For embedded .m4a links, ensure sibling transcript
                            embeds/files and enqueue transcription jobs.
   incompleteTaskAlert      Write overdue/incomplete tasks and optionally POST
-                           using rules.incompleteTaskAlert.alertUrl in config.
+                            using rules.incompleteTaskAlert.alertUrl in config.
+
+Note:
+  Task management works without Docker or GPU. The GPU worker is only
+  needed for audio transcription. Docker Compose starts both the watcher
+  and the worker together.
 
 Options:
   --dry-run                Print unified diffs to stdout; do not write any files.
@@ -48,13 +53,19 @@ Options:
                                   "debounce": 5000
                                 }
                               }
-  --init                   Normalize vault formatting and stamp done:unknown
-                           on checked tasks that lack one.
-                           Mutually exclusive with rule selection and --watch.
+  --init                   Convert any UTF-16-encoded .md files to UTF-8
+                            and stamp done:unknown on checked tasks that
+                            lack one.
+                            Mutually exclusive with rule selection and --watch.
   --help, -h               Show this help message and exit.
 
 Environment variables:
   VAULT_PATH               (required) Absolute path to the vault root.
+                           Can be any directory containing .md files —
+                           Obsidian is not required.
+  OLLAMA_HOST              Ollama API host for LLM-powered operations
+                           (clean transcript, task extraction).
+                           Default: http://ollama-api:11434
 
 Config:
   .onyx-vellum.json        Configure rule sources and optional timezone in JSON.

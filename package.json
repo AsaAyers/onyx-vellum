@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "description": "TypeScript-based Markdown automation pipeline",
   "type": "module",
+  "license": "MIT",
   "private": true,
   "main": "dist/index.js",
   "bin": {

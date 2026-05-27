@@ -1,8 +1,24 @@
 # onyx-vellum
 
-A TypeScript-based Markdown automation pipeline for an [Obsidian](https://obsidian.md/) vault.
+**CLI tool** — not an Obsidian plugin. It watches a folder of Markdown files
+(an Obsidian vault or any other directory) and applies AST-based transformations
+using the [unified/remark](https://github.com/remarkjs/remark) ecosystem.
 
-Reads and writes Markdown files structurally (AST-based, not regex) using the [unified/remark](https://github.com/remarkjs/remark) ecosystem. Rules are remark plugins wired together in `src/markdown/createParseProcessor.ts`.
+## About
+
+This is a personal project exploring the use of remark/unified to manage tasks
+in an [Obsidian](https://obsidian.md/) vault. It is not intended as a replacement
+for Obsidian community plugins (Tasks, Dataview, etc.) — those are better
+integrated solutions. The motivation was:
+
+- **Learn by building** — understanding AST-based Markdown processing, task
+  scheduling, and how to wire remark plugins together.
+- **Transcription pipeline** — GPU-accelerated voice note transcription that
+  runs on a home server, with task extraction from transcripts.
+- **AI tooling experiments** — using LLMs to help develop and improve the project.
+
+The tool operates on the filesystem directly. It does not know about Obsidian's
+internal APIs or plugin system. You can use it with any Markdown editor.
 
 ## Inline Fields
 
@@ -124,6 +140,11 @@ Per-rule sources interact with the `--only` CLI flag: `--only` replaces the
 default top-level source list (`**/*.md`), but each rule's own `sources` still
 gate independently. A file is only processed if it passes both filters.
 
+### Disabling a rule
+
+Set a rule's `sources` to an empty array `[]` to disable it entirely. The rule
+will be skipped during pipeline runs.
+
 ### Auto-migration
 
 When a new rule is added in a future release, its default entry is merged into `rules` in your existing `.onyx-vellum.json` automatically on the next run. You do not need to edit the file by hand unless you want a non-default value.
@@ -161,6 +182,26 @@ VAULT_PATH=/my/vault onyx-vellum --watch stampDone
 | `[watch] Processing after idle: notes/foo.md` | Debounce timer expired; rules are about to run for `notes/foo.md`.            |
 | `[watch] Error processing notes/foo.md: …`    | An error occurred while running rules for the file.                           |
 
+### Two-pass processing (fast vs. full)
+
+In watch mode, changed files go through two debounced passes:
+
+1. **Fast pass** (~5–10 s debounce) — runs a subset of lightweight rules that
+   make small, intentional changes: `inlineFields`, `normalizeTodayLiteral`,
+   `commands`, and `ensureAudioTranscripts`. These fire quickly so you get
+   immediate feedback (e.g. a `#onyx/transcribe` tag is removed seconds after
+   you type it). Exponential backoff means rapid typing delays this pass further.
+
+2. **Full pass** (~30–60 s debounce, configurable) — runs the complete rule
+   set including `stampDone`, `repeatTasks`, `removeEphemeralOverdueTasks`,
+   `moveDoneTasks`, and `sortTasks`. These are more invasive (reformatting,
+   moving tasks between files) and intentionally delayed to avoid conflicts
+   with active editing.
+
+Only rules in the fast pass run on individual file edits. If you add a new rule
+and want it to respond quickly in watch mode, register it in the `fast` block
+in `createParseProcessor.ts`. Otherwise it runs only on the full debounce batch.
+
 ### Debounce configuration
 
 The debounce duration defaults to **60 seconds** and can be changed via the `watch.debounce` key in `.onyx-vellum.json`:
@@ -183,17 +224,22 @@ Set `debounce` to the number of milliseconds the file must be idle before rules 
 
 ## Environment Variables
 
-| Variable     | Required | Default                      | Description                                       |
-| ------------ | -------- | ---------------------------- | ------------------------------------------------- |
-| `VAULT_PATH` | **Yes**  | —                            | Absolute path to the Obsidian vault root          |
-| `STATE_DIR`  | No       | sibling `.onyx-vellum-state` | Filesystem queue root for transcription job state |
+| Variable      | Required | Default                      | Description                                       |
+| ------------- | -------- | ---------------------------- | ------------------------------------------------- |
+| `VAULT_PATH`  | **Yes**  | —                            | Absolute path to the Obsidian vault root          |
+| `STATE_DIR`   | No       | sibling `.onyx-vellum-state` | Filesystem queue root for transcription job state |
+| `OLLAMA_HOST` | No       | `http://ollama-api:11434`    | Ollama API host for LLM-powered operations        |
 
 ## Docker / Docker Compose
 
-`docker-compose.yml` now starts the full stack:
+`docker-compose.yml` starts:
 
 - `onyx-vellum` — the main watch-mode pipeline
 - `transcriber-worker` — a long-running GPU transcription worker
+
+An [Ollama](https://ollama.ai/) host is required for transcript cleaning and
+task extraction. It is **not** included in the Compose file — see the Ollama
+section below for configuration.
 
 Both services mount the vault at `/vault` and share a named `state` volume at
 `/state`. The queue lives in `/state` instead of inside the vault, so pending /
@@ -244,6 +290,26 @@ VAULT_PATH=/path/to/your/vault docker compose run --rm onyx-vellum --watch --dry
 ```bash
 docker compose build
 ```
+
+### Ollama dependency
+
+The worker's transcript cleaning and task extraction operations use an
+[Ollama](https://ollama.ai/) LLM backend. The Docker Compose file assumes
+Ollama is available at `http://host.docker.internal:11434` (the Docker host).
+If your Ollama runs in a separate container on the same Docker network, set
+`OLLAMA_HOST` to its address:
+
+```yaml
+environment:
+  - OLLAMA_HOST=http://ollama-api:11434
+```
+
+When running the worker outside Docker, the default is `http://ollama-api:11434`.
+Override it with the `OLLAMA_HOST` environment variable if your Ollama instance
+is elsewhere.
+
+The task management rules (stampDone, repeatTasks, sortTasks, etc.) do not
+require Ollama — they work on plain Markdown without any LLM dependency.
 
 ### Worker service details
 
@@ -378,15 +444,14 @@ VAULT_PATH=/path/to/your/vault onyx-vellum --dry-run --verbose all
 VAULT_PATH=/path/to/your/vault onyx-vellum --init
 ```
 
-`--init` performs a two-step initialization pass over every `.md` file in
-the vault:
+`--init` scans every `.md` file in the vault and performs two actions:
 
-1. **Formatting normalization** — each file is round-tripped through the
-   parse → stringify pipeline (remark) and written back only if the content
-   changed. No rule-driven date transformations are applied (e.g. `due:today`
-   is left as-is).
+1. **UTF-16 detection** — files encoded as UTF-16 (with or without BOM) are
+   converted to UTF-8. This is a rare edge case (some third-party tools produce
+   UTF-16 files), but the conversion is lossless and makes all files compatible
+   with the remark pipeline.
 
-2. **done stamping** — every checked (`[x]`) task that does **not**
+2. **Done stamping** — every checked (`[x]`) task that does **not**
    already have a `done:` inline field is stamped with
    `done:unknown`.
    This back-fills a placeholder date for tasks that were
@@ -397,18 +462,11 @@ the vault:
 
 This is intended to be run once before making rule-driven changes so that
 subsequent diffs reflect only intentional semantic edits rather than incidental
-formatting noise or missing done fields.
+encoding noise or missing done fields.
 
 - Only `.md` files are processed; other file types are ignored.
-- YAML frontmatter (`---\n...\n---`) is preserved verbatim; only the body is normalized.
-- Obsidian wikilinks (`[[Page]]`, `![[image.png]]`) are round-tripped without escaping.
 - Hidden directories (e.g. `.git`, `.obsidian`) are skipped automatically.
 - A summary line is printed: `Init: scanned N file(s), rewrote M.`
-
-**Stability guarantee**: after the first normalization pass `--init` runs a
-second pass internally to verify that the normalized output is itself a NOOP.
-If the second pass would still produce changes the command exits with an error
-— this protects against a buggy pipeline that would re-format on every run.
 
 Combine with `--dry-run` to preview which files would be rewritten:
 
@@ -418,6 +476,27 @@ VAULT_PATH=/path/to/your/vault onyx-vellum --init --dry-run
 
 `--init` and the normal rule-pipeline mode are mutually exclusive: use one or
 the other per invocation.
+
+### Manual testing without an Obsidian vault
+
+Create any directory with `*.md` files and point `VAULT_PATH` at it:
+
+```bash
+mkdir /tmp/test-vault
+echo "* [ ] A task due:today" > /tmp/test-vault/test.md
+VAULT_PATH=/tmp/test-vault onyx-vellum --dry-run all
+```
+
+The tool only needs a folder of Markdown files — it does not require Obsidian.
+
+### Unit testing a rule in isolation
+
+Currently there is no first-class mechanism for testing a single rule outside
+the full pipeline. Rules often depend on shared context (`inlineFieldsPlugin`,
+`normalizeTodayLiteral`) that must be set up first. The E2E vault test
+(`tests/vault.test.ts`) is the primary coverage. Unit tests for pure helper
+functions (e.g. `scheduleUtils.ts`) work well; consider writing those for new
+parser/utility logic.
 
 ### Run tests
 
@@ -667,10 +746,11 @@ src/
 │   ├── PluginContext.ts         # Context type passed through the pipeline
 │   ├── createParseProcessor.ts  # ← Plugin wiring: unified processor factory
 │   ├── inlineFieldsPlugin.ts    # Inline field remark plugin + get/set helpers
-│   ├── remarkObsidianPlugin.ts  # Obsidian wiki link / embed / tag parser
+│   ├── remarkObsidianPlugin.ts  # Wiki link / embed / tag / callout parser
 │   ├── Task.ts                  # Task type definitions
 │   └── types.ts                 # Embedded node type defs
 ├── engine/
+│   ├── encoding.ts              # UTF-16 BOM detection and decoding
 │   ├── runner.ts                # Pipeline runner, init pass, normalizeFileContent
 │   ├── FileWriteManager.ts      # File read/stage/commit with vault path helpers
 │   ├── FileOperationExecutor.ts # Deferred file operations (write AST back to files)
@@ -727,3 +807,23 @@ tests/
    Mutate the AST directly — no declarative predicate/action model.
 3. Import and `.use()` the plugin in **`src/markdown/createParseProcessor.ts`**
    at the appropriate position in the plugin chain.
+
+### Plugin ordering
+
+Plugins execute in the order they are `.use()`'d — there is no dependency-ordering
+mechanism. Earlier rules stage AST changes that later rules see via the in-memory
+transform queue. As a rule of thumb:
+
+- Rules that resolve relative dates or parse inline fields should come first
+  (so later rules see resolved values).
+- Rules that reformat or restructure (sort, move, remove) should come later.
+- If your rule needs an inline field (`due:today`), it must run after
+  `inlineFieldsPlugin` and `normalizeTodayLiteral`.
+
+### Fast-pass eligibility
+
+In watch mode, rules in the `fast` block of `createParseProcessor.ts` run on
+a short debounce (~5–10 s) for quick feedback. Currently the fast pass includes
+`inlineFields`, `normalizeTodayLiteral`, `commands`, and `ensureAudioTranscripts`.
+Rules that make very small changes or schedule jobs are good candidates. Rules
+that reformat large sections of a file should stay in the `all` block only.
