@@ -1,20 +1,17 @@
 import yaml from "js-yaml";
 import type { Heading, Root, RootContent } from "mdast";
 import type { Processor } from "unified";
-import { VFile } from "vfile";
 import createDebug from "debug";
-import {
-  zVaultFile,
-  type FileWriteManager,
-  type VaultFile,
-} from "./FileWriteManager.js";
-import { join } from "node:path";
+import { VaultFile, type FileWriteManager } from "./FileWriteManager.js";
+import path from "node:path";
 import micromatch from "micromatch";
 import type { Source } from "../rules/types.js";
 import {
+  zFileOperation,
   type ContentLocation,
   type FileOperation,
 } from "../transcription/types.js";
+import invariant from "tiny-invariant";
 
 const debug = createDebug("onyx:fileOperationExecutor");
 
@@ -24,11 +21,13 @@ export class FileOperationExecutor {
   }
   fileOperations: Record<string, FileOperation[]> = {};
 
-  updateFile = (fileOperation: FileOperation) => {
-    const filePath = fileOperation.location.file.relativePath;
-    this.fileOperations[filePath] ??= [];
-    this.fileOperations[filePath].push(fileOperation);
-    debug(`Queued file operation for ${filePath}`);
+  updateFile = (op: FileOperation) => {
+    const fileOperation = zFileOperation.parse(op);
+    const relativePath = fileOperation.location.file.relativePath;
+    invariant(relativePath, `File operation missing relative path`);
+    this.fileOperations[relativePath] ??= [];
+    this.fileOperations[relativePath].push(fileOperation);
+    debug(`Queued file operation for ${relativePath}`);
   };
 
   hasPendingOperations() {
@@ -43,26 +42,26 @@ export class FileOperationExecutor {
     const fileOperationsEntries = Object.entries(this.fileOperations);
     this.fileOperations = {}; // Clear pending operations before execution to allow new ops to be queued during execution
     for (const [relativePath, ops] of fileOperationsEntries) {
-      let original: string;
-      const file = zVaultFile.parse({
-        absolutePath: join(fileManager.vaultPath, relativePath),
-        relativePath,
-      });
+      invariant(relativePath, `File operation missing relative path`);
+      invariant(
+        !path.isAbsolute(relativePath),
+        `relativePath must be relative`,
+      );
+      const file = ops[0].location.file;
       try {
-        original = await fileManager.read(file);
+        file.value = await fileManager.read(file);
       } catch {
         // Create a new file
-        original = "";
+        file.value = "";
       }
-      const vfile = new VFile({ path: relativePath, value: original });
-      let tree = processor.parse(vfile);
-      tree = (await processor.run(tree, vfile)) as Root;
+      let tree = processor.parse(file);
+      tree = (await processor.run(tree, file)) as Root;
 
-      await applyFileOperations(processor, tree, ops);
-      tree = (await processor.run(tree, vfile)) as Root;
+      await applyFileOperations(file, processor, tree, ops);
+      tree = (await processor.run(tree, file)) as Root;
 
-      const normalized = String(processor.stringify(tree, vfile));
-      if (normalized !== original) {
+      const normalized = String(processor.stringify(tree, file));
+      if (normalized !== file.value) {
         fileManager.stage(file, normalized);
       }
     }
@@ -157,6 +156,7 @@ function queryFileOperationTarget(
  * Handles YAML frontmatter merging/creation, and parses op.content into AST nodes.
  */
 async function applyFileOperations(
+  file: VaultFile,
   processor: Processor<Root, Root, Root>,
   tree: Root,
   ops: FileOperation[],
@@ -179,9 +179,11 @@ async function applyFileOperations(
     let contentNodes: RootContent[] = [];
     if (op.content) {
       if (typeof op.content === "string") {
-        // Use mdast-util-from-markdown to parse content
-        let parsed = processor.parse(op.content.trim());
-        parsed = (await processor.run(parsed)) as Root;
+        // Copy the file to avoid overwriting the original content when parsing
+        const f = VaultFile.fromVFile(file);
+        f.value = op.content;
+        let parsed = processor.parse(f);
+        parsed = (await processor.run(parsed, f)) as Root;
         contentNodes = parsed.children;
       } else {
         contentNodes = [op.content];

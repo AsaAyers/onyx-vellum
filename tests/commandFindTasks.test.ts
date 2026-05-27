@@ -78,6 +78,7 @@ describe("Command: #onyx/tasks", () => {
             "file": {
               "absolutePath": "/tmp/onyx-vellum-worker-vault-XXXXXX/audio/session.transcript.md",
               "relativePath": "audio/session.transcript.md",
+              "vaultPath": "/tmp/onyx-vellum-worker-vault-XXXXXX",
             },
             "header": "Transcript",
             "position": "end",
@@ -90,6 +91,7 @@ describe("Command: #onyx/tasks", () => {
               "file": {
                 "absolutePath": "/tmp/onyx-vellum-worker-vault-XXXXXX/audio/session.transcript.md",
                 "relativePath": "audio/session.transcript.md",
+                "vaultPath": "/tmp/onyx-vellum-worker-vault-XXXXXX",
               },
               "header": "Tasks",
               "position": "end",

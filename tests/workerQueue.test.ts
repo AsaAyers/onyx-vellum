@@ -9,7 +9,7 @@ import {
   markFailed,
 } from "../src/transcription/queue.js";
 import type { Job } from "../src/transcription/types.js";
-import { zVaultFile } from "../src/engine/FileWriteManager.js";
+import { VaultFile } from "../src/engine/FileWriteManager.js";
 
 const CREATED_DIRS: string[] = [];
 
@@ -20,16 +20,18 @@ async function createStateDir(): Promise<string> {
 }
 
 function makeJob(id: string): Job {
+  const vaultPath = "/vault";
   return {
     type: "transcribe",
     id,
-    vaultPath: "/vault",
+    vaultPath,
     audioPath: `/vault/audio/${id}.m4a`,
     target: {
       location: {
-        file: zVaultFile.parse({
+        file: new VaultFile({
           absolutePath: `/vault/audio/${id}.transcript.md`,
           relativePath: `audio/${id}.transcript.md`,
+          vaultPath,
         }),
         header: "Transcript",
         position: "end",
@@ -58,7 +60,7 @@ describe("transcription queue", () => {
       join(stateDir, "pending", "01j0-a.json"),
       "utf-8",
     );
-    expect(JSON.parse(pendingJson)).toEqual(job);
+    expect(JSON.parse(pendingJson)).toEqual(JSON.parse(JSON.stringify(job)));
   });
 
   it("claimNext returns null when queue is empty", async () => {

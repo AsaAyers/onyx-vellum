@@ -3,8 +3,12 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { queue } from "../src/transcription/queue.js";
 import { startWorker } from "../src/transcription/startWorker.js";
-import { type ContentLocation, type Job } from "../src/transcription/types.js";
-import { zVaultFile } from "../src/engine/FileWriteManager.js";
+import {
+  zJob,
+  type ContentLocation,
+  type Job,
+} from "../src/transcription/types.js";
+import { VaultFile } from "../src/engine/FileWriteManager.js";
 import { createTempDir } from "./createTempDir.js";
 
 const isoRegex = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z/g;
@@ -66,9 +70,10 @@ Existing content
         audioPath,
         target: {
           location: {
-            file: zVaultFile.parse({
+            file: new VaultFile({
               relativePath: "audio/clip.transcript.md",
               absolutePath: transcriptPath,
+              vaultPath,
             }),
             header: "Header 3",
             position: "end",
@@ -130,22 +135,25 @@ chislic doner corned beef
       );
 
       const source: ContentLocation = {
-        file: zVaultFile.parse({
+        file: new VaultFile({
           relativePath: "audio/clip.transcript.md",
           absolutePath: transcriptPath,
+          vaultPath,
         }),
         header,
         position: "end",
       };
-      await runWorkerForSingleJob({
-        type: "clean-transcription",
-        vaultPath,
-        id: "01j-worker-a",
-        source,
-        target: {
-          location: source,
-        },
-      });
+      await runWorkerForSingleJob(
+        zJob.parse({
+          type: "clean-transcription",
+          vaultPath,
+          id: "01j-worker-a",
+          source,
+          target: {
+            location: source,
+          },
+        }),
+      );
       const content = await fs.readFile(transcriptPath, "utf-8");
 
       expect(content.replaceAll(isoRegex, "2024-01-01T00:00:00.000Z"))

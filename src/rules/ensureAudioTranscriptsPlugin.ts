@@ -3,11 +3,11 @@ import invariant from "tiny-invariant";
 import { makePlugin } from "./makePlugin.js";
 import path, { relative, dirname, isAbsolute, resolve } from "node:path";
 import type { ObsidianEmbedNode } from "../markdown/types.js";
-import { zVaultFile } from "../engine/FileWriteManager.js";
-import type { FileOperation } from "../transcription/types.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
+import { type FileOperation } from "../transcription/types.js";
 import { existsSync, realpathSync } from "node:fs";
 
-export type LinkActionContext = {
+type LinkActionContext = {
   vaultPath: string;
   sourceNotePath: string;
   today: Date;
@@ -73,7 +73,7 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
       const { dates, vaultPath } = ctx;
       const todayDate = dates.date;
       const tmp = resolveTranscriptContext(node, {
-        sourceNotePath: file.path,
+        sourceNotePath: file.absolutePath,
         vaultPath,
         today: todayDate,
         jobIdFactory: ctx.jobIdFactory,
@@ -110,14 +110,19 @@ export const ensureAudioTranscriptsPlugin = makePlugin(
 
       if (!transcriptExists) {
         const createdAt = todayDate.toISOString();
-        const absoluteTranscriptPath = path.join(
-          path.dirname(file.path),
+        const transcriptRelativePath = path.join(
+          path.dirname(file.relativePath),
           transcriptPath,
         );
+        const absoluteTranscriptPath = path.join(
+          ctx.vaultPath,
+          transcriptRelativePath,
+        );
 
-        const vaultFile = zVaultFile.parse({
+        const vaultFile = new VaultFile({
           absolutePath: absoluteTranscriptPath,
-          relativePath: relative(ctx.vaultPath, absoluteTranscriptPath),
+          relativePath: transcriptRelativePath,
+          vaultPath: ctx.vaultPath,
         });
 
         const id = ctx.jobIdFactory(todayDate);

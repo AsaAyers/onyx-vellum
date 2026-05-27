@@ -1,29 +1,39 @@
 import { createParseProcessor } from "./markdown/createParseProcessor.js";
-import { type PluginContext } from "./markdown/PluginContext.js";
+import { type PluginContext } from "./markdown/types.js";
 import { EMPTY_CONFIG } from "./engine/runner.js";
 import fs from "node:fs/promises";
-import { VFile } from "vfile";
 import type { Root } from "mdast";
 import { buildJobId } from "./transcription/queue.js";
 import { FileOperationExecutor } from "./engine/FileOperationExecutor.js";
 import { userLocalTime } from "./engine/userLocalTime.js";
+import { VaultFile } from "./engine/FileWriteManager.js";
+import path from "node:path";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
 export async function viewAST() {
-  const filename = process.argv[2];
-  if (!filename) {
+  let absolutePath = process.argv[2];
+  if (!absolutePath) {
     console.error("Usage: viewAST <markdown-file>");
     process.exit(1);
   }
+  if (!path.isAbsolute(absolutePath)) {
+    absolutePath = path.join(process.cwd(), absolutePath);
+  }
 
-  const contents = await fs.readFile(filename, "utf-8");
+  const contents = await fs.readFile(absolutePath, "utf-8");
   // Use the file's directory as vaultPath for CLI/demo
-  const vaultPath = process.cwd();
+  const vaultPath = path.dirname(absolutePath);
   const config = EMPTY_CONFIG;
+  const relativePath = path.relative(vaultPath, absolutePath);
 
-  const vfile = new VFile({ path: filename, value: contents });
+  const vfile = new VaultFile({
+    absolutePath,
+    relativePath: relativePath,
+    vaultPath,
+    value: contents,
+  });
 
   const tz = "America/Los_Angeles";
   const fileOperations = new FileOperationExecutor();

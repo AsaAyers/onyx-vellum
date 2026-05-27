@@ -4,7 +4,7 @@ import type { Root, List } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { join } from "node:path";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 
 /**
  * remark plugin to move checked tasks with a done field to the context for writing to another file.
@@ -28,12 +28,13 @@ export const moveDoneTasksPlugin = makePlugin(
             if (checked && fields.done) {
               const done = fields.done;
               const relativePath = join(dailyNotesFolder, `${done}.md`);
-              const vaultFile = zVaultFile.parse({
+              const dailyFile = new VaultFile({
                 absolutePath: join(vaultPath, relativePath),
                 relativePath: relativePath,
+                vaultPath,
               });
-              const destExists = fs.existsSync(vaultFile.absolutePath);
-              debug(vaultFile.relativePath, {
+              const destExists = fs.existsSync(dailyFile.absolutePath);
+              debug(dailyFile.relativePath, {
                 destExists,
                 today: ctx.dates.today,
               });
@@ -41,7 +42,7 @@ export const moveDoneTasksPlugin = makePlugin(
               if (destExists) {
                 ctx.updateFile({
                   location: {
-                    file: vaultFile,
+                    file: dailyFile,
                     header: null,
                     position: "end",
                   },

@@ -1,8 +1,9 @@
 import { promises as fs } from "node:fs";
 import path, { dirname, join } from "node:path";
 import createDebug from "debug";
-import z from "zod";
 import invariant from "tiny-invariant";
+import { VFile } from "vfile";
+import z from "zod";
 
 const debug = createDebug("onyx:io");
 
@@ -20,17 +21,21 @@ export async function walkMarkdownFiles(
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const name = entry.name as string;
-      const fullPath = join(dir, name);
+      const absolutePath = join(dir, name);
       if (entry.isDirectory() && !name.startsWith(".")) {
-        results.push(...(await walkMarkdownFiles(fullPath, vaultPath)));
+        results.push(...(await walkMarkdownFiles(absolutePath, vaultPath)));
       } else if (
         entry.isFile() &&
         name.endsWith(".md") &&
         !name.startsWith(".")
       ) {
-        const relative = path.relative(vaultPath, fullPath);
+        const relativePath = path.relative(vaultPath, absolutePath);
         results.push(
-          zVaultFile.parse({ absolutePath: fullPath, relativePath: relative }),
+          new VaultFile({
+            absolutePath,
+            relativePath: relativePath,
+            vaultPath,
+          }),
         );
       }
     }
@@ -49,26 +54,72 @@ export async function readFile(path: string): Promise<string> {
   }
 }
 
-export const zVaultFile = z
-  .object({
-    absolutePath: z.string(),
-    relativePath: z.string(),
-  })
-  .brand("VaultFile")
-  .transform((obj) => {
+type FilePathInfo = {
+  absolutePath: string;
+  relativePath: string;
+  vaultPath: string;
+  value?: string;
+};
+
+export class VaultFile extends VFile {
+  static schema = z
+    .object({
+      absolutePath: z.string(),
+      relativePath: z.string(),
+      vaultPath: z.string(),
+      value: z.string().optional(),
+    })
+    .transform((val) => new VaultFile(val));
+  static fromVFile<T extends VFile>(
+    ...args: T extends VaultFile ? [T] : [T, string]
+  ): VaultFile {
+    const vfile = args[0];
+    let vaultPath: string = args[1] ?? "";
+    if (vfile instanceof VaultFile) {
+      vaultPath = vfile.vaultPath;
+    }
+    invariant(vaultPath, "vaultPath is required when converting from VFile");
+    let relativePath = vfile.path;
+    if (path.isAbsolute(relativePath) && relativePath.startsWith(vaultPath)) {
+      relativePath = path.relative(vaultPath, relativePath);
+    }
+    if (!path.isAbsolute(vaultPath)) {
+      throw new Error(`vaultPath must be absolute, got ${vaultPath}`);
+    }
+
+    return new VaultFile({
+      absolutePath: path.join(vaultPath, relativePath),
+      relativePath: relativePath,
+      vaultPath,
+    });
+  }
+  constructor(options: FilePathInfo) {
+    super({ path: options.relativePath, ...options });
+
     invariant(
-      path.isAbsolute(obj.absolutePath),
-      `absolutePath must be absolute ${obj.absolutePath}`,
+      path.isAbsolute(options.absolutePath),
+      `absolutePath must be absolute ${options.absolutePath}`,
     );
     invariant(
-      obj.absolutePath.endsWith(obj.relativePath),
+      options.absolutePath.endsWith(options.relativePath),
       "Relative path must be a suffix of absolute path",
     );
+    this.absolutePath = options.absolutePath;
+    this.relativePath = options.relativePath;
+    this.vaultPath = options.vaultPath;
+  }
+  vaultPath: string;
+  absolutePath: string;
+  relativePath: string;
 
-    return obj;
-  });
-
-export type VaultFile = z.infer<typeof zVaultFile>;
+  toJSON() {
+    return {
+      absolutePath: this.absolutePath,
+      relativePath: this.relativePath,
+      vaultPath: this.vaultPath,
+    };
+  }
+}
 
 export type ChangesArray = Array<{
   vaultFile: VaultFile;
@@ -140,9 +191,10 @@ export class FileWriteManager {
     const changes: ChangesArray = [];
     FileWriteManager.isWriting = !dryRun;
     for (const [relativePath, content] of this.pending) {
-      const vaultFile = zVaultFile.parse({
+      const vaultFile = new VaultFile({
         absolutePath: join(this.vaultPath, relativePath),
-        relativePath,
+        relativePath: relativePath,
+        vaultPath: this.vaultPath,
       });
       this.markFileAsWritten(vaultFile.absolutePath);
 

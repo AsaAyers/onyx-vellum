@@ -8,7 +8,7 @@ import { FileWriteManager } from "../engine/FileWriteManager.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import { createParseProcessor } from "../markdown/createParseProcessor.js";
 import { loadConfig } from "../loadConfig.js";
-import type { PluginContext } from "../markdown/PluginContext.js";
+import type { PluginContext } from "../markdown/types.js";
 import { userLocalTime } from "../engine/userLocalTime.js";
 import { transcribe } from "./worker/transcribe.js";
 import { cleanTranscript } from "./worker/cleanTranscript.js";

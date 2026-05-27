@@ -2,7 +2,7 @@ import type { Config } from "../loadConfig.js";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
-import { zVaultFile } from "../engine/FileWriteManager.js";
+import { VaultFile } from "../engine/FileWriteManager.js";
 import { join } from "node:path";
 import { extractYamlFrontmatter } from "../engine/FileOperationExecutor.js";
 
@@ -16,10 +16,11 @@ export const incompleteTaskAlertPlugin = makePlugin(
       debug("[incompleteTaskAlert] No alertUrl configured, skipping plugin");
       return;
     }
-    if (file.path === ALERT_FILE) return;
-    const vaultFile = zVaultFile.parse({
+    if (file.relativePath === ALERT_FILE) return;
+    const vaultFile = new VaultFile({
       absolutePath: join(ctx.vaultPath, ALERT_FILE),
       relativePath: ALERT_FILE,
+      vaultPath: ctx.vaultPath,
     });
 
     const { frontmatter } = extractYamlFrontmatter(tree);
@@ -40,7 +41,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
         ctx.updateFile({
           location: {
             file: vaultFile,
-            header: file.path.replace(ctx.vaultPath, ""),
+            header: file.relativePath,
             position: "end",
           },
           content: node,
@@ -54,7 +55,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
         header: "",
         position: "end",
       },
-      content: `* ${numTasks} tasks in ${file.path.replace(ctx.vaultPath, "")}
+      content: `* ${numTasks} tasks in ${file.relativePath.replace(ctx.vaultPath, "")}
           `,
     });
     return;

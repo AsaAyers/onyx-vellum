@@ -1,4 +1,3 @@
-import { VFile } from "vfile";
 import { readFileOperationTarget } from "../../engine/FileOperationExecutor.js";
 import type { ContentLocation, Job } from "../types.js";
 import type { WorkerContext } from "./types.js";
@@ -11,18 +10,15 @@ export async function extractSourceText(
   const vaultFile = source.file;
   const fileManager = workerContext.getWriteManager(vaultPath);
   const processor = await workerContext.getProcessor(vaultPath);
-  const file = new VFile({
-    path: vaultFile.relativePath,
-    value: await fileManager.read(vaultFile),
-  });
-  const tree = processor.parse(file);
+  vaultFile.value = await fileManager.read(vaultFile);
+  const tree = processor.parse(vaultFile);
   const children = readFileOperationTarget(tree, source);
   const sourceText = processor.stringify(
     {
       type: "root",
       children,
     },
-    file,
+    vaultFile,
   );
   return sourceText;
 }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runner, runInitPass } from "./engine/runner.js";
 import { createDebouncer, vaultWatcher } from "./engine/vaultWatcher.js";
+import createDebug from "debug";
 import {
   createAlertScheduler,
   normalizeAlertSchedule,
@@ -8,15 +9,18 @@ import {
 import { userLocalTime } from "./engine/userLocalTime.js";
 import { helpText } from "./helpText.js";
 import { loadConfig, CONFIG_FILENAME } from "./loadConfig.js";
-import type { PluginContext } from "./markdown/PluginContext.js";
+import type { PluginContext } from "./markdown/types.js";
 import { queue, resolveStateDir } from "./transcription/queue.js";
 import type { Job } from "./transcription/types.js";
+import path from "path";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+const verbose = args.includes("--verbose");
+if (verbose) createDebug.enable("onyx:*");
 const init = args.includes("--init");
 const watch = args.includes("--watch");
 const help = args.includes("--help") || args.includes("-h");
@@ -42,10 +46,13 @@ if (help) {
   process.exit(0);
 }
 
-const vaultPath = process.env["VAULT_PATH"];
+let vaultPath = process.env["VAULT_PATH"];
 if (!vaultPath) {
   console.error("Error: VAULT_PATH environment variable is required.");
   process.exit(1);
+}
+if (!path.isAbsolute(vaultPath)) {
+  vaultPath = path.resolve(process.cwd(), vaultPath);
 }
 
 log(`Starting Markdown automation pipeline...`);
@@ -89,6 +96,7 @@ if (init) {
     vaultPath,
     queueJob,
     dryRun,
+    verbose,
     env: process.env,
   };
 
