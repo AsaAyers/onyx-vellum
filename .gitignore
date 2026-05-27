@@ -6,4 +6,5 @@ dist/
 tmp_alert.md
 coverage/
 tmp.md
+tmp/
 tests/.onyx-vellum-state/

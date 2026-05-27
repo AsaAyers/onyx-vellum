@@ -73,3 +73,17 @@ Write unit tests only for behaviour the E2E vault does not exercise.
 - Prettier: tabWidth 2, no tabs.
 - No pass-through wrapper functions; import and use library functions directly.
 - `erasableSyntaxOnly: true` in tsconfig — no runtime enums, no `namespace`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical role strings use their default names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
