@@ -1,12 +1,16 @@
 import { Box, Text } from "ink";
+import type { MainState } from "./types.js";
 
-export function ActionBar() {
+export function ActionBar({ state }: { state: MainState }) {
   return (
     <Box borderStyle="round" paddingX={1} width="100%">
       <Text dimColor>
-        [r] run all &nbsp;&nbsp;[a] alert &nbsp;&nbsp;[w] watch &nbsp;&nbsp;[i]
-        init &nbsp;&nbsp;[o] open file &nbsp;&nbsp;[d] dry-run &nbsp;&nbsp;[?]
-        help &nbsp;&nbsp;[q] quit
+        [r] run all  [a] alert  [w] watch  [i]
+        init  [o] open file  
+        <Text color={state.dryRun ? "yellow" : undefined}>
+          [d] dry-run{state.dryRun ? " ✓" : ""}
+        </Text>
+        [?] help  [q] quit
       </Text>
     </Box>
   );

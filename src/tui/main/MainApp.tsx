@@ -1,11 +1,14 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSyncExternalStore } from "react";
+import type { MutableRefObject } from "react";
 import { Box, Text } from "ink";
 import { useInput } from "ink";
 import type { Store } from "../shared/store.js";
 import type { MainState, MainEvent, MainActions } from "./types.js";
 import { StatusBar } from "./StatusBar.js";
 import { ActionBar } from "./ActionBar.js";
+import { ResultsPanel } from "./ResultsPanel.js";
+import { formatDuration } from "./formatResults.js";
 
 export function MainApp({
   store,
@@ -17,6 +20,21 @@ export function MainApp({
   const state = useSyncExternalStore(store.subscribe, store.getState);
   const stateRef = useRef(state);
   stateRef.current = state;
+  const startedRef = useRef<number | null>(null);
+  if (state.name === "running" && startedRef.current === null) {
+    startedRef.current = Date.now();
+  }
+  if (state.name !== "running") {
+    startedRef.current = null;
+  }
+
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (stateRef.current.name !== "running") return;
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, [state.name === "running"]);
 
   useInput((input, key) => {
     const s = stateRef.current;
@@ -107,22 +125,29 @@ export function MainApp({
   return (
     <Box flexDirection="column" height="100%">
       <StatusBar state={state} />
-      <Box flexGrow={1}>
-        <Box width="100%" justifyContent="center" alignItems="center">
-          <Box>{renderMainView(state)}</Box>
+      <Box flexGrow={1} alignItems="flex-start" paddingY={1}>
+        <Box width="100%" paddingX={1}>
+          {renderMainView(state, now, startedRef)}
         </Box>
       </Box>
-      <ActionBar />
+      <ActionBar state={state} />
     </Box>
   );
 }
 
-function renderMainView(state: MainState) {
+function renderMainView(state: MainState, now: number, startedRef: MutableRefObject<number | null>) {
   switch (state.name) {
     case "running":
       return (
-        <Box>
-          <Text>Running {state.runMode ?? "pipeline"}...</Text>
+        <Box flexDirection="column">
+          <Text bold color="yellow">
+            Running {state.runMode ?? "pipeline"}...
+          </Text>
+          <Text dimColor>
+            {startedRef.current != null
+              ? `${formatDuration(now - startedRef.current)} elapsed`
+              : "Starting..."}
+          </Text>
         </Box>
       );
     case "watching":
@@ -145,23 +170,7 @@ function renderMainView(state: MainState) {
       );
     case "idle":
       if (state.lastRun) {
-        return (
-          <Box flexDirection="column">
-            <Box>
-              <Text>
-                Last run: {state.lastRun.mode} ({state.lastRun.finishedAt})
-              </Text>
-            </Box>
-            <Box>
-              <Text>Files written: {state.lastRun.filesWritten}</Text>
-            </Box>
-            {state.lastRun.filePaths.map((p) => (
-              <Box key={p}>
-                <Text> {p}</Text>
-              </Box>
-            ))}
-          </Box>
-        );
+        return <ResultsPanel lastRun={state.lastRun} />;
       }
       return (
         <Box>
