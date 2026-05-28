@@ -1,6 +1,5 @@
 import { render } from "ink";
 import { createStore, type Store } from "../shared/store.js";
-import { suppressConsoleLog } from "../shared/suppressConsole.js";
 import { MainApp } from "./MainApp.js";
 import { mainReducer, INITIAL_STATE } from "./mainMachine.js";
 import type { MainState, MainEvent, MainActions } from "./types.js";
@@ -16,8 +15,6 @@ export function createMainTui(config: {
   actions: MainActions;
   stateDir: string;
 }): MainTuiHandle {
-  const log = suppressConsoleLog();
-
   const store = createStore<MainState, MainEvent>({
     initial: INITIAL_STATE,
     reducer: mainReducer,
@@ -25,12 +22,12 @@ export function createMainTui(config: {
 
   const { unmount, waitUntilExit } = render(
     <MainApp store={store} actions={config.actions} />,
+    { patchConsole: true },
   );
 
   return {
     store,
     stop: () => {
-      log.restore();
       unmount();
     },
     waitUntilExit,

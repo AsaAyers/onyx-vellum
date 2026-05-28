@@ -21,6 +21,7 @@ import type {
   TuiInitResult,
   TuiRunResult,
 } from "./tui/main/types.js";
+import { computeDebounceDelay } from "./tui/main/watchHelpers.js";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
@@ -183,7 +184,7 @@ if (init) {
         const fullDebouncer = createDebouncer({
           baseMs: fullDebounceMs,
           maxMs: Math.min(fullDebounceMs * 2, 60_000),
-          onProcess: (relPaths) => runAll(relPaths),
+          onProcess: (relPaths) => doFullRun(relPaths),
           growthFactor: 1.15,
         });
 
@@ -200,7 +201,6 @@ if (init) {
                 );
                 alertSchedule = normalized.valid;
                 timezone = newConfig.timezone ?? "UTC";
-                // Config updates don't need to trigger a full run.
                 return;
               } catch (err) {
                 console.error(
@@ -210,15 +210,32 @@ if (init) {
               }
             }
 
-            runFast(relPaths);
+            doFastRun(relPaths);
           },
           {
             debounce: fastDebounce,
             maxDebounce: 30_000,
             growthFactor: 1.5,
             additionalFiles: [CONFIG_FILENAME],
-            onRawNotify: (relPath, eventType) =>
-              fullDebouncer.notify(relPath, eventType),
+            onRawNotify: (relPath, _eventType) => {
+              if (relPath === CONFIG_FILENAME) {
+                return;
+              }
+              fastCallCount++;
+              tui.store.dispatch({
+                type: "file-changed",
+                files: [relPath],
+                delayMs: computeDebounceDelay(
+                  fastDebounceMs,
+                  fastGrowthFactor,
+                  fastCallCount,
+                  fastMaxMs,
+                ),
+                growthFactor: fastGrowthFactor,
+                callCount: fastCallCount,
+              });
+              fullDebouncer.notify(relPath, "change");
+            },
             canWatch: (p) => tuiFileManager.canWatch(p),
           },
         );
@@ -232,7 +249,7 @@ if (init) {
                 mode: "alert",
                 vaultPath: resolvedVaultPath,
                 queueJob,
-                dryRun: false,
+                dryRun: tui.store.getState().dryRun,
                 env: process.env,
                 dates,
               },
@@ -247,6 +264,9 @@ if (init) {
           stopScheduler();
           fullDebouncer.dispose();
         };
+
+        // Initial run
+        doFullRun();
       },
 
       stopWatching() {
@@ -272,14 +292,20 @@ if (init) {
     });
 
     // Local helpers that update the TUI store during watcher runs.
-    async function runAll(glob?: string[]) {
+    const fastDebounceMs = 5_000;
+    const fastMaxMs = 30_000;
+    const fastGrowthFactor = 1.5;
+    let fastCallCount = 0;
+
+    async function doFullRun(glob?: string[]) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+      tui.store.dispatch({ type: "debounce-fired" });
       const { changes } = await runner(
         {
           mode: "all",
           vaultPath: resolvedVaultPath,
           queueJob,
-          dryRun: false,
+          dryRun: tui.store.getState().dryRun,
           onlyGlob: glob,
           env: process.env,
           dates,
@@ -292,26 +318,26 @@ if (init) {
       });
     }
 
-    async function runFast(relPaths: string[]) {
+    async function doFastRun(relPaths: string[]) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-      tui.store.dispatch({
-        type: "file-changed",
-        files: relPaths,
-        delayMs: 5_000,
-      });
-      await runner(
+      tui.store.dispatch({ type: "debounce-fired" });
+      const { changes } = await runner(
         {
           mode: "fast",
           vaultPath: resolvedVaultPath,
           queueJob,
-          dryRun: false,
+          dryRun: tui.store.getState().dryRun,
           onlyGlob: relPaths,
           env: process.env,
           dates,
         },
         tuiFileManager,
       );
-      tui.store.dispatch({ type: "debounce-fired" });
+      fastCallCount = 0;
+      tui.store.dispatch({
+        type: "run-complete",
+        result: mapChangesToResult(changes, "all"),
+      });
     }
   } else if (watch) {
     // ── Console watch mode (non-TTY fallback) ───────────────

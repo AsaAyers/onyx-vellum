@@ -2,11 +2,9 @@ import { watch } from "node:fs";
 import { resolve, relative } from "node:path";
 import { writeFile } from "node:fs/promises";
 import createDebug from "debug";
+import { computeDebounceDelay } from "../tui/main/watchHelpers.js";
 
 const debug = createDebug("onyx:watcher");
-
-// eslint-disable-next-line no-console
-const log = console.log.bind(console);
 
 export type WatcherOptions = {
   /** Base debounce duration in milliseconds. Defaults to 60_000 (60 s). */
@@ -72,11 +70,11 @@ export function createDebouncer(options: {
   const pending = new Set<string>();
 
   let calls = 0;
-  const notify = (relPath: string, eventType: string): void => {
+  const notify = (relPath: string, _eventType: string): void => {
     calls++;
     // Quiet extra logs that may happen while typing.
     if (!pending.has(relPath)) {
-      log(`[watch] ${eventType}: ${relPath}`);
+      debug(`change: ${relPath}`);
     }
     pending.add(relPath);
 
@@ -84,10 +82,7 @@ export function createDebouncer(options: {
       clearTimeout(timer);
     }
 
-    const ms = Math.min(
-      maxMs,
-      Math.round(baseMs * Math.pow(growthFactor, calls - 1)),
-    );
+    const ms = computeDebounceDelay(baseMs, growthFactor, calls, maxMs);
     debug(
       `Timer set for ${(ms / 1000).toFixed(0)} s (${calls} call${calls > 1 ? "s" : ""})`,
     );
@@ -96,7 +91,7 @@ export function createDebouncer(options: {
       calls = 0;
       const relPaths = [...pending].sort();
       pending.clear();
-      log(`[watch] Processing after idle: ${relPaths.join(", ")}`);
+      debug(`Processing after idle: ${relPaths.join(", ")}`);
       onProcess(relPaths).catch((err: unknown) => {
         console.error(
           `[watch] Error processing files:`,

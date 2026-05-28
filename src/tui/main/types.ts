@@ -14,14 +14,17 @@ export interface TuiInitResult {
 }
 
 export type WatchingSubState =
-  | { name: "ready" }
+  | { name: "ready"; processedFiles?: string[] }
   | {
       name: "debouncing";
       queuedFiles: string[];
       since: number;
       delayMs: number;
+      growthFactor: number;
+      callCount: number;
+      processedFiles?: string[];
     }
-  | { name: "processing" };
+  | { name: "processing"; filePaths: string[]; processedFiles?: string[] };
 
 export interface MainState {
   name: "idle" | "running" | "watching" | "picking" | "help";
@@ -39,7 +42,7 @@ export type MainEvent =
   | { type: "init-complete"; result: TuiInitResult }
   | { type: "run-error"; error: string }
   | { type: "toggle-watching" }
-  | { type: "file-changed"; files: string[]; delayMs: number }
+  | { type: "file-changed"; files: string[]; delayMs: number; growthFactor: number; callCount: number }
   | { type: "debounce-fired" }
   | { type: "toggle-dry-run" }
   | { type: "open-picker" }

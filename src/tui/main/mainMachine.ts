@@ -35,6 +35,19 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
       if (state.name === "running") {
         return { ...state, name: "idle", lastRun: event.result, runMode: null };
       }
+      if (state.name === "watching") {
+        const processedFiles =
+          state.watchingSub?.name === "processing"
+            ? event.result.filePaths
+            : state.watchingSub?.name === "ready"
+              ? state.watchingSub.processedFiles
+              : undefined;
+        return {
+          ...state,
+          lastRun: event.result,
+          watchingSub: { name: "ready", processedFiles },
+        };
+      }
       break;
     }
 
@@ -79,11 +92,24 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
           },
         };
       }
-      if (
-        state.name === "watching" &&
-        state.watchingSub?.name === "processing"
-      ) {
-        return { ...state, watchingSub: { name: "ready" } };
+      if (state.name === "watching") {
+        const prevProcessed =
+          state.watchingSub?.name === "processing"
+            ? state.watchingSub.processedFiles
+            : state.watchingSub?.name === "ready"
+              ? state.watchingSub.processedFiles
+              : undefined;
+        return {
+          ...state,
+          lastRun: {
+            filesWritten: 0,
+            filePaths: [],
+            mode: "all",
+            finishedAt: Date.now(),
+            error: event.error,
+          },
+          watchingSub: { name: "ready", processedFiles: prevProcessed },
+        };
       }
       break;
     }
@@ -107,6 +133,12 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
           state.watchingSub?.name === "debouncing"
             ? state.watchingSub.queuedFiles
             : [];
+        const processed =
+          state.watchingSub?.name === "ready"
+            ? state.watchingSub.processedFiles
+            : state.watchingSub?.name === "debouncing"
+              ? state.watchingSub.processedFiles
+              : undefined;
         return {
           ...state,
           watchingSub: {
@@ -114,6 +146,9 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
             queuedFiles: [...new Set([...existing, ...event.files])],
             since: Date.now(),
             delayMs: event.delayMs,
+            growthFactor: event.growthFactor,
+            callCount: event.callCount,
+            processedFiles: processed,
           },
         };
       }
@@ -125,7 +160,14 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
         state.name === "watching" &&
         state.watchingSub?.name === "debouncing"
       ) {
-        return { ...state, watchingSub: { name: "processing" } };
+        return {
+          ...state,
+          watchingSub: {
+            name: "processing",
+            filePaths: state.watchingSub.queuedFiles,
+            processedFiles: state.watchingSub.processedFiles,
+          },
+        };
       }
       break;
     }

@@ -8,7 +8,9 @@ import type { MainState, MainEvent, MainActions } from "./types.js";
 import { StatusBar } from "./StatusBar.js";
 import { ActionBar } from "./ActionBar.js";
 import { ResultsPanel } from "./ResultsPanel.js";
+import { FileChangeList } from "./FileChangeList.js";
 import { formatDuration } from "./formatResults.js";
+import { computeDebounceRemaining } from "./watchHelpers.js";
 
 export function MainApp({
   store,
@@ -31,10 +33,12 @@ export function MainApp({
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
-    if (stateRef.current.name !== "running") return;
+    const s = stateRef.current;
+    if (s.name !== "running" && s.name !== "watching") return;
+    if (s.name === "watching" && s.watchingSub?.name !== "debouncing") return;
     const id = setInterval(() => setNow(Date.now()), 200);
     return () => clearInterval(id);
-  }, [state.name === "running"]);
+  });
 
   useInput((input, key) => {
     const s = stateRef.current;
@@ -94,8 +98,18 @@ export function MainApp({
         return;
       }
       if (s.name === "idle") {
-        actions.startWatching();
-        store.dispatch({ type: "toggle-watching" });
+        // Initial run, then start watching
+        store.dispatch({ type: "run-start", runMode: "all" });
+        actions.runAll(s.dryRun).then(
+          (result) => {
+            store.dispatch({ type: "run-complete", result });
+            actions.startWatching();
+            store.dispatch({ type: "toggle-watching" });
+          },
+          (err: Error) => {
+            store.dispatch({ type: "run-error", error: err.message });
+          },
+        );
         return;
       }
       return;
@@ -135,6 +149,41 @@ export function MainApp({
   );
 }
 
+function WatchView({ state, now }: { state: MainState; now: number }) {
+  const sub = state.watchingSub;
+  if (!sub) return null;
+
+  let countdown: string | null = null;
+  if (sub.name === "debouncing") {
+    const remaining = computeDebounceRemaining(sub.since, sub.delayMs, now);
+    countdown = `${(remaining / 1_000).toFixed(1)}s`;
+  }
+
+  return (
+    <Box flexDirection="column" width="100%">
+      <Box>
+        <Box flexDirection="column" flexGrow={1}>
+          <Box>
+            <Text bold underline>
+              Files
+            </Text>
+            {countdown && <Text dimColor> (debounce: {countdown})</Text>}
+          </Box>
+          <FileChangeList watchingSub={sub} />
+        </Box>
+        {state.lastRun && (
+          <Box flexDirection="column" marginLeft={2}>
+            <Text bold underline>
+              Last run
+            </Text>
+            <ResultsPanel lastRun={state.lastRun} />
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
 function renderMainView(state: MainState, now: number, startedRef: MutableRefObject<number | null>) {
   switch (state.name) {
     case "running":
@@ -151,11 +200,7 @@ function renderMainView(state: MainState, now: number, startedRef: MutableRefObj
         </Box>
       );
     case "watching":
-      return (
-        <Box>
-          <Text>Watching for file changes...</Text>
-        </Box>
-      );
+      return <WatchView state={state} now={now} />;
     case "picking":
       return (
         <Box>

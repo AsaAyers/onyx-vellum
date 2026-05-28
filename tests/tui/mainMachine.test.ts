@@ -110,6 +110,35 @@ describe("mainReducer", () => {
       });
       expect(next).toBe(INITIAL_STATE);
     });
+
+    it("transitions watching/processing → watching/ready with processedFiles", () => {
+      const processing: MainState = {
+        ...INITIAL_STATE,
+        name: "watching",
+        watchingSub: { name: "processing", filePaths: ["a.md"] },
+      };
+      const result = makeRunResult({ filePaths: ["a.md"] });
+      const next = mainReducer(processing, {
+        type: "run-complete",
+        result,
+      });
+      expect(next.name).toBe("watching");
+      expect(next.watchingSub).toEqual({
+        name: "ready",
+        processedFiles: ["a.md"],
+      });
+      expect(next.lastRun).toEqual(result);
+    });
+
+    it("updates lastRun in watching/ready", () => {
+      const result = makeRunResult({ filePaths: ["b.md"] });
+      const next = mainReducer(WATCHING_READY, {
+        type: "run-complete",
+        result,
+      });
+      expect(next.name).toBe("watching");
+      expect(next.lastRun).toEqual(result);
+    });
   });
 
   describe("init-start", () => {
@@ -187,7 +216,7 @@ describe("mainReducer", () => {
       const processing: MainState = {
         ...INITIAL_STATE,
         name: "watching",
-        watchingSub: { name: "processing" },
+        watchingSub: { name: "processing", filePaths: [] },
       };
       const next = mainReducer(processing, {
         type: "run-error",
@@ -195,6 +224,7 @@ describe("mainReducer", () => {
       });
       expect(next.name).toBe("watching");
       expect(next.watchingSub).toEqual({ name: "ready" });
+      expect(next.lastRun?.error).toBe("boom");
     });
 
     it("is ignored when idle", () => {
@@ -203,6 +233,15 @@ describe("mainReducer", () => {
         error: "boom",
       });
       expect(next).toBe(INITIAL_STATE);
+    });
+
+    it("stores error in watching/ready", () => {
+      const next = mainReducer(WATCHING_READY, {
+        type: "run-error",
+        error: "boom",
+      });
+      expect(next.name).toBe("watching");
+      expect(next.lastRun?.error).toBe("boom");
     });
   });
 
@@ -235,12 +274,31 @@ describe("mainReducer", () => {
   });
 
   describe("file-changed", () => {
-    it("transitions watching/ready → watching/debouncing", () => {
-      const next = mainReducer(WATCHING_READY, {
-        type: "file-changed",
-        files: ["a.md"],
+    const fc = (files: string[], delayMs: number) =>
+      ({ type: "file-changed", files, delayMs, growthFactor: 1.5, callCount: 1 }) as const;
+
+    const debouncing = (overrides?: Partial<{
+      queuedFiles: string[];
+      since: number;
+      delayMs: number;
+      growthFactor: number;
+      callCount: number;
+    }>): MainState => ({
+      ...INITIAL_STATE,
+      name: "watching" as const,
+      watchingSub: {
+        name: "debouncing" as const,
+        queuedFiles: [],
+        since: 100,
         delayMs: 1000,
-      });
+        growthFactor: 1.5,
+        callCount: 1,
+        ...overrides,
+      },
+    });
+
+    it("transitions watching/ready → watching/debouncing", () => {
+      const next = mainReducer(WATCHING_READY, fc(["a.md"], 1000));
       expect(next.name).toBe("watching");
       expect(next.watchingSub).toMatchObject({
         name: "debouncing",
@@ -251,21 +309,8 @@ describe("mainReducer", () => {
     });
 
     it("accumulates files when already debouncing", () => {
-      const debouncing: MainState = {
-        ...INITIAL_STATE,
-        name: "watching",
-        watchingSub: {
-          name: "debouncing",
-          queuedFiles: ["a.md"],
-          since: 100,
-          delayMs: 1000,
-        },
-      };
-      const next = mainReducer(debouncing, {
-        type: "file-changed",
-        files: ["b.md", "a.md"],
-        delayMs: 2000,
-      });
+      const d = debouncing({ queuedFiles: ["a.md"] });
+      const next = mainReducer(d, fc(["b.md", "a.md"], 2000));
       expect(next.name).toBe("watching");
       expect(next.watchingSub).toMatchObject({
         name: "debouncing",
@@ -275,11 +320,7 @@ describe("mainReducer", () => {
     });
 
     it("is ignored when idle", () => {
-      const next = mainReducer(INITIAL_STATE, {
-        type: "file-changed",
-        files: ["a.md"],
-        delayMs: 1000,
-      });
+      const next = mainReducer(INITIAL_STATE, fc(["a.md"], 1000));
       expect(next).toBe(INITIAL_STATE);
     });
 
@@ -287,13 +328,9 @@ describe("mainReducer", () => {
       const processing: MainState = {
         ...INITIAL_STATE,
         name: "watching",
-        watchingSub: { name: "processing" },
+        watchingSub: { name: "processing", filePaths: [] },
       };
-      const next = mainReducer(processing, {
-        type: "file-changed",
-        files: ["a.md"],
-        delayMs: 1000,
-      });
+      const next = mainReducer(processing, fc(["a.md"], 1000));
       expect(next).toBe(processing);
     });
   });
@@ -308,11 +345,13 @@ describe("mainReducer", () => {
           queuedFiles: ["a.md"],
           since: 100,
           delayMs: 1000,
+          growthFactor: 1.5,
+          callCount: 1,
         },
       };
       const next = mainReducer(debouncing, { type: "debounce-fired" });
       expect(next.name).toBe("watching");
-      expect(next.watchingSub).toEqual({ name: "processing" });
+      expect(next.watchingSub).toEqual({ name: "processing", filePaths: ["a.md"] });
     });
 
     it("is ignored when watching/ready", () => {
@@ -324,7 +363,7 @@ describe("mainReducer", () => {
       const processing: MainState = {
         ...INITIAL_STATE,
         name: "watching",
-        watchingSub: { name: "processing" },
+        watchingSub: { name: "processing", filePaths: [] },
       };
       const next = mainReducer(processing, { type: "debounce-fired" });
       expect(next).toBe(processing);

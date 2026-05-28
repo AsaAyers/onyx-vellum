@@ -5,12 +5,12 @@ export function ActionBar({ state }: { state: MainState }) {
   return (
     <Box borderStyle="round" paddingX={1} width="100%">
       <Text dimColor>
-        [r] run all  [a] alert  [w] watch  [i]
-        init  [o] open file  
+        [r]un all [a]lert [w]atch [i]nit [o]pen-file
         <Text color={state.dryRun ? "yellow" : undefined}>
-          [d] dry-run{state.dryRun ? " ✓" : ""}
+          {" "}
+          [d]ry-run{state.dryRun ? " ✓" : ""}{" "}
         </Text>
-        [?] help  [q] quit
+        [?]help [q]uit
       </Text>
     </Box>
   );
