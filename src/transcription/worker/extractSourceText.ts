@@ -1,4 +1,4 @@
-import { readFileOperationTarget } from "../../engine/FileOperationExecutor.js";
+import { resolveTarget } from "../../engine/resolveTarget.js";
 import type { ContentLocation, Job } from "../types.js";
 import type { WorkerContext } from "./types.js";
 
@@ -12,7 +12,14 @@ export async function extractSourceText(
   const processor = await workerContext.getProcessor(vaultPath);
   vaultFile.value = await fileManager.read(vaultFile);
   const tree = processor.parse(vaultFile);
-  const children = readFileOperationTarget(tree, source);
+  const target = resolveTarget(tree, source);
+  let children: import("mdast").RootContent[] = [];
+  if (target) {
+    const startIdx = target.startNode
+      ? tree.children.indexOf(target.startNode)
+      : tree.children.length;
+    children = tree.children.slice(startIdx, startIdx + target.deleteCount);
+  }
   const sourceText = processor.stringify(
     {
       type: "root",

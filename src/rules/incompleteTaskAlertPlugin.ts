@@ -4,7 +4,7 @@ import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
 import { VaultFile } from "../engine/VaultFile.js";
 import { join } from "node:path";
-import { extractYamlFrontmatter } from "../engine/FileOperationExecutor.js";
+import { readFrontmatter } from "../engine/mergeFrontmatter.js";
 
 export const ALERT_FILE = "onyx_alert.md";
 
@@ -23,7 +23,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
       vaultPath: ctx.vaultPath,
     });
 
-    const { frontmatter } = extractYamlFrontmatter(tree);
+    const frontmatter = readFrontmatter(tree);
     const priority = frontmatter?.priority ?? "medium";
     let numTasks = 0;
     visit(tree, "listItem", (node) => {
