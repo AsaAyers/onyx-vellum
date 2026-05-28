@@ -2,6 +2,7 @@
 import { runner, runInitPass } from "./engine/runner.js";
 import { createDebouncer, vaultWatcher } from "./engine/vaultWatcher.js";
 import { FileWriteManager } from "./engine/FileWriteManager.js";
+import type { ChangesArray } from "./engine/FileWriteManager.js";
 import createDebug from "debug";
 import {
   createAlertScheduler,
@@ -14,6 +15,12 @@ import type { PluginContext } from "./markdown/types.js";
 import { queue, resolveStateDir } from "./transcription/queue.js";
 import type { Job } from "./transcription/types.js";
 import path from "path";
+import { createMainTui } from "./tui/main/MainTui.js";
+import type {
+  MainActions,
+  TuiInitResult,
+  TuiRunResult,
+} from "./tui/main/types.js";
 
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
@@ -55,6 +62,7 @@ if (!vaultPath) {
 if (!path.isAbsolute(vaultPath)) {
   vaultPath = path.resolve(process.cwd(), vaultPath);
 }
+const resolvedVaultPath = vaultPath;
 
 log(`Starting Markdown automation pipeline...`);
 log(`Vault: ${vaultPath}`);
@@ -72,91 +80,244 @@ if (init) {
     process.exit(1);
   });
 } else {
-  const mode = positional[0];
-  // Rule selection is required: either "all" or one or more rule names.
-  if (positional.length !== 1 || (mode !== "all" && mode !== "alert")) {
-    console.error('Error: specify "all" or "alert".');
-    console.error("");
-    console.error("Examples:");
-    console.error("  onyx-vellum all");
-    console.error("  onyx-vellum --dry-run all");
-    console.error("");
-    console.error("Run with --help for full usage information.");
-    process.exit(1);
-  }
-  const stateDir = resolveStateDir(process.env, vaultPath);
-  const queuedJobs: Job[] = [];
-  function queueJob(job: Job) {
-    queuedJobs.push(job);
-    if (!dryRun) {
-      queue(stateDir, job);
+  const mode = positional[0] as string | undefined;
+  // Require positional arg in non-TTY, non-watch mode.
+  if (!process.stdout.isTTY && !watch) {
+    if (!mode || (mode !== "all" && mode !== "alert")) {
+      console.error('Error: specify "all" or "alert".');
+      console.error("");
+      console.error("Examples:");
+      console.error("  onyx-vellum all");
+      console.error("  onyx-vellum --dry-run all");
+      console.error("");
+      console.error("Run with --help for full usage information.");
+      process.exit(1);
     }
   }
-  const ruleContext: Omit<Parameters<typeof runner>[0], "dates"> = {
-    mode,
-    vaultPath,
-    queueJob,
-    dryRun,
-    verbose,
-    env: process.env,
-  };
 
+  const stateDir = resolveStateDir(process.env, vaultPath);
   const config = await loadConfig(vaultPath);
 
-  // Single shared entry-point for rule execution.  Closures in all parameters
-  // so both the one-shot and watch paths use exactly the same runAllRules call.
-  const run = async (
-    mode: PluginContext["mode"],
-    glob?: string[],
-    fileManager?: FileWriteManager,
-  ): Promise<void> => {
-    const dates = userLocalTime({
-      tz: config.timezone ?? "UTC",
+  // Shared queue function used by both TUI and console paths.
+  const queueJob = (job: Job) => queue(stateDir, job);
+
+  function mapChangesToResult(
+    changes: ChangesArray,
+    resultMode: TuiRunResult["mode"],
+  ): TuiRunResult {
+    return {
+      filesWritten: changes.length,
+      filePaths: changes.map((c) => c.vaultFile.relativePath),
+      mode: resultMode,
+      finishedAt: Date.now(),
+    };
+  }
+
+  if (process.stdout.isTTY) {
+    // ── TUI shell ──────────────────────────────────────────────
+
+    const tuiFileManager = new FileWriteManager(resolvedVaultPath);
+
+    let watchCleanup: (() => void) | null = null;
+
+    const actions: MainActions = {
+      async runAll(dryRun: boolean) {
+        const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+        const { changes } = await runner(
+          {
+            mode: "all",
+            vaultPath: resolvedVaultPath,
+            queueJob,
+            dryRun,
+            env: process.env,
+            dates,
+          },
+          tuiFileManager,
+        );
+        return mapChangesToResult(changes, "all");
+      },
+
+      async runAlert(dryRun: boolean) {
+        const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+        const { changes } = await runner(
+          {
+            mode: "alert",
+            vaultPath: resolvedVaultPath,
+            queueJob,
+            dryRun,
+            env: process.env,
+            dates,
+          },
+          tuiFileManager,
+        );
+        return mapChangesToResult(changes, "alert");
+      },
+
+      async runSingleFile(relPath: string, dryRun: boolean) {
+        const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+        const { changes } = await runner(
+          {
+            mode: "all",
+            vaultPath: resolvedVaultPath,
+            queueJob,
+            dryRun,
+            onlyGlob: [relPath],
+            env: process.env,
+            dates,
+          },
+          tuiFileManager,
+        );
+        return mapChangesToResult(changes, "single");
+      },
+
+      startWatching() {
+        const fullDebounceMs = config.watch?.debounce ?? 30_000;
+        const fastDebounce = 5_000;
+        const initialSchedule = normalizeAlertSchedule(
+          config.watch?.alertSchedule ?? [],
+        );
+
+        let alertSchedule: string[] = initialSchedule.valid;
+        let timezone = config.timezone ?? "UTC";
+
+        const fullDebouncer = createDebouncer({
+          baseMs: fullDebounceMs,
+          maxMs: Math.min(fullDebounceMs * 2, 60_000),
+          onProcess: (relPaths) => runAll(relPaths),
+          growthFactor: 1.15,
+        });
+
+        const stopWatcher = vaultWatcher(
+          resolvedVaultPath,
+          async (relPaths) => {
+            const configChanged = relPaths.includes(CONFIG_FILENAME);
+            if (configChanged) {
+              console.warn(`[watch] Config changed, reloading...`);
+              try {
+                const newConfig = await loadConfig(resolvedVaultPath);
+                const normalized = normalizeAlertSchedule(
+                  newConfig.watch?.alertSchedule ?? [],
+                );
+                alertSchedule = normalized.valid;
+                timezone = newConfig.timezone ?? "UTC";
+                // Config updates don't need to trigger a full run.
+                return;
+              } catch (err) {
+                console.error(
+                  `[watch] Failed to reload config:`,
+                  (err as Error).message,
+                );
+              }
+            }
+
+            runFast(relPaths);
+          },
+          {
+            debounce: fastDebounce,
+            maxDebounce: 30_000,
+            growthFactor: 1.5,
+            additionalFiles: [CONFIG_FILENAME],
+            onRawNotify: (relPath, eventType) =>
+              fullDebouncer.notify(relPath, eventType),
+            canWatch: (p) => tuiFileManager.canWatch(p),
+          },
+        );
+
+        const stopScheduler = createAlertScheduler(
+          () => alertSchedule,
+          async () => {
+            const dates = userLocalTime({ tz: timezone });
+            await runner(
+              {
+                mode: "alert",
+                vaultPath: resolvedVaultPath,
+                queueJob,
+                dryRun: false,
+                env: process.env,
+                dates,
+              },
+              tuiFileManager,
+            );
+          },
+          timezone,
+        );
+
+        watchCleanup = () => {
+          stopWatcher();
+          stopScheduler();
+          fullDebouncer.dispose();
+        };
+      },
+
+      stopWatching() {
+        watchCleanup?.();
+        watchCleanup = null;
+      },
+
+      async initVault(dryRun: boolean) {
+        const initResult = await runInitPass(resolvedVaultPath, dryRun);
+        return {
+          filesConverted: initResult.changes.length,
+          filePaths: initResult.changes.map((c) => c.vaultFile.relativePath),
+          finishedAt: Date.now(),
+        } satisfies TuiInitResult;
+      },
+    };
+
+    const tui = createMainTui({ vaultPath, actions, stateDir });
+    process.on("SIGINT", () => {
+      actions.stopWatching();
+      tui.stop();
+      process.exit(0);
     });
-    const { changes, report } = await runner({
-      ...ruleContext,
-      mode,
-      dates,
-      onlyGlob: glob,
-    }, fileManager);
 
-    if (changes.length > 0 || queuedJobs.length > 0) {
-      log(`=== Report ===`);
-      log(report);
-      log(`Jobs queued:`);
-      queuedJobs.forEach((job) => {
-        switch (job.type) {
-          case "transcribe":
-            log(
-              `- Transcribe ${job.audioPath} to ${job.target.location.file.relativePath}`,
-            );
-            break;
-          case "clean-transcription":
-            log(
-              `- Clean transcription in ${job.target.location.file.relativePath}`,
-            );
-            break;
-          case "find-tasks":
-            log(
-              `- Find tasks in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
-            );
-            break;
-          case "summarize-text":
-            log(
-              `- Summarize text in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
-            );
-            break;
-        }
+    // Local helpers that update the TUI store during watcher runs.
+    async function runAll(glob?: string[]) {
+      const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+      const { changes } = await runner(
+        {
+          mode: "all",
+          vaultPath: resolvedVaultPath,
+          queueJob,
+          dryRun: false,
+          onlyGlob: glob,
+          env: process.env,
+          dates,
+        },
+        tuiFileManager,
+      );
+      tui.store.dispatch({
+        type: "run-complete",
+        result: mapChangesToResult(changes, "all"),
       });
-      queuedJobs.length = 0;
     }
-  };
 
-  if (watch) {
-    // Watch mode: load config to read the debounce and schedule settings.
+    async function runFast(relPaths: string[]) {
+      const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+      tui.store.dispatch({
+        type: "file-changed",
+        files: relPaths,
+        delayMs: 5_000,
+      });
+      await runner(
+        {
+          mode: "fast",
+          vaultPath: resolvedVaultPath,
+          queueJob,
+          dryRun: false,
+          onlyGlob: relPaths,
+          env: process.env,
+          dates,
+        },
+        tuiFileManager,
+      );
+      tui.store.dispatch({ type: "debounce-fired" });
+    }
+  } else if (watch) {
+    // ── Console watch mode (non-TTY fallback) ───────────────
+
     const fullDebounceMs = config.watch?.debounce ?? 30_000;
     const fastDebounce = 5_000;
-    // Mutable so the scheduler picks up changes when the config is reloaded.
     const initialSchedule = normalizeAlertSchedule(
       config.watch?.alertSchedule ?? [],
     );
@@ -182,17 +343,73 @@ if (init) {
 
     log(`[watch] Running all rules on startup...`);
 
-    const watchFileManager = new FileWriteManager(vaultPath);
-    run("all", undefined, watchFileManager);
+    const watchConsoleFileManager = new FileWriteManager(vaultPath);
+    const queuedJobs: Job[] = [];
+    const consoleQueueJob = (job: Job) => {
+      queuedJobs.push(job);
+      queue(stateDir, job);
+    };
+
+    const consoleRun = async (
+      runMode: PluginContext["mode"],
+      glob?: string[],
+    ) => {
+      const dates = userLocalTime({ tz: timezone });
+      const ctx: Omit<Parameters<typeof runner>[0], "dates"> = {
+        mode: runMode,
+        vaultPath,
+        queueJob: consoleQueueJob,
+        dryRun,
+        onlyGlob: glob,
+        env: process.env,
+      };
+      const { changes, report } = await runner(
+        { ...ctx, dates },
+        watchConsoleFileManager,
+      );
+
+      if (changes.length > 0 || queuedJobs.length > 0) {
+        log(`=== Report ===`);
+        log(report);
+        log(`Jobs queued:`);
+        queuedJobs.forEach((job) => {
+          switch (job.type) {
+            case "transcribe":
+              log(
+                `- Transcribe ${job.audioPath} to ${job.target.location.file.relativePath}`,
+              );
+              break;
+            case "clean-transcription":
+              log(
+                `- Clean transcription in ${job.target.location.file.relativePath}`,
+              );
+              break;
+            case "find-tasks":
+              log(
+                `- Find tasks in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
+              );
+              break;
+            case "summarize-text":
+              log(
+                `- Summarize text in ${job.source.file.relativePath} and write to ${job.target.location.file.relativePath}`,
+              );
+              break;
+          }
+        });
+        queuedJobs.length = 0;
+      }
+    };
+
+    consoleRun("all");
 
     const fullDebouncer = createDebouncer({
       baseMs: fullDebounceMs,
       maxMs: Math.min(fullDebounceMs * 2, 60_000),
-      onProcess: (relPaths) => run("all", relPaths),
+      onProcess: (relPaths) => consoleRun("all", relPaths),
       growthFactor: 1.15,
     });
 
-    const stop = vaultWatcher(
+    const stopWatcher = vaultWatcher(
       vaultPath,
       async (relPaths) => {
         const configChanged = relPaths.includes(CONFIG_FILENAME);
@@ -227,7 +444,7 @@ if (init) {
           }
         }
 
-        await run("fast", relPaths);
+        await consoleRun("fast", relPaths);
       },
       {
         debounce: fastDebounce,
@@ -236,25 +453,32 @@ if (init) {
         additionalFiles: [CONFIG_FILENAME],
         onRawNotify: (relPath, eventType) =>
           fullDebouncer.notify(relPath, eventType),
-        canWatch: (p) => watchFileManager.canWatch(p),
+        canWatch: (p) => watchConsoleFileManager.canWatch(p),
       },
     );
 
-    // Run incompleteTaskAlert (and its transitive deps) on schedule only.
     const stopScheduler = createAlertScheduler(
       () => alertSchedule,
       async () => {
         log("[watch] Running scheduled alert...");
-        await runner({
-          ...ruleContext,
+        const dates = userLocalTime({ tz: timezone });
+        const ctx: Omit<Parameters<typeof runner>[0], "dates"> = {
           mode: "alert",
-          dates: userLocalTime({ tz: timezone }),
-        }, watchFileManager);
+          vaultPath,
+          queueJob: consoleQueueJob,
+          dryRun,
+          env: process.env,
+        };
+        await runner({ ...ctx, dates }, watchConsoleFileManager);
       },
       timezone,
     );
 
-    const stopAll = createStopAll([stop, stopScheduler]);
+    const stopAll = () => {
+      stopWatcher();
+      stopScheduler();
+      fullDebouncer.dispose();
+    };
 
     process.on("SIGINT", () => {
       log("\n[watch] Stopping watcher...");
@@ -262,6 +486,7 @@ if (init) {
       process.exit(0);
     });
   } else {
+    // ── One-shot mode (non-TTY) ────────────────────────────
     if (dryRun) {
       log(`Dry run: true`);
     } else {
@@ -269,17 +494,19 @@ if (init) {
     }
     log("");
 
-    await run(mode, onlyGlob).catch((err: unknown) => {
+    const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
+    const ctx: Omit<Parameters<typeof runner>[0], "dates"> = {
+      mode: (mode ?? "all") as PluginContext["mode"],
+      vaultPath,
+      queueJob,
+      dryRun,
+      onlyGlob,
+      env: process.env,
+    };
+
+    await runner({ ...ctx, dates }).catch((err: unknown) => {
       console.error("Fatal error:", (err as Error).message);
       process.exit(1);
     });
   }
-}
-
-function createStopAll(stops: Array<() => void>): () => void {
-  return (): void => {
-    for (const stop of stops) {
-      stop();
-    }
-  };
 }

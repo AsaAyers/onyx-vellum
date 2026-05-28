@@ -14,6 +14,7 @@
     "sourceMap": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
     "erasableSyntaxOnly": true,
     "forceConsistentCasingInFileNames": true
   },
