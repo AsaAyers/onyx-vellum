@@ -7,6 +7,7 @@ import {
   zJob,
   type ContentLocation,
   type Job,
+  type WorkerEvent,
 } from "../src/transcription/types.js";
 import { VaultFile } from "../src/engine/VaultFile.js";
 import { createTempDir } from "./createTempDir.js";
@@ -172,6 +173,104 @@ chislic doner corned beef
         BaCoN IpSuM DoLoR AmEt pOrK LoIn vEnIsOn tOnGuE, cHiSlIc dOnEr cOrNeD BeEf
         "
       `);
+    });
+  });
+
+  describe("worker events", async () => {
+    it("emits started, job-started, job-completed for a successful job", async () => {
+      const stateDir = await createTempDir("onyx-vellum-worker-state-");
+      const vaultPath = await createTempDir("onyx-vellum-worker-vault-");
+
+      const audioPath = join(vaultPath, "audio", "test.m4a");
+      const transcriptPath = join(vaultPath, "audio", "test.transcript.md");
+      await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
+      await fs.writeFile(transcriptPath, "# Header\n", "utf-8");
+
+      const job: Job = {
+        type: "transcribe",
+        id: "01j-event-test",
+        vaultPath,
+        audioPath,
+        target: {
+          location: {
+            file: new VaultFile({
+              relativePath: "audio/test.transcript.md",
+              absolutePath: transcriptPath,
+              vaultPath,
+            }),
+            header: null,
+            position: "start",
+          },
+        },
+      };
+      await queue(stateDir, job);
+
+      const events: WorkerEvent[] = [];
+      let shouldRun = true;
+
+      await startWorker({
+        stateDir,
+        getWhisperBackend: () => ({
+          async transcribe() {
+            return "transcript body";
+          },
+        }),
+        pollIntervalMs: 1,
+        shouldContinue: () => {
+          if (shouldRun) {
+            shouldRun = false;
+            return true;
+          }
+          return false;
+        },
+        sleep: async () => Promise.resolve(),
+        onEvent: (event) => {
+          events.push(event);
+        },
+      });
+
+      expect(events.some((e) => e.type === "started")).toBe(true);
+      expect(events.some((e) => e.type === "recovery-complete")).toBe(true);
+      expect(events.some((e) => e.type === "job-started")).toBe(true);
+      expect(events.some((e) => e.type === "job-completed")).toBe(true);
+
+      const started = events.find((e) => e.type === "job-started");
+      expect(started).toBeDefined();
+      if (started && started.type === "job-started") {
+        expect(started.jobId).toBe("01j-event-test");
+        expect(started.jobType).toBe("transcribe");
+      }
+    });
+
+    it("emits started, recovery-complete, poll-idle when no jobs", async () => {
+      const stateDir = await createTempDir("onyx-vellum-worker-state-");
+      const events: WorkerEvent[] = [];
+      let shouldRun = true;
+
+      await startWorker({
+        stateDir,
+        getWhisperBackend: () => ({
+          async transcribe() {
+            return "";
+          },
+        }),
+        pollIntervalMs: 1,
+        shouldContinue: () => {
+          if (shouldRun) {
+            shouldRun = false;
+            return true;
+          }
+          return false;
+        },
+        sleep: async () => Promise.resolve(),
+        onEvent: (event) => {
+          events.push(event);
+        },
+      });
+
+      expect(events.some((e) => e.type === "started")).toBe(true);
+      expect(events.some((e) => e.type === "recovery-complete")).toBe(true);
+      expect(events.some((e) => e.type === "poll-idle")).toBe(true);
     });
   });
 });

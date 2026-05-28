@@ -10,6 +10,7 @@ import { ActionBar } from "./ActionBar.js";
 import { ResultsPanel } from "./ResultsPanel.js";
 import { FileChangeList } from "./FileChangeList.js";
 import { FilePicker } from "./FilePicker.js";
+import { HelpOverlay } from "./HelpOverlay.js";
 import { formatDuration } from "./formatResults.js";
 import { computeDebounceRemaining } from "./watchHelpers.js";
 
@@ -47,6 +48,10 @@ export function MainApp({
     const s = stateRef.current;
 
     if (s.name === "picking") return;
+    if (s.name === "help") {
+      store.dispatch({ type: "hide-help" });
+      return;
+    }
 
     if (key.escape) {
       store.dispatch({ type: "close-picker" });
@@ -146,7 +151,9 @@ export function MainApp({
       <StatusBar state={state} />
       <Box flexGrow={1} alignItems="flex-start" paddingY={1}>
         <Box width="100%" paddingX={1}>
-          {renderMainView(state, now, startedRef, vaultPath, store, actions)}
+          {state.name === "help"
+            ? <HelpOverlay />
+            : renderMainView(state, now, startedRef, vaultPath, store, actions)}
         </Box>
       </Box>
       <ActionBar state={state} />
@@ -216,12 +223,6 @@ function renderMainView(
     case "picking":
       return (
         <FilePicker store={store} actions={actions} vaultPath={vaultPath} />
-      );
-    case "help":
-      return (
-        <Box>
-          <Text>Help overlay (press any key to close)</Text>
-        </Box>
       );
     case "idle":
       if (state.lastRun) {

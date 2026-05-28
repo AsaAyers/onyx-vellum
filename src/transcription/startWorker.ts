@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { fasterWhisperBackend } from "./fasterWhisperBackend.js";
 import { buildJobId, claimNext, queue, markDone, markFailed } from "./queue.js";
 import { resolveStateDir } from "./queue.js";
-import { type Job, type WorkerOptions } from "./types.js";
+import { type Job, type WorkerOptions, type WorkerEvent } from "./types.js";
 import { FileWriteManager } from "../engine/FileWriteManager.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import { createParseProcessor } from "../markdown/createParseProcessor.js";
@@ -25,7 +25,7 @@ createDebug.enable("onyx:worker*");
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
-async function recoverStaleProcessingJobs(stateDir: string): Promise<void> {
+async function recoverStaleProcessingJobs(stateDir: string): Promise<string[]> {
   const processingDir = `${stateDir}/processing`;
   const pendingDir = `${stateDir}/pending`;
   await fs.mkdir(processingDir, { recursive: true });
@@ -39,6 +39,8 @@ async function recoverStaleProcessingJobs(stateDir: string): Promise<void> {
       fs.rename(`${processingDir}/${file}`, `${pendingDir}/${file}`),
     ),
   );
+
+  return files;
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -49,8 +51,14 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const sleep = options.sleep ?? defaultSleep;
   const logger = options.logger ?? console;
+  const emit = options.onEvent
+    ? (event: WorkerEvent) => { options.onEvent!(event); }
+    : () => {};
 
-  await recoverStaleProcessingJobs(options.stateDir);
+  emit({ type: "started" });
+
+  const staleFiles = await recoverStaleProcessingJobs(options.stateDir);
+  emit({ type: "recovery-complete", recovered: staleFiles.length });
 
   const fileOperations = new FileOperationExecutor();
   const ruleContext: Omit<PluginContext, "dates" | "vaultPath"> = {
@@ -90,9 +98,17 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       const job = await claimNext(options.stateDir);
       lastJob = job;
       if (!job) {
+        emit({ type: "poll-idle" });
         await (options.sleep ?? sleep)(pollIntervalMs);
         continue;
       }
+
+      emit({
+        type: "job-started",
+        jobId: job.id,
+        jobType: job.type,
+        detail: JSON.stringify(job),
+      });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jobArgs: Parameters<JobWorker<any>>[0] = {
@@ -132,12 +148,30 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
       }
 
       await markDone(options.stateDir, job.id);
+
+      emit({
+        type: "job-completed",
+        jobId: job.id,
+        jobType: job.type,
+        detail: JSON.stringify(job),
+      });
       continue;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await markFailed(options.stateDir, lastJob!.id, message);
       console.error(err);
       logger.error(`worker loop error: [${lastJob?.type}] ${message}`);
+
+      if (lastJob) {
+        emit({
+          type: "job-failed",
+          jobId: lastJob.id,
+          jobType: lastJob.type,
+          detail: JSON.stringify(lastJob),
+          error: message,
+        });
+      }
+
       await sleep(pollIntervalMs);
     }
   }

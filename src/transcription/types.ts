@@ -79,6 +79,7 @@ export const zWorkerOptions = z.object({
   shouldContinue: z.function().returns(z.boolean()).optional(),
   logger: z.object({ error: z.function() }).optional(),
   sleep: z.function().args(z.number()).returns(z.promise(z.void())).optional(),
+  onEvent: z.function().args(z.any()).returns(z.void()).optional(),
 });
 
 export type Job = z.infer<typeof zJob>;
@@ -88,3 +89,11 @@ export type SummarizeTextJob = z.infer<typeof zSummarizeTextJob>;
 export type FindTasksJob = z.infer<typeof zFindTasksJob>;
 export type TranscriberBackend = z.infer<typeof zTranscriberBackend>;
 export type WorkerOptions = z.infer<typeof zWorkerOptions>;
+
+export type WorkerEvent =
+  | { type: "started" }
+  | { type: "recovery-complete"; recovered: number }
+  | { type: "poll-idle" }
+  | { type: "job-started"; jobId: string; jobType: string; detail: string }
+  | { type: "job-completed"; jobId: string; jobType: string; detail: string }
+  | { type: "job-failed"; jobId: string; jobType: string; detail: string; error: string };
