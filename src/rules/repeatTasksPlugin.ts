@@ -1,26 +1,19 @@
 import { visit } from "unist-util-visit";
-import { parseRepeat, computeNextDue } from "./scheduleUtils.js";
-import { addDays, differenceInCalendarDays } from "date-fns";
 import type { ListItem, Root } from "mdast";
 import { getInlineFields } from "../markdown/inlineFieldsPlugin.js";
 import { makePlugin } from "./makePlugin.js";
-import { format } from "date-fns-tz";
-import { userLocalTime } from "../engine/userLocalTime.js";
+import { rolloverTask, parseDateInTz } from "./rolloverTask.js";
 
 /**
- * remark plugin to perform completed task repeatTasks using inline field data.
+ * remark plugin to perform completed task rollover using inline field data.
  * - Finds checked, recurring tasks completed today (done:today, repeat, not copied)
- * - Appends copied:1 to the completed task
  * - Inserts a fresh incomplete copy after it, with advanced date fields
+ * - Strips repeat from the original to prevent re-processing
  */
 export const repeatTasksPlugin = makePlugin(
   "repeatTasks",
-  function ({ tree, ctx, debug, file }) {
+  function ({ tree, ctx, debug, file: _file }) {
     const { tz } = ctx.dates;
-
-    function formatDate(d: Date): string {
-      return format(d, "yyyy-MM-dd", { timeZone: tz });
-    }
 
     visit(tree as Root, "listItem", (node, idx, parent) => {
       if (typeof idx !== "number" || !parent) {
@@ -43,46 +36,17 @@ export const repeatTasksPlugin = makePlugin(
       if (node.checked !== true) {
         return;
       }
-      const doneDate = userLocalTime({
-        tz: ctx.dates.tz,
-        strDate: fields.done,
-      }).date;
-      if (!doneDate) {
-        return;
-      }
-      const repeat = parseRepeat(fields.repeat);
-      if (!repeat) return;
 
-      const newDue = computeNextDue(doneDate, repeat);
-      const cloneFields = { ...fields };
-      delete cloneFields.done;
-      cloneFields.due = formatDate(newDue);
+      const doneDate = parseDateInTz(fields.done, tz);
+      if (!doneDate) return;
 
-      // Compute delta in days between old and new due dates
-      let oldDueDate: Date | null = null;
-      if (fields.due) {
-        oldDueDate = userLocalTime({ strDate: fields.due, tz }).date;
-      }
-      const oldDue = oldDueDate ?? doneDate;
-      const deltaDays = differenceInCalendarDays(newDue, oldDue);
-
-      if (fields.sleep) {
-        const sleepDate = userLocalTime({
-          strDate: fields.sleep,
-          tz,
-        }).date;
-        debug({ sleepDate });
-        if (sleepDate) {
-          const newSleep = addDays(sleepDate, deltaDays);
-          cloneFields.sleep = formatDate(newSleep);
-          debug(file.relativePath, "sleep", cloneFields.sleep);
-        }
-      }
+      const result = rolloverTask(fields, doneDate, tz);
+      if (!result) return;
 
       const newListItem: ListItem = JSON.parse(JSON.stringify(node));
       newListItem.checked = false;
       const newFields = getInlineFields(newListItem);
-      Object.assign(newFields, cloneFields);
+      Object.assign(newFields, result.clone);
       delete newFields.done;
       delete newFields.copied;
       debug({ newFields });
