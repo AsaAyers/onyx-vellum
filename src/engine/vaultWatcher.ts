@@ -1,6 +1,5 @@
 import { watch } from "node:fs";
 import { resolve, relative } from "node:path";
-import { FileWriteManager } from "./FileWriteManager.js";
 import { writeFile } from "node:fs/promises";
 import createDebug from "debug";
 
@@ -42,6 +41,13 @@ export type WatcherOptions = {
    * debouncers are reset by every change.
    */
   onRawNotify?: (relPath: string, eventType: string) => void;
+
+  /**
+   * Optional guard: when provided, file-change events are forwarded only
+   * if this function returns true.  Used to suppress events triggered by
+   * the runner's own writes (see FileWriteManager.canWatch).
+   */
+  canWatch?: (path: string) => boolean;
 };
 
 /**
@@ -171,7 +177,7 @@ export function vaultWatcher(
       // resolve + relative normalises any platform path separators.
       const absPath = resolve(vaultPath, filename);
       const relPath = relative(vaultPath, absPath);
-      if (!FileWriteManager.canWatch(absPath)) return;
+      if (opts.canWatch && !opts.canWatch(absPath)) return;
 
       if (extraFiles.has(relPath)) {
         // Explicitly registered files (e.g. the config file) are always

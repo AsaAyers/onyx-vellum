@@ -8,7 +8,6 @@ vi.mock("../src/rules/incompleteTaskAlertPlugin.js", async (importOriginal) => {
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { runner, runInitPass } from "../src/engine/runner.js";
-import { FileWriteManager } from "../src/engine/FileWriteManager.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { createTempDir } from "./createTempDir.js";
@@ -38,8 +37,6 @@ const runnerBase = {
 
 describe("runner", () => {
   beforeEach(() => {
-    FileWriteManager.isWriting = false;
-    FileWriteManager.recentFiles.clear();
     (sendNotification as Mock).mockClear();
   });
 
@@ -209,11 +206,6 @@ describe("runner", () => {
 });
 
 describe("runInitPass", () => {
-  beforeEach(() => {
-    FileWriteManager.isWriting = false;
-    FileWriteManager.recentFiles.clear();
-  });
-
   it("decodes UTF-16 LE with BOM", async () => {
     const vaultPath = await createVault({});
     const content = "# UTF-16 LE\n* [ ] Task\n";

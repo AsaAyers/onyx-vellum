@@ -409,16 +409,26 @@ describe("vaultWatcher", () => {
   // -----------------------------------------------------------------------
 
   it("respects FileWriteManager.canWatch (skips when writing is in progress)", async () => {
-    const { FileWriteManager } =
-      await import("../src/engine/FileWriteManager.js");
-    FileWriteManager.isWriting = true;
-    const stop = vaultWatcher(vaultPath, onProcess);
+    const { FileWriteManager } = await import("../src/engine/FileWriteManager.js");
+    const { VaultFile } = await import("../src/engine/VaultFile.js");
+    const fwm = new FileWriteManager(vaultPath);
+    const vf = new VaultFile({
+      absolutePath: vaultPath + "/notes/doc.md",
+      relativePath: "notes/doc.md",
+      vaultPath,
+      isNew: true,
+    });
+    fwm.stage(vf, "content");
+    await fwm.commit(true);
+
+    const stop = vaultWatcher(vaultPath, onProcess, {
+      canWatch: (p) => fwm.canWatch(p),
+    });
 
     watchMockContext.watchCallback("change", "notes/doc.md");
     vi.advanceTimersByTime(60_001);
     expect(onProcess).not.toHaveBeenCalled();
 
-    FileWriteManager.isWriting = false;
     stop();
   });
 

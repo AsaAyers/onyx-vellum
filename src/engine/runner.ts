@@ -51,6 +51,7 @@ export async function runner(
   baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "updateFile"> & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
+  fm?: FileWriteManager,
 ): Promise<{
   changes: ChangesArray;
   report: string;
@@ -74,7 +75,7 @@ export async function runner(
     },
   );
 
-  const fileManager = new FileWriteManager(baseCtx.vaultPath);
+  const fileManager = fm ?? new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
   const ruleContext: PluginContext = {
     ...baseCtx,

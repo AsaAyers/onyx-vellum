@@ -59,6 +59,8 @@ export type ChangesArray = Array<{
 
 export class FileWriteManager {
   private pending: Map<string, string> = new Map();
+  private isWriting = false;
+  private recentFiles = new Set<string>();
   public readonly vaultPath: string;
 
   constructor(vaultPath: string) {
@@ -87,11 +89,7 @@ export class FileWriteManager {
     this.pending.clear();
   }
 
-  static isWriting = false;
-
-  static recentFiles = new Set<string>();
-
-  static canWatch(path: string): boolean {
+  canWatch(path: string): boolean {
     if (this.isWriting) {
       debug(`Cannot write ${path} because another write is in progress`);
       return false;
@@ -106,9 +104,9 @@ export class FileWriteManager {
   }
 
   private markFileAsWritten(path: string) {
-    FileWriteManager.recentFiles.add(path);
+    this.recentFiles.add(path);
     setTimeout(() => {
-      FileWriteManager.recentFiles.delete(path);
+      this.recentFiles.delete(path);
     }, 1000);
   }
 
@@ -120,7 +118,7 @@ export class FileWriteManager {
    */
   async commit(dryRun: boolean): Promise<ChangesArray> {
     const changes: ChangesArray = [];
-    FileWriteManager.isWriting = !dryRun;
+    this.isWriting = !dryRun;
     for (const [relativePath, content] of this.pending) {
       const vaultFile = new VaultFile({
         absolutePath: join(this.vaultPath, relativePath),
@@ -136,7 +134,7 @@ export class FileWriteManager {
       changes.push({ vaultFile, content });
     }
     this.pending.clear();
-    FileWriteManager.isWriting = false;
+    this.isWriting = false;
     return changes;
   }
 }

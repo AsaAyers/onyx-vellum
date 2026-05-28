@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runner, runInitPass } from "./engine/runner.js";
 import { createDebouncer, vaultWatcher } from "./engine/vaultWatcher.js";
+import { FileWriteManager } from "./engine/FileWriteManager.js";
 import createDebug from "debug";
 import {
   createAlertScheduler,
@@ -107,6 +108,7 @@ if (init) {
   const run = async (
     mode: PluginContext["mode"],
     glob?: string[],
+    fileManager?: FileWriteManager,
   ): Promise<void> => {
     const dates = userLocalTime({
       tz: config.timezone ?? "UTC",
@@ -116,7 +118,7 @@ if (init) {
       mode,
       dates,
       onlyGlob: glob,
-    });
+    }, fileManager);
 
     if (changes.length > 0 || queuedJobs.length > 0) {
       log(`=== Report ===`);
@@ -179,7 +181,9 @@ if (init) {
     log("");
 
     log(`[watch] Running all rules on startup...`);
-    run("all");
+
+    const watchFileManager = new FileWriteManager(vaultPath);
+    run("all", undefined, watchFileManager);
 
     const fullDebouncer = createDebouncer({
       baseMs: fullDebounceMs,
@@ -232,6 +236,7 @@ if (init) {
         additionalFiles: [CONFIG_FILENAME],
         onRawNotify: (relPath, eventType) =>
           fullDebouncer.notify(relPath, eventType),
+        canWatch: (p) => watchFileManager.canWatch(p),
       },
     );
 
@@ -244,7 +249,7 @@ if (init) {
           ...ruleContext,
           mode: "alert",
           dates: userLocalTime({ tz: timezone }),
-        });
+        }, watchFileManager);
       },
       timezone,
     );
