@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSyncExternalStore } from "react";
-import type { MutableRefObject } from "react";
+import type { RefObject } from "react";
 import { Box, Text } from "ink";
 import { useInput } from "ink";
 import type { Store } from "../shared/store.js";
@@ -9,15 +9,18 @@ import { StatusBar } from "./StatusBar.js";
 import { ActionBar } from "./ActionBar.js";
 import { ResultsPanel } from "./ResultsPanel.js";
 import { FileChangeList } from "./FileChangeList.js";
+import { FilePicker } from "./FilePicker.js";
 import { formatDuration } from "./formatResults.js";
 import { computeDebounceRemaining } from "./watchHelpers.js";
 
 export function MainApp({
   store,
   actions,
+  vaultPath,
 }: {
   store: Store<MainState, MainEvent>;
   actions: MainActions;
+  vaultPath: string;
 }) {
   const state = useSyncExternalStore(store.subscribe, store.getState);
   const stateRef = useRef(state);
@@ -42,6 +45,8 @@ export function MainApp({
 
   useInput((input, key) => {
     const s = stateRef.current;
+
+    if (s.name === "picking") return;
 
     if (key.escape) {
       store.dispatch({ type: "close-picker" });
@@ -141,7 +146,7 @@ export function MainApp({
       <StatusBar state={state} />
       <Box flexGrow={1} alignItems="flex-start" paddingY={1}>
         <Box width="100%" paddingX={1}>
-          {renderMainView(state, now, startedRef)}
+          {renderMainView(state, now, startedRef, vaultPath, store, actions)}
         </Box>
       </Box>
       <ActionBar state={state} />
@@ -184,7 +189,14 @@ function WatchView({ state, now }: { state: MainState; now: number }) {
   );
 }
 
-function renderMainView(state: MainState, now: number, startedRef: MutableRefObject<number | null>) {
+function renderMainView(
+  state: MainState,
+  now: number,
+  startedRef: RefObject<number | null>,
+  vaultPath: string,
+  store: Store<MainState, MainEvent>,
+  actions: MainActions,
+) {
   switch (state.name) {
     case "running":
       return (
@@ -203,9 +215,7 @@ function renderMainView(state: MainState, now: number, startedRef: MutableRefObj
       return <WatchView state={state} now={now} />;
     case "picking":
       return (
-        <Box>
-          <Text>Select a file...</Text>
-        </Box>
+        <FilePicker store={store} actions={actions} vaultPath={vaultPath} />
       );
     case "help":
       return (

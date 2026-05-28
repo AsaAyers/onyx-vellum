@@ -21,7 +21,11 @@ export function createMainTui(config: {
   });
 
   const { unmount, waitUntilExit } = render(
-    <MainApp store={store} actions={config.actions} />,
+    <MainApp
+      store={store}
+      actions={config.actions}
+      vaultPath={config.vaultPath}
+    />,
     { patchConsole: true },
   );
 
