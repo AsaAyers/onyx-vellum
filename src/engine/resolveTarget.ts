@@ -62,15 +62,6 @@ export function resolveTarget(
       n.children.some((c) => c.type === "text" && c.value === location.header),
   );
 
-  if (headerNodeIdx !== -1 && location.position === "end") {
-    return {
-      parent: tree,
-      startNode: null,
-      deleteCount: 0,
-      headerNodes: [],
-    };
-  }
-
   if (headerNodeIdx === -1) {
     const newHeader = makeHeading(location.header);
     if (location.position === "start") {

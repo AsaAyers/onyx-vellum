@@ -189,8 +189,8 @@ priority: low
 - [x] done`,
     );
     const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
-    // 2 per-task ops + 1 summary
-    expect(opsFor.length).toBe(3);
+    // 2 per-task ops
+    expect(opsFor.length).toBe(2);
   });
 
   it("priority=high also adds each incomplete task", async () => {
@@ -229,7 +229,7 @@ priority: high
     await processor.run(tree, vf);
 
     const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
-    expect(opsFor.length).toBe(2); // 1 per-task + 1 summary
+    expect(opsFor.length).toBe(1); // 1 per-task
     expect(opsFor[0].content).toBeTruthy();
   });
 
@@ -240,7 +240,7 @@ priority: high
   it("alert entries are targeted at onyx_alert.md in the vault root", async () => {
     const { ops } = await runAlert("- [ ] important");
     const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
-    expect(opsFor.length).toBe(2);
+    expect(opsFor.length).toBe(1);
     for (const op of opsFor) {
       expect(op.location.file.absolutePath).toBe(join(vaultPath, ALERT_FILE));
     }
