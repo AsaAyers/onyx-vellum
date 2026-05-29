@@ -50,15 +50,17 @@ export const incompleteTaskAlertPlugin = makePlugin(
       }
     });
 
-    ctx.updateFile({
-      location: {
-        file: vaultFile,
-        header: "",
-        position: "end",
-      },
-      content: `* ${numTasks} tasks in ${file.relativePath.replace(ctx.vaultPath, "")}
-          `,
-    });
+    if (priority === "low" && numTasks > 0) {
+      ctx.updateFile({
+        location: {
+          file: vaultFile,
+          header: "Low Priority Tasks",
+          position: "end",
+        },
+        content: `* ${numTasks} tasks in ${file.relativePath.replace(ctx.vaultPath, "")}
+            `,
+      });
+    }
     return;
   },
 );
