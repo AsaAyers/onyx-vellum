@@ -316,7 +316,7 @@ require Ollama — they work on plain Markdown without any LLM dependency.
 The worker runs the built Node entrypoint directly:
 
 ```bash
-node dist/transcription/worker.js
+npm start -- --worker
 ```
 
 Inside that container, the Node worker keeps a long-lived `faster-whisper`

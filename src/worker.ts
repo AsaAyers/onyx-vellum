@@ -1,4 +1,3 @@
-import { fileURLToPath } from "url";
 import { fasterWhisperBackend } from "./transcription/fasterWhisperBackend.js";
 import { resolveStateDir } from "./transcription/queue.js";
 import { startWorker } from "./transcription/startWorker.js";
@@ -64,11 +63,4 @@ export async function worker(): Promise<void> {
   });
 
   tui.stop();
-}
-
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  worker().catch((err: unknown) => {
-    console.error("Fatal transcription worker error:", (err as Error).message);
-    process.exit(1);
-  });
 }

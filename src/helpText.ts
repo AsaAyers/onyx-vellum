@@ -1,12 +1,14 @@
 export const helpText = `\
 Usage:
-  VAULT_PATH=<path> onyx-vellum [--dry-run] [--verbose] [--only <glob>] (all | <rule> [<rule>...])
-  VAULT_PATH=<path> onyx-vellum --watch [--dry-run] [--verbose] (all | <rule> [<rule>...])
+  VAULT_PATH=<path> onyx-vellum [--dry-run] [--verbose] [--only <glob>] (all | alert)
+  VAULT_PATH=<path> onyx-vellum --watch [--dry-run] [--verbose]
   VAULT_PATH=<path> onyx-vellum --init [--dry-run]
+  VAULT_PATH=<path> onyx-vellum --worker
+  VAULT_PATH=<path> onyx-vellum --view-ast <file>
 
-Rules:
-  all                      Run all registered rules in dependency order.
-  <rule> [<rule>...]       Run only the named rule(s) and their transitive dependencies.
+Commands:
+  (default)                Run the pipeline.  Specify "all" (full pipeline)
+                             or "alert" (incomplete-task report only).
 
 Available rules:
   normalizeTodayLiteral    Replace relative date literals (today/yesterday/tomorrow)
@@ -53,10 +55,12 @@ Options:
                                   "debounce": 5000
                                 }
                               }
-  --init                   Convert any UTF-16-encoded .md files to UTF-8
-                            and stamp done:unknown on checked tasks that
-                            lack one.
-                            Mutually exclusive with rule selection and --watch.
+  --init                   Run the full pipeline against every file in the
+                             vault to produce a stable baseline.  After init,
+                             subsequent pipeline runs only show changes from
+                             intentional user edits rather than formatting
+                             adjustments on old files.
+                             Mutually exclusive with rule selection and --watch.
   --help, -h               Show this help message and exit.
 
 Environment variables:
@@ -103,6 +107,6 @@ Examples:
   # Watch with dry-run (show diffs on each change, write nothing)
   VAULT_PATH=/my/vault onyx-vellum --watch --dry-run all
 
-  # Normalize formatting and stamp done on checked tasks
+  # Baseline the vault — normalise formatting, stamp done dates, etc.
   VAULT_PATH=/my/vault onyx-vellum --init --dry-run
 `;

@@ -12,25 +12,19 @@ import path from "node:path";
 // eslint-disable-next-line no-console
 const log = console.log.bind(console);
 
-export async function viewAST() {
-  let absolutePath = process.argv[2];
-  if (!absolutePath) {
-    console.error("Usage: viewAST <markdown-file>");
-    process.exit(1);
-  }
-  if (!path.isAbsolute(absolutePath)) {
-    absolutePath = path.join(process.cwd(), absolutePath);
-  }
+export async function viewAST(absolutePath: string) {
+  const resolved = path.isAbsolute(absolutePath)
+    ? absolutePath
+    : path.join(process.cwd(), absolutePath);
 
-  const contents = await fs.readFile(absolutePath, "utf-8");
-  // Use the file's directory as vaultPath for CLI/demo
-  const vaultPath = path.dirname(absolutePath);
+  const contents = await fs.readFile(resolved, "utf-8");
+  const vaultPath = path.dirname(resolved);
   const config = EMPTY_CONFIG;
-  const relativePath = path.relative(vaultPath, absolutePath);
+  const relativePath = path.relative(vaultPath, resolved);
 
   const vfile = new VaultFile({
-    absolutePath,
-    relativePath: relativePath,
+    absolutePath: resolved,
+    relativePath,
     vaultPath,
     value: contents,
   });
@@ -56,8 +50,7 @@ export async function viewAST() {
     JSON.stringify(
       tree,
       (key, value) => {
-        if (key === "position") return undefined; // Omit position for readability
-
+        if (key === "position") return undefined;
         return value;
       },
       2,
@@ -67,5 +60,3 @@ export async function viewAST() {
   const normalized = processor.stringify(tree, vfile);
   log(normalized);
 }
-
-viewAST();

@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path, { dirname, join } from "node:path";
 import createDebug from "debug";
 import { VaultFile } from "./VaultFile.js";
+import { decodeBuffer } from "./encoding.js";
 
 const debug = createDebug("onyx:io");
 
@@ -45,7 +46,8 @@ export async function walkMarkdownFiles(
 
 export async function readFile(path: string): Promise<string> {
   try {
-    return await fs.readFile(path, "utf-8");
+    const buffer = await fs.readFile(path);
+    return decodeBuffer(buffer).content;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return "";
     throw err;

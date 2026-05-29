@@ -151,9 +151,11 @@ export function MainApp({
       <StatusBar state={state} />
       <Box flexGrow={1} alignItems="flex-start" paddingY={1}>
         <Box width="100%" paddingX={1}>
-          {state.name === "help"
-            ? <HelpOverlay />
-            : renderMainView(state, now, startedRef, vaultPath, store, actions)}
+          {state.name === "help" ? (
+            <HelpOverlay />
+          ) : (
+            renderMainView(state, now, startedRef, vaultPath, store, actions)
+          )}
         </Box>
       </Box>
       <ActionBar state={state} />

@@ -7,11 +7,10 @@ services:
     environment:
       - VAULT_PATH=/vault
       - STATE_DIR=/state
-  transcriber-worker:
+  worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    command: ["node", "dist/src/worker.js"]
     volumes:
       - ${VAULT_PATH:-./vault}:/vault
       - state:/state

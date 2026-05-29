@@ -16,5 +16,5 @@ RUN npm run build
 ENV VAULT_PATH=/vault
 ENV STATE_DIR=/state
 
-ENTRYPOINT ["node", "dist/src/index.js"]
+ENTRYPOINT ["npm", "start"]
 CMD ["--watch", "all"]
