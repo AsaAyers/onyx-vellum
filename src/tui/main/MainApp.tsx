@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import { Box, Text, useStdout } from "ink";
 import { useInput } from "ink";
 import type { Store } from "../shared/store.js";
-import type { MainState, MainEvent, MainActions, FileDetail } from "./types.js";
+import type { MainState, MainEvent, MainActions } from "./types.js";
 import { StatusBar } from "./StatusBar.js";
 import { ActionBar } from "./ActionBar.js";
 import { ResultsPanel } from "./ResultsPanel.js";
@@ -167,7 +167,14 @@ export function MainApp({
         {state.name === "help" ? (
           <HelpOverlay />
         ) : (
-          renderMainView(state, now, startedRef, vaultPath, store, actions)
+          <MainView
+            state={state}
+            now={now}
+            startedRef={startedRef}
+            vaultPath={vaultPath}
+            store={store}
+            actions={actions}
+          />
         )}
       </Box>
       <ActionBar state={state} />
@@ -175,14 +182,21 @@ export function MainApp({
   );
 }
 
-function renderMainView(
-  state: MainState,
-  now: number,
-  startedRef: RefObject<number | null>,
-  vaultPath: string,
-  store: Store<MainState, MainEvent>,
-  actions: MainActions,
-) {
+function MainView({
+  state,
+  now,
+  startedRef,
+  vaultPath,
+  store,
+  actions,
+}: {
+  state: MainState;
+  now: number;
+  startedRef: RefObject<number | null>;
+  vaultPath: string;
+  store: Store<MainState, MainEvent>;
+  actions: MainActions;
+}) {
   switch (state.name) {
     case "running":
       return (
@@ -198,14 +212,14 @@ function renderMainView(
         </Box>
       );
     case "watching":
-      return renderSideBySideView(state, now);
+      return <SideBySideView state={state} now={now} />;
     case "picking":
       return (
         <FilePicker store={store} actions={actions} vaultPath={vaultPath} />
       );
     case "idle":
       if (state.lastRun) {
-        return renderSideBySideView(state, null);
+        return <SideBySideView state={state} now={null} />;
       }
       return (
         <Box>
@@ -215,11 +229,20 @@ function renderMainView(
   }
 }
 
-function renderSideBySideView(state: MainState, now: number | null) {
+function SideBySideView({
+  state,
+  now,
+}: {
+  state: MainState;
+  now: number | null;
+}) {
   const fileCount = Object.keys(state.fileDetails).length;
   if (fileCount === 0 && !state.lastRun) return null;
 
-  const rightPanel = renderRightPanel(state, now);
+  const cursorKey = state.fileViewCursor;
+  const isSentinel = cursorKey === "__sentinel__";
+
+  const { title, content } = rightPanelContent(state, now, cursorKey, isSentinel);
 
   return (
     <Box width="100%" height="100%">
@@ -229,22 +252,22 @@ function renderSideBySideView(state: MainState, now: number | null) {
         </BorderBox>
       </Box>
       <Box flexGrow={7} flexShrink={0} paddingX={1}>
-        <BorderBox title={rightPanel.title} flexGrow={1}>
-          {rightPanel.content}
+        <BorderBox title={title} flexGrow={1}>
+          {content}
         </BorderBox>
       </Box>
     </Box>
   );
 }
 
-function renderRightPanel(
+function rightPanelContent(
   state: MainState,
   now: number | null,
-): { title: string; content: React.JSX.Element } {
-  const cursorKey = state.fileViewCursor;
-
-  if (cursorKey !== "__sentinel__") {
-    const detail: FileDetail | undefined = state.fileDetails[cursorKey];
+  cursorKey: string,
+  isSentinel: boolean,
+): { title: string; content: React.ReactNode } {
+  if (!isSentinel) {
+    const detail = state.fileDetails[cursorKey];
     if (detail) {
       const fileName = cursorKey.includes(":")
         ? cursorKey.slice(cursorKey.indexOf(":") + 1)
@@ -256,7 +279,6 @@ function renderRightPanel(
     }
   }
 
-  // Sentinel — show overview
   if (state.name === "watching" && state.watchingSub) {
     const sub = state.watchingSub;
     let countdown: string | null = null;
