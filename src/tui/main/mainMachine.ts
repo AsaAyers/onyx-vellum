@@ -1,6 +1,8 @@
 import type { MainState, MainEvent } from "./types.js";
 import { unreachable } from "../../unreachable.js";
 
+export const SENTINEL = "__sentinel__";
+
 export const INITIAL_STATE: MainState = {
   name: "idle",
   dryRun: false,
@@ -8,6 +10,8 @@ export const INITIAL_STATE: MainState = {
   lastInit: null,
   runMode: null,
   watchingSub: null,
+  fileDetails: {},
+  fileViewCursor: SENTINEL,
 };
 
 function initAsRunResult(
@@ -19,6 +23,7 @@ function initAsRunResult(
     mode: "all",
     finishedAt: result.finishedAt,
     error: result.error,
+    fileDetails: {},
   };
 }
 
@@ -32,8 +37,25 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
     }
 
     case "run-complete": {
+      const newDetails = event.result.fileDetails;
+      const cursor = state.fileViewCursor;
+
+      // If user was viewing a file not in new results, keep it under a dimmed key
+      const staleKey = cursor !== SENTINEL && !newDetails[cursor] ? cursor : null;
+
       if (state.name === "running") {
-        return { ...state, name: "idle", lastRun: event.result, runMode: null };
+        // If we're retaining a stale detail, keep it in fileDetails
+        const merged = staleKey && state.fileDetails[staleKey]
+          ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
+          : newDetails;
+        return {
+          ...state,
+          name: "idle",
+          lastRun: event.result,
+          runMode: null,
+          fileDetails: merged,
+          fileViewCursor: staleKey ? staleKey : cursor,
+        };
       }
       if (state.name === "watching") {
         const processedFiles =
@@ -42,30 +64,15 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
             : state.watchingSub?.name === "ready"
               ? state.watchingSub.processedFiles
               : undefined;
+        const merged = staleKey && state.fileDetails[staleKey]
+          ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
+          : newDetails;
         return {
           ...state,
           lastRun: event.result,
+          fileDetails: merged,
+          fileViewCursor: staleKey ? staleKey : cursor,
           watchingSub: { name: "ready", processedFiles },
-        };
-      }
-      break;
-    }
-
-    case "init-start": {
-      if (state.name === "idle") {
-        return { ...state, name: "running", runMode: "init" };
-      }
-      break;
-    }
-
-    case "init-complete": {
-      if (state.name === "running" && state.runMode === "init") {
-        return {
-          ...state,
-          name: "idle",
-          runMode: null,
-          lastInit: event.result,
-          lastRun: initAsRunResult(event.result),
         };
       }
       break;
@@ -89,7 +96,10 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
             mode: detectedMode,
             finishedAt: Date.now(),
             error: event.error,
+            fileDetails: {},
           },
+          fileDetails: {},
+          fileViewCursor: SENTINEL,
         };
       }
       if (state.name === "watching") {
@@ -107,8 +117,52 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
             mode: "all",
             finishedAt: Date.now(),
             error: event.error,
+            fileDetails: {},
           },
+          fileDetails: {},
+          fileViewCursor: SENTINEL,
           watchingSub: { name: "ready", processedFiles: prevProcessed },
+        };
+      }
+      break;
+    }
+
+    case "file-list-navigate": {
+      const keys = Object.keys(state.fileDetails);
+      const sorted = keys.sort();
+      const entries = [SENTINEL, ...sorted];
+      const currentIdx = entries.indexOf(state.fileViewCursor);
+      if (currentIdx === -1) {
+        return { ...state, fileViewCursor: SENTINEL };
+      }
+      const nextIdx = event.direction === "up"
+        ? (currentIdx > 0 ? currentIdx - 1 : entries.length - 1)
+        : (currentIdx < entries.length - 1 ? currentIdx + 1 : 0);
+      return { ...state, fileViewCursor: entries[nextIdx] };
+    }
+
+    case "close-file-view": {
+      return { ...state, fileViewCursor: SENTINEL };
+    }
+
+    case "init-start": {
+      if (state.name === "idle") {
+        return { ...state, name: "running", runMode: "init" };
+      }
+      break;
+    }
+
+    case "init-complete": {
+      if (state.name === "running" && state.runMode === "init") {
+        const result = initAsRunResult(event.result);
+        return {
+          ...state,
+          name: "idle",
+          runMode: null,
+          lastInit: event.result,
+          lastRun: result,
+          fileDetails: result.fileDetails,
+          fileViewCursor: SENTINEL,
         };
       }
       break;

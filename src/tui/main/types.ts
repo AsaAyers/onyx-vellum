@@ -1,9 +1,17 @@
+import type { Job } from "../../transcription/types.js";
+
+export type FileDetail = {
+  diff: string;
+  jobs: Job[];
+};
+
 export interface TuiRunResult {
   filesWritten: number;
   filePaths: string[];
   mode: "all" | "alert" | "single";
   finishedAt: number;
   error?: string;
+  fileDetails: Record<string, FileDetail>;
 }
 
 export interface TuiInitResult {
@@ -33,6 +41,8 @@ export interface MainState {
   lastInit: TuiInitResult | null;
   runMode: "all" | "alert" | "init" | "single" | null;
   watchingSub: WatchingSubState | null;
+  fileDetails: Record<string, FileDetail>;
+  fileViewCursor: string;
 }
 
 export type MainEvent =
@@ -48,7 +58,9 @@ export type MainEvent =
   | { type: "open-picker" }
   | { type: "close-picker" }
   | { type: "show-help" }
-  | { type: "hide-help" };
+  | { type: "hide-help" }
+  | { type: "file-list-navigate"; direction: "up" | "down" }
+  | { type: "close-file-view" };
 
 export interface MainActions {
   runAll(dryRun: boolean): Promise<TuiRunResult>;

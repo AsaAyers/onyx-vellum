@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { RefObject } from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useStdout } from "ink";
 import { useInput } from "ink";
 import type { Store } from "../shared/store.js";
-import type { MainState, MainEvent, MainActions } from "./types.js";
+import type { MainState, MainEvent, MainActions, FileDetail } from "./types.js";
 import { StatusBar } from "./StatusBar.js";
 import { ActionBar } from "./ActionBar.js";
 import { ResultsPanel } from "./ResultsPanel.js";
 import { FileChangeList } from "./FileChangeList.js";
 import { FilePicker } from "./FilePicker.js";
 import { HelpOverlay } from "./HelpOverlay.js";
+import { BorderBox } from "./BorderBox.js";
+import { RecentJobsPanel } from "./RecentJobsPanel.js";
+import { FileDiffPanel } from "./FileDiffPanel.js";
 import { formatDuration } from "./formatResults.js";
 import { computeDebounceRemaining } from "./watchHelpers.js";
 
@@ -56,6 +58,7 @@ export function MainApp({
     if (key.escape) {
       store.dispatch({ type: "close-picker" });
       store.dispatch({ type: "hide-help" });
+      store.dispatch({ type: "close-file-view" });
       return;
     }
 
@@ -70,6 +73,16 @@ export function MainApp({
 
     if (input === "d") {
       store.dispatch({ type: "toggle-dry-run" });
+      return;
+    }
+
+    if (key.upArrow) {
+      store.dispatch({ type: "file-list-navigate", direction: "up" });
+      return;
+    }
+
+    if (key.downArrow) {
+      store.dispatch({ type: "file-list-navigate", direction: "down" });
       return;
     }
 
@@ -108,7 +121,6 @@ export function MainApp({
         return;
       }
       if (s.name === "idle") {
-        // Initial run, then start watching
         store.dispatch({ type: "run-start", runMode: "all" });
         actions.runAll(s.dryRun).then(
           (result) => {
@@ -146,54 +158,19 @@ export function MainApp({
     }
   });
 
-  return (
-    <Box flexDirection="column" height="100%">
-      <StatusBar state={state} />
-      <Box flexGrow={1} alignItems="flex-start" paddingY={1}>
-        <Box width="100%" paddingX={1}>
-          {state.name === "help" ? (
-            <HelpOverlay />
-          ) : (
-            renderMainView(state, now, startedRef, vaultPath, store, actions)
-          )}
-        </Box>
-      </Box>
-      <ActionBar state={state} />
-    </Box>
-  );
-}
-
-function WatchView({ state, now }: { state: MainState; now: number }) {
-  const sub = state.watchingSub;
-  if (!sub) return null;
-
-  let countdown: string | null = null;
-  if (sub.name === "debouncing") {
-    const remaining = computeDebounceRemaining(sub.since, sub.delayMs, now);
-    countdown = `${(remaining / 1_000).toFixed(1)}s`;
-  }
+  const { stdout } = useStdout();
 
   return (
-    <Box flexDirection="column" width="100%">
-      <Box>
-        <Box flexDirection="column" flexGrow={1}>
-          <Box>
-            <Text bold underline>
-              Files
-            </Text>
-            {countdown && <Text dimColor> (debounce: {countdown})</Text>}
-          </Box>
-          <FileChangeList watchingSub={sub} />
-        </Box>
-        {state.lastRun && (
-          <Box flexDirection="column" marginLeft={2}>
-            <Text bold underline>
-              Last run
-            </Text>
-            <ResultsPanel lastRun={state.lastRun} />
-          </Box>
+    <Box flexDirection="column" height={stdout.rows} width={stdout.columns}>
+      <StatusBar state={state} now={now} />
+      <Box flexGrow={1} alignItems="flex-start">
+        {state.name === "help" ? (
+          <HelpOverlay />
+        ) : (
+          renderMainView(state, now, startedRef, vaultPath, store, actions)
         )}
       </Box>
+      <ActionBar state={state} />
     </Box>
   );
 }
@@ -221,14 +198,14 @@ function renderMainView(
         </Box>
       );
     case "watching":
-      return <WatchView state={state} now={now} />;
+      return renderSideBySideView(state, now);
     case "picking":
       return (
         <FilePicker store={store} actions={actions} vaultPath={vaultPath} />
       );
     case "idle":
       if (state.lastRun) {
-        return <ResultsPanel lastRun={state.lastRun} />;
+        return renderSideBySideView(state, null);
       }
       return (
         <Box>
@@ -236,4 +213,77 @@ function renderMainView(
         </Box>
       );
   }
+}
+
+function renderSideBySideView(state: MainState, now: number | null) {
+  const fileCount = Object.keys(state.fileDetails).length;
+  if (fileCount === 0 && !state.lastRun) return null;
+
+  const rightPanel = renderRightPanel(state, now);
+
+  return (
+    <Box width="100%" height="100%">
+      <Box flexGrow={3} flexShrink={0} paddingX={1}>
+        <BorderBox title="Recent Jobs" flexGrow={1}>
+          <RecentJobsPanel state={state} />
+        </BorderBox>
+      </Box>
+      <Box flexGrow={7} flexShrink={0} paddingX={1}>
+        <BorderBox title={rightPanel.title} flexGrow={1}>
+          {rightPanel.content}
+        </BorderBox>
+      </Box>
+    </Box>
+  );
+}
+
+function renderRightPanel(
+  state: MainState,
+  now: number | null,
+): { title: string; content: React.JSX.Element } {
+  const cursorKey = state.fileViewCursor;
+
+  if (cursorKey !== "__sentinel__") {
+    const detail: FileDetail | undefined = state.fileDetails[cursorKey];
+    if (detail) {
+      const fileName = cursorKey.includes(":")
+        ? cursorKey.slice(cursorKey.indexOf(":") + 1)
+        : cursorKey;
+      return {
+        title: fileName,
+        content: <FileDiffPanel detail={detail} fileName={fileName} />,
+      };
+    }
+  }
+
+  // Sentinel — show overview
+  if (state.name === "watching" && state.watchingSub) {
+    const sub = state.watchingSub;
+    let countdown: string | null = null;
+    if (sub.name === "debouncing" && now !== null) {
+      const remaining = computeDebounceRemaining(sub.since, sub.delayMs, now);
+      countdown = `${(remaining / 1_000).toFixed(1)}s`;
+    }
+    return {
+      title: "Pending changes",
+      content: (
+        <Box flexDirection="column">
+          {countdown && <Text dimColor>Debounce: {countdown}</Text>}
+          <FileChangeList watchingSub={sub} />
+        </Box>
+      ),
+    };
+  }
+
+  if (state.lastRun) {
+    return {
+      title: "Run summary",
+      content: <ResultsPanel lastRun={state.lastRun} />,
+    };
+  }
+
+  return {
+    title: "No data",
+    content: <Text dimColor>No results yet.</Text>,
+  };
 }

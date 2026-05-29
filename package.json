@@ -16,7 +16,7 @@
     "run:worker": "tsx src/index.ts --worker",
     "test": "vitest run",
     "docker:tui": "docker compose run --build --rm -it onyx-vellum npm start -- --tui",
-    "docker:worker": "docker compose run --build --rm -it worker npm start -- --tui --worker",
+    "docker:worker": "docker compose run --rm -it worker npm start -- --tui --worker",
     "typecheck": "tsc --noEmit",
     "viewAST": "tsx src/index.ts --view-ast",
     "format": "prettier --write .",

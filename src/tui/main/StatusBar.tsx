@@ -1,7 +1,14 @@
-import { Box, Text } from "ink";
+import { Box, Spacer, Text } from "ink";
 import type { MainState } from "./types.js";
+import { computeDebounceRemaining } from "./watchHelpers.js";
 
-export function StatusBar({ state }: { state: MainState }) {
+export function StatusBar({
+  state,
+  now,
+}: {
+  state: MainState;
+  now: number | null;
+}) {
   const statusText = {
     idle: "idle",
     running: "running",
@@ -24,6 +31,31 @@ export function StatusBar({ state }: { state: MainState }) {
       <Text> </Text>
       <Text color={statusColor}>● {statusText}</Text>
       {state.dryRun && <Text color="yellow"> [dry-run]</Text>}
+      <Spacer />
+      <DebounceCountdown state={state} now={now} />
     </Box>
   );
+}
+
+function DebounceCountdown({
+  state,
+  now,
+}: {
+  state: MainState;
+  now: number | null;
+}) {
+  if (state.name === "watching" && state.watchingSub) {
+    const sub = state.watchingSub;
+    let countdown: string | null = null;
+    if (sub.name === "debouncing" && now !== null) {
+      const remaining = computeDebounceRemaining(sub.since, sub.delayMs, now);
+      countdown = `${(remaining / 1_000).toFixed(1)}s`;
+    }
+    return (
+      <Box flexDirection="column">
+        {countdown && <Text dimColor>Debounce: {countdown}</Text>}
+      </Box>
+    );
+  }
+  return <></>;
 }

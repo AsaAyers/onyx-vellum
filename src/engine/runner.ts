@@ -12,6 +12,7 @@ import { VaultFile } from "./VaultFile.js";
 import type { Source } from "../rules/types.js";
 import { loadConfig, type Config } from "../loadConfig.js";
 import type { Root } from "mdast";
+import type { Job } from "../transcription/types.js";
 import { buildJobId } from "../transcription/queue.js";
 import {
   fileMatchesSources,
@@ -56,6 +57,7 @@ export async function runner(
   changes: ChangesArray;
   report: string;
   matchingFiles: VaultFile[];
+  fileMeta: Map<string, { diff: string; jobs: Job[] }>;
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
@@ -77,8 +79,23 @@ export async function runner(
 
   const fileManager = fm ?? new FileWriteManager(baseCtx.vaultPath);
   const fileOperations = new FileOperationExecutor();
+
+  // Per-file metadata for the TUI: captures diffs and queued jobs
+  const fileMeta: Map<string, { diff: string; jobs: Job[] }> = new Map();
+  const originalQueueJob = baseCtx.queueJob;
+  const wrappedQueueJob: PluginContext["queueJob"] = (job: Job) => {
+    originalQueueJob(job);
+    const relPath = job.target?.location?.file?.relativePath;
+    if (relPath) {
+      const entry = fileMeta.get(relPath) ?? { diff: "", jobs: [] };
+      entry.jobs.push(job);
+      fileMeta.set(relPath, entry);
+    }
+  };
+
   const ruleContext: PluginContext = {
     ...baseCtx,
+    queueJob: wrappedQueueJob,
     updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     vaultPath: baseCtx.vaultPath,
@@ -145,6 +162,10 @@ export async function runner(
     const normalized = String(processor.stringify(processed, vaultFile));
     if (normalized !== original) {
       fileManager.stage(vaultFile, normalized);
+      const diff = createPatch(vaultFile.absolutePath, original, normalized);
+      const entry = fileMeta.get(vaultFile.relativePath) ?? { diff: "", jobs: [] };
+      entry.diff = diff;
+      fileMeta.set(vaultFile.relativePath, entry);
     }
   }
 
@@ -209,7 +230,7 @@ export async function runner(
     }
   }
 
-  return { changes, report: lines.join("\n"), matchingFiles };
+  return { changes, report: lines.join("\n"), matchingFiles, fileMeta };
 }
 
 async function ensureCommandFile(

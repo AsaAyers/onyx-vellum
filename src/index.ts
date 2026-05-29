@@ -109,13 +109,24 @@ const queueJob = (job: Job) => queue(stateDir, job);
 
 function mapChangesToResult(
   changes: ChangesArray,
+  fileMeta: Map<string, { diff: string; jobs: Job[] }>,
   resultMode: TuiRunResult["mode"],
 ): TuiRunResult {
+  const finishedAt = Date.now();
+  const fileDetails: Record<string, { diff: string; jobs: Job[] }> = {};
+  for (const c of changes) {
+    const meta = fileMeta.get(c.vaultFile.relativePath);
+    if (meta) {
+      const key = `${finishedAt}:${c.vaultFile.relativePath}`;
+      fileDetails[key] = meta;
+    }
+  }
   return {
     filesWritten: changes.length,
     filePaths: changes.map((c) => c.vaultFile.relativePath),
     mode: resultMode,
-    finishedAt: Date.now(),
+    finishedAt,
+    fileDetails,
   };
 }
 
@@ -128,7 +139,7 @@ if (parsed.tui) {
   const actions: MainActions = {
     async runAll(dryRun: boolean) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-      const { changes } = await runner(
+      const { changes, fileMeta } = await runner(
         {
           mode: "all",
           vaultPath: resolvedVaultPath,
@@ -139,12 +150,12 @@ if (parsed.tui) {
         },
         tuiFileManager,
       );
-      return mapChangesToResult(changes, "all");
+      return mapChangesToResult(changes, fileMeta, "all");
     },
 
     async runAlert(dryRun: boolean) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-      const { changes } = await runner(
+      const { changes, fileMeta } = await runner(
         {
           mode: "alert",
           vaultPath: resolvedVaultPath,
@@ -155,12 +166,12 @@ if (parsed.tui) {
         },
         tuiFileManager,
       );
-      return mapChangesToResult(changes, "alert");
+      return mapChangesToResult(changes, fileMeta, "alert");
     },
 
     async runSingleFile(relPath: string, dryRun: boolean) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-      const { changes } = await runner(
+      const { changes, fileMeta } = await runner(
         {
           mode: "all",
           vaultPath: resolvedVaultPath,
@@ -172,7 +183,7 @@ if (parsed.tui) {
         },
         tuiFileManager,
       );
-      return mapChangesToResult(changes, "single");
+      return mapChangesToResult(changes, fileMeta, "single");
     },
 
     startWatching() {
@@ -199,7 +210,7 @@ if (parsed.tui) {
           const dates = userLocalTime({
             tz: config.timezone ?? "UTC",
           });
-          const { changes } = await runner(
+          const { changes, fileMeta } = await runner(
             {
               mode: runMode === "fast" ? "all" : runMode,
               vaultPath: resolvedVaultPath,
@@ -213,7 +224,7 @@ if (parsed.tui) {
           );
           tui.store.dispatch({
             type: "run-complete",
-            result: mapChangesToResult(changes, "all"),
+            result: mapChangesToResult(changes, fileMeta, "all"),
           });
         },
         onRawNotify: (relPath, _eventType, callCount) => {

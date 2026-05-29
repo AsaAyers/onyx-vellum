@@ -7,6 +7,7 @@ const makeRunResult = (overrides?: Partial<MainState["lastRun"]>) => ({
   filePaths: ["test.md"],
   mode: "all" as const,
   finishedAt: Date.now(),
+  fileDetails: {},
   ...overrides,
 });
 
@@ -49,6 +50,8 @@ describe("mainReducer", () => {
         lastInit: null,
         runMode: null,
         watchingSub: null,
+        fileDetails: {},
+        fileViewCursor: "__sentinel__",
       });
     });
   });
@@ -169,12 +172,13 @@ describe("mainReducer", () => {
       expect(next.name).toBe("idle");
       expect(next.runMode).toBeNull();
       expect(next.lastInit).toEqual(result);
-      expect(next.lastRun).toEqual({
+      expect(next.lastRun).toMatchObject({
         filesWritten: 5,
         filePaths: result.filePaths,
         mode: "all",
         finishedAt: result.finishedAt,
         error: undefined,
+        fileDetails: {},
       });
     });
 

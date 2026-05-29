@@ -1,11 +1,20 @@
 import { Box, Text } from "ink";
 import type { MainState } from "./types.js";
-import { formatDuration, formatFinishedTime, formatMode } from "./formatResults.js";
+import {
+  formatDuration,
+  formatFinishedTime,
+  formatMode,
+} from "./formatResults.js";
 
-export function ResultsPanel({ lastRun }: { lastRun: NonNullable<MainState["lastRun"]> }) {
-  const elapsed = lastRun.finishedAt > 0
-    ? formatDuration(Date.now() - lastRun.finishedAt)
-    : null;
+export function ResultsPanel({
+  lastRun,
+}: {
+  lastRun: NonNullable<MainState["lastRun"]>;
+}) {
+  const elapsed =
+    lastRun.finishedAt > 0
+      ? formatDuration(Date.now() - lastRun.finishedAt)
+      : null;
 
   return (
     <Box flexDirection="column">
@@ -31,7 +40,9 @@ export function ResultsPanel({ lastRun }: { lastRun: NonNullable<MainState["last
           <Text dimColor>Files:</Text>
           {lastRun.filePaths.slice(0, 20).map((p) => (
             <Box key={p} marginLeft={2}>
-              <Text dimColor>{p}</Text>
+              <Text wrap="truncate-start" dimColor>
+                {p}
+              </Text>
             </Box>
           ))}
           {lastRun.filePaths.length > 20 && (
