@@ -332,7 +332,9 @@ if (parsed.tui) {
     if (changes.length > 0 || queuedJobs.length > 0) {
       log(`=== Report ===`);
       log(report);
-      log(`Jobs queued:`);
+      if (queuedJobs.length > 0) {
+        log(`Jobs queued:`);
+      }
       queuedJobs.forEach((job) => {
         switch (job.type) {
           case "transcribe":
@@ -371,6 +373,9 @@ if (parsed.tui) {
       return consoleRun(runMode, glob, alertRunContext);
     },
     canWatch: (p) => watchConsoleFileManager.canWatch(p),
+    onProgress: (text) => {
+      process.stdout.write(text);
+    },
   });
   orchestrator.start();
 

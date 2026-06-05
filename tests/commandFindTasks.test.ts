@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import os from "node:os";
 import { createTempDir } from "./createTempDir.js";
 import { join } from "node:path";
 import { runner } from "../src/engine/runner.js";
@@ -53,16 +54,20 @@ describe("Command: #onyx/tasks", () => {
       queueJob: (job) => jobs.push(job),
     });
 
+    const systemTmpDirectory = os.tmpdir();
+
     const j = JSON.parse(
       JSON.stringify(
         jobs,
 
         (key, value) => {
           if (typeof value === "string") {
-            return value.replaceAll(
-              /onyx-vellum-worker-vault-....../g,
-              "onyx-vellum-worker-vault-XXXXXX",
-            );
+            return value
+              .replaceAll(
+                /onyx-vellum-worker-vault-....../g,
+                "onyx-vellum-worker-vault-XXXXXX",
+              )
+              .replaceAll(systemTmpDirectory, "/tmp");
           }
           return value;
         },

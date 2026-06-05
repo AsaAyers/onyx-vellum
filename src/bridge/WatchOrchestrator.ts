@@ -22,6 +22,7 @@ export interface WatchOrchestratorCallbacks {
     fastCallCount: number,
   ) => void;
   canWatch?: (path: string) => boolean;
+  onProgress?: (text: string) => void;
 }
 
 export interface WatchOrchestratorHandle {
@@ -64,6 +65,8 @@ export function createWatchOrchestrator(
     }
     if (mode === "fast") {
       fastCallCount = 0;
+      // Notify full debouncer that fast run completed
+      fullDebouncer?.markFastRun();
     }
   }
 
@@ -84,6 +87,7 @@ export function createWatchOrchestrator(
         maxMs: Math.min(fullDebounceMs * 2, 60_000),
         onProcess: (relPaths) => onRun("all", relPaths),
         growthFactor: 1.15,
+        onProgress: callbacks.onProgress,
       });
 
       stopWatcher = vaultWatcher(

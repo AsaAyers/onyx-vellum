@@ -61,15 +61,21 @@ export function createDebouncer(options: {
   maxMs: number;
   onProcess: (relPaths: string[]) => Promise<void>;
   growthFactor?: number;
+  onProgress?: (text: string) => void;
 }): {
   notify: (relPath: string, eventType: string) => void;
+  markFastRun: () => void;
   dispose: () => void;
 } {
-  const { baseMs, maxMs, onProcess, growthFactor = 1.5 } = options;
+  const { baseMs, maxMs, onProcess, growthFactor = 1.5, onProgress } = options;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const pending = new Set<string>();
 
   let calls = 0;
+  let progressInterval: ReturnType<typeof setInterval> | undefined;
+  let activityFlag = false;
+  let hasRunFast = false;
+  let lastFileCount = 0;
   const notify = (relPath: string, _eventType: string): void => {
     calls++;
     // Quiet extra logs that may happen while typing.
@@ -77,6 +83,33 @@ export function createDebouncer(options: {
       debug(`change: ${relPath}`);
     }
     pending.add(relPath);
+
+    // Track activity for progress indicator
+    activityFlag = true;
+    // Start progress interval if this is the first pending file
+    if (onProgress && !progressInterval && pending.size > 0) {
+      const fileWord = pending.size === 1 ? "file" : "files";
+      onProgress(`\n[${pending.size} ${fileWord}]\n`);
+      lastFileCount = pending.size;
+      progressInterval = setInterval(() => {
+        if (activityFlag) {
+          onProgress("+");
+          activityFlag = false;
+        } else if (hasRunFast) {
+          onProgress("~");
+          hasRunFast = false;
+        } else {
+          onProgress("-");
+        }
+      }, 1000);
+    }
+
+    // Emit file count if it increased
+    if (onProgress && progressInterval && pending.size > lastFileCount) {
+      const fileWord = pending.size === 1 ? "file" : "files";
+      onProgress(`\n[${pending.size} ${fileWord}]\n`);
+      lastFileCount = pending.size;
+    }
 
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -92,6 +125,19 @@ export function createDebouncer(options: {
       const relPaths = [...pending].sort();
       pending.clear();
       debug(`Processing after idle: ${relPaths.join(", ")}`);
+
+      // Stop progress indicator and emit checkmark
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = undefined;
+        activityFlag = false;
+        hasRunFast = false;
+        lastFileCount = 0;
+        if (onProgress) {
+          onProgress("✅\n");
+        }
+      }
+
       onProcess(relPaths).catch((err: unknown) => {
         console.error(
           `[watch] Error processing files:`,
@@ -106,10 +152,21 @@ export function createDebouncer(options: {
       clearTimeout(timer);
       timer = undefined;
     }
+    if (progressInterval !== undefined) {
+      clearInterval(progressInterval);
+      progressInterval = undefined;
+    }
     pending.clear();
+    activityFlag = false;
+    hasRunFast = false;
+    lastFileCount = 0;
   };
 
-  return { notify, dispose };
+  const markFastRun = (): void => {
+    hasRunFast = true;
+  };
+
+  return { notify, markFastRun, dispose };
 }
 
 /**
