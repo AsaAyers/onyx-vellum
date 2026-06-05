@@ -2,6 +2,7 @@ import z from "zod";
 import { format, toZonedTime, toDate } from "date-fns-tz";
 import { addDays } from "date-fns";
 import createDebug from "debug";
+import { parseRepeat, computeNextDue } from "../rules/scheduleUtils.js";
 
 const debug = createDebug("onyx:timezone");
 
@@ -13,9 +14,11 @@ const zTimeInput = z.strictObject({
 const zTimeOutput = z.object({
   date: z.date(),
   today: z.string(),
-  yesterday: z.string(),
-  tomorrow: z.string(),
   tz: z.string(),
+  resolve: z
+    .function()
+    .args(z.string())
+    .returns(z.union([z.string(), z.null()])),
 });
 export const zUserLocalTime = zTimeInput
   .pipe(
@@ -60,7 +63,25 @@ export const zUserLocalTime = zTimeInput
           });
           return z.NEVER;
         }
-        return { date, today, yesterday, tomorrow, tz };
+
+        function resolve(value: string): string | null {
+          switch (value.trim().toLowerCase()) {
+            case "today":
+              return today;
+            case "yesterday":
+              return yesterday;
+            case "tomorrow":
+              return tomorrow;
+            default:
+          }
+
+          const schedule = parseRepeat(value);
+          if (!schedule) return null;
+          const newDue = computeNextDue(date, schedule);
+          return toISO(newDue);
+        }
+
+        return { date, today, tz, resolve };
       },
       zTimeOutput,
       zTimeInput,

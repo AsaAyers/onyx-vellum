@@ -738,7 +738,10 @@ priority: low
 ```
 
 `alertIf` is a compact comparison against a frontmatter field using `<=`,
-`>=`, or `==`. `alertThreshold` defaults to `1` and controls how many
+`>=`, or `==`. The right-hand side is resolved through the shared date
+resolver, so the current file can compare against values such as
+`today`, `yesterday`, `tomorrow`, or repeat-pattern shorthands accepted by
+the date helper. `alertThreshold` defaults to `1` and controls how many
 qualifying tasks must exist before the file alerts. `priority` remains a
 separate presentation concern.
 

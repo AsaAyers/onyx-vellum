@@ -12,7 +12,8 @@ Commands:
 
 Available rules:
   normalizeTodayLiteral    Replace relative date literals (today/yesterday/tomorrow)
-                           with resolved ISO dates in inline date fields.
+                           and repeat-pattern shorthands with resolved ISO
+                           dates in inline date fields.
   stampDone                Stamp done:<date> on checked tasks that lack one.
                            Depends on: normalizeTodayLiteral.
   repeatTasks    Advance due/start/sleep on repeating completed tasks and
@@ -28,6 +29,9 @@ Available rules:
                             using rules.incompleteTaskAlert.alertUrl in config.
                             Current-file frontmatter can further filter and
                             gate alerts with alertIf and alertThreshold.
+                            alertIf uses the shared date resolver, so the
+                            right-hand side can be today/yesterday/tomorrow or
+                            a repeat-pattern shorthand.
 
 Note:
   Task management works without Docker or GPU. The GPU worker is only

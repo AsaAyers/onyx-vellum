@@ -5,7 +5,8 @@ import {
 import { visit } from "unist-util-visit";
 import type { ListItem } from "mdast";
 import { makePlugin } from "./makePlugin.js";
-import { DATE_KEYS, resolveRelativeDateLiteral } from "./dateLiterals.js";
+
+const DATE_KEYS = ["due", "sleep", "done"] as const;
 
 /**
  * remark plugin to normalize 'today' literals in date fields to the current date.
@@ -20,7 +21,7 @@ export const normalizeTodayPlugin = makePlugin(
       for (const key of DATE_KEYS) {
         const value = fields[key];
         if (typeof value === "string") {
-          const resolved = resolveRelativeDateLiteral(value, ctx.dates);
+          const resolved = ctx.dates.resolve(value);
           if (resolved) {
             setInlineField(node, key, resolved);
           }

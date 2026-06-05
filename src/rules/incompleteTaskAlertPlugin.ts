@@ -6,7 +6,6 @@ import { VaultFile } from "../engine/VaultFile.js";
 import { join } from "node:path";
 import { readFrontmatter } from "../engine/mergeFrontmatter.js";
 import type { List, ListItem } from "mdast";
-import { resolveRelativeDateLiteral } from "./dateLiterals.js";
 import type { UserLocalTime } from "../engine/userLocalTime.js";
 
 export const ALERT_FILE = "onyx_alert.md";
@@ -150,12 +149,12 @@ function parseAlertThreshold(value: unknown): number {
 function matchesAlertIf(
   fields: Record<string, string>,
   alertIf: AlertIfCondition | undefined,
-  dates: Pick<UserLocalTime, "today" | "yesterday" | "tomorrow">,
+  dates: UserLocalTime,
 ): boolean {
   if (!alertIf) return true;
   const left = fields[alertIf.field];
   if (typeof left !== "string") return false;
-  const right = resolveRelativeDateLiteral(alertIf.value, dates);
+  const right = dates.resolve(alertIf.value);
   if (!right) return false;
   switch (alertIf.operator) {
     case "<=":
