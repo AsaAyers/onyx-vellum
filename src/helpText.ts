@@ -26,6 +26,8 @@ Available rules:
                            embeds/files and enqueue transcription jobs.
   incompleteTaskAlert      Write overdue/incomplete tasks and optionally POST
                             using rules.incompleteTaskAlert.alertUrl in config.
+                            Current-file frontmatter can further filter and
+                            gate alerts with alertIf and alertThreshold.
 
 Note:
   Task management works without Docker or GPU. The GPU worker is only
@@ -86,6 +88,12 @@ Config:
                                 }
                               }
                             }
+                           File-level frontmatter can then refine alerts, for
+                           example:
+                             ---
+                             alertIf: due<=today
+                             alertThreshold: 2
+                             ---
 
 Examples:
   # Run every rule against the vault

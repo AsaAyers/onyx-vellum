@@ -239,6 +239,39 @@ priority: high
     expect(opsFor[0].content).toBeTruthy();
   });
 
+  it("alertIf and alertThreshold gate alerting using the current file frontmatter", async () => {
+    const { ops } = await runAlert(
+      `---
+alertIf: due<=today
+alertThreshold: 2
+priority: low
+---
+- [ ] Dishes due:today repeat:d
+- [ ] Laundry due:tomorrow repeat:d
+- [ ] Clean the car due:yesterday repeat:a`,
+      "chores.md",
+    );
+
+    const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
+    expect(opsFor).toHaveLength(1);
+    expect(opsFor[0].content).toContain("2 tasks in chores.md");
+  });
+
+  it("does not alert when qualifying tasks stay below alertThreshold", async () => {
+    const { ops } = await runAlert(
+      `---
+alertIf: due<=today
+alertThreshold: 3
+---
+- [ ] Dishes due:today
+- [ ] Laundry due:tomorrow
+- [ ] Clean the car due:yesterday`,
+      "chores.md",
+    );
+
+    expect(ops.fileOperations).toEqual({});
+  });
+
   // -----------------------------------------------------------------------
   // VaultFile path correctness
   // -----------------------------------------------------------------------

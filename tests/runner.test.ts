@@ -162,6 +162,39 @@ describe("runner", () => {
     expect(alertChange!.content).toContain("Third task");
   });
 
+  it("alert mode honors current-file alertIf and alertThreshold frontmatter", async () => {
+    const vaultPath = await createVault({
+      ".onyx-vellum.json": JSON.stringify({
+        rules: {
+          incompleteTaskAlert: { alertUrl: "https://example.com/alert" },
+        },
+      }),
+      "chores.md": `---
+alertIf: due<=today
+alertThreshold: 2
+---
+* [ ] Dishes due:2026-05-03
+* [ ] Laundry due:2026-05-04
+* [ ] Clean the car due:2026-05-02
+`,
+    });
+
+    const result = await runner({
+      ...runnerBase,
+      vaultPath,
+      dryRun: true,
+      mode: "alert",
+    });
+
+    const alertChange = result.changes.find(
+      (c) => c.vaultFile.relativePath === "onyx_alert.md",
+    );
+    expect(alertChange).toBeDefined();
+    expect(alertChange!.content).toContain("Dishes");
+    expect(alertChange!.content).toContain("Clean the car");
+    expect(alertChange!.content).not.toContain("Laundry");
+  });
+
   it("alert mode with empty alert content logs 'No alerts to report.'", async () => {
     const vaultPath = await createVault({
       ".onyx-vellum.json": JSON.stringify({

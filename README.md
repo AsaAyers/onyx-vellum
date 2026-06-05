@@ -548,7 +548,7 @@ they are `.use()`'d — no declared dependencies or topological sort.
 | `removeEphemeralOverdueTasks` | `src/rules/removeEphemeralOverdueTasksPlugin.ts` | Removes unchecked overdue tasks marked `ephemeral`.                                                                                                          |
 | `moveDoneTasks`               | `src/rules/moveDoneTasksPlugin.ts`               | Moves checked tasks with `done:YYYY-MM-DD` from notes into matching daily notes.                                                                             |
 | `sortTasks`                   | `src/rules/sortTasksPlugin.ts`                   | Sorts same-level task lists so incomplete tasks stay at the top, and completed tasks are ordered by newest `done:` date first.                               |
-| `incompleteTaskAlert`         | `src/rules/incompleteTaskAlertPlugin.ts`         | Groups incomplete tasks and optionally posts them to a configured alert endpoint.                                                                            |
+| `incompleteTaskAlert`         | `src/rules/incompleteTaskAlertPlugin.ts`         | Groups incomplete tasks using file-frontmatter filters and optionally posts them to a configured alert endpoint.                                             |
 
 ### normalizeTodayLiteral
 
@@ -723,9 +723,24 @@ ordered by `done:` descending (newest first).
 
 **Source:** `src/rules/incompleteTaskAlertPlugin.ts`
 
-Finds all **incomplete** (unchecked) tasks that are not `start:`- or
-`sleep:`-blocked, and writes them to `onyx_alert.md`. Only runs in `alert`
-mode.
+Finds all **incomplete** (unchecked) tasks that qualify for the current
+file's frontmatter alert filter, and writes them to `onyx_alert.md`. Only
+runs in `alert` mode.
+
+You can add frontmatter to the file being alerted to tune the behavior:
+
+```md
+---
+alertIf: due<=today
+alertThreshold: 2
+priority: low
+---
+```
+
+`alertIf` is a compact comparison against a frontmatter field using `<=`,
+`>=`, or `==`. `alertThreshold` defaults to `1` and controls how many
+qualifying tasks must exist before the file alerts. `priority` remains a
+separate presentation concern.
 
 If `rules.incompleteTaskAlert.alertUrl` is set in `.onyx-vellum.json`,
 performs an HTTP POST of the alert content to that URL with
