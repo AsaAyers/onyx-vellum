@@ -120,10 +120,13 @@ export interface RawAsteriskNode extends Literal {
   type: "rawAsterisk";
   value: "*";
 }
-export type PluginContext = {
-  updateFile: FileOperationExecutor["updateFile"];
+export type AlertRunContext = {
+  scheduledMinute?: string;
+  baseAlertSchedule?: string[];
+};
+
+export type VaultRunContext = {
   queueJob: (job: Job) => void;
-  jobIdFactory: (createdAt: Date) => string;
   env: NodeJS.ProcessEnv;
   mode: "normalize" | "all" | "fast" | "alert";
   onlyGlob?: string[];
@@ -132,9 +135,27 @@ export type PluginContext = {
   vaultPath: string;
   verbose?: boolean;
   report?: (msg: string) => void;
-  fileAlerts: Map<string, null | string[]>;
-  alertRunContext?: {
-    scheduledMinute?: string;
-    baseAlertSchedule?: string[];
-  };
+  alertRunContext?: AlertRunContext;
 };
+
+export type PluginContext = VaultRunContext & {
+  updateFile: FileOperationExecutor["updateFile"];
+  queueJob: (job: Job) => void;
+  jobIdFactory: (createdAt: Date) => string;
+  fileAlerts: Map<string, null | string[]>;
+};
+
+export type RunnerContext = VaultRunContext & {
+  jobIdFactory?: PluginContext["jobIdFactory"];
+};
+
+export type WorkerPluginContextBase = Pick<
+  PluginContext,
+  | "updateFile"
+  | "queueJob"
+  | "jobIdFactory"
+  | "fileAlerts"
+  | "env"
+  | "mode"
+  | "dryRun"
+>;

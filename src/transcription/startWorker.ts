@@ -8,7 +8,7 @@ import { FileWriteManager } from "../engine/FileWriteManager.js";
 import { FileOperationExecutor } from "../engine/FileOperationExecutor.js";
 import { createParseProcessor } from "../markdown/createParseProcessor.js";
 import { loadConfig } from "../loadConfig.js";
-import type { PluginContext } from "../markdown/types.js";
+import type { WorkerPluginContextBase } from "../markdown/types.js";
 import { userLocalTime } from "../engine/userLocalTime.js";
 import { transcribe } from "./worker/transcribe.js";
 import { cleanTranscript } from "./worker/cleanTranscript.js";
@@ -63,7 +63,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
   emit({ type: "recovery-complete", recovered: staleFiles.length });
 
   const fileOperations = new FileOperationExecutor();
-  const ruleContext: Omit<PluginContext, "dates" | "vaultPath"> = {
+  const ruleContext: WorkerPluginContextBase = {
     updateFile: fileOperations.updateFile,
     jobIdFactory: buildJobId,
     async queueJob(job) {

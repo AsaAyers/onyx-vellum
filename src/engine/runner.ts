@@ -2,7 +2,11 @@ import { createPatch } from "diff";
 import fs from "node:fs/promises";
 import { join } from "node:path";
 import { createParseProcessor } from "../markdown/createParseProcessor.js";
-import { type PluginContext } from "../markdown/types.js";
+import {
+  type PluginContext,
+  type RunnerContext,
+  type VaultRunContext,
+} from "../markdown/types.js";
 import {
   FileWriteManager,
   walkMarkdownFiles,
@@ -49,12 +53,7 @@ const log = console.log.bind(console);
  *                 `report`  — everything printed to console during the run.
  */
 export async function runner(
-  baseCtx: Omit<
-    PluginContext,
-    "readFile" | "jobIdFactory" | "updateFile" | "fileAlerts"
-  > & {
-    jobIdFactory?: PluginContext["jobIdFactory"];
-  },
+  baseCtx: RunnerContext,
   fm?: FileWriteManager,
 ): Promise<{
   changes: ChangesArray;
@@ -254,10 +253,7 @@ export async function runner(
 }
 
 async function ensureCommandFile(
-  baseCtx: Omit<
-    PluginContext,
-    "readFile" | "jobIdFactory" | "queueJob" | "updateFile"
-  > & { jobIdFactory?: PluginContext["jobIdFactory"] },
+  baseCtx: Pick<VaultRunContext, "vaultPath">,
   fileManager: FileWriteManager,
 ) {
   const commandsFile = new VaultFile({
