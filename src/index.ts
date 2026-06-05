@@ -267,7 +267,11 @@ if (parsed.tui) {
     },
   };
 
-  const tui = createMainTui({ vaultPath: resolvedVaultPath, actions, stateDir });
+  const tui = createMainTui({
+    vaultPath: resolvedVaultPath,
+    actions,
+    stateDir,
+  });
   process.on("SIGINT", () => {
     orchestrator?.stop();
     tui.stop();
@@ -384,7 +388,7 @@ if (parsed.tui) {
   log("");
 
   const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-  await runner({
+  const { report } = await runner({
     mode: (parsed.mode ?? "all") as PluginContext["mode"],
     vaultPath: resolvedVaultPath,
     queueJob,
@@ -396,4 +400,5 @@ if (parsed.tui) {
     console.error("Fatal error:", (err as Error).message);
     process.exit(1);
   });
+  log(report);
 }

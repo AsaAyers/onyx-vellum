@@ -182,18 +182,24 @@ priority: low
     expect(opsFor[0].content).toContain("2 tasks in notes/tasks.md");
   });
 
-  it("priority=medium (default) adds each incomplete task as a separate alert entry", async () => {
+  it("priority=medium (default) batches incomplete tasks into one alert entry", async () => {
     const { ops } = await runAlert(
       `- [ ] task 1
 - [ ] task 2
 - [x] done`,
     );
     const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
-    // 2 per-task ops
-    expect(opsFor.length).toBe(2);
+    expect(opsFor.length).toBe(1);
+    expect(opsFor[0].content).toMatchObject({
+      type: "list",
+      children: expect.arrayContaining([
+        expect.objectContaining({ checked: false }),
+        expect.objectContaining({ checked: false }),
+      ]),
+    });
   });
 
-  it("priority=high also adds each incomplete task", async () => {
+  it("priority=high also batches incomplete tasks into one alert entry", async () => {
     const ops = new FileOperationExecutor();
     const processor = createParseProcessor(
       {

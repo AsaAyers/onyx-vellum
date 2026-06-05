@@ -142,7 +142,7 @@ describe("runner", () => {
           incompleteTaskAlert: { alertUrl: "https://example.com/alert" },
         },
       }),
-      "tasks.md": "* [ ] Incomplete task\n",
+      "tasks.md": "* [ ] First task\n* [ ] Second task\n* [ ] Third task\n",
     });
 
     const result = await runner({
@@ -157,7 +157,9 @@ describe("runner", () => {
     );
     expect(alertChange).toBeDefined();
     expect(alertChange!.content.length).toBeGreaterThan(0);
-    expect(alertChange!.content).toContain("Incomplete task");
+    expect(alertChange!.content).toContain("First task");
+    expect(alertChange!.content).toContain("Second task");
+    expect(alertChange!.content).toContain("Third task");
   });
 
   it("alert mode with empty alert content logs 'No alerts to report.'", async () => {

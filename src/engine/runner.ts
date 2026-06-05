@@ -64,9 +64,6 @@ export async function runner(
     // console.log(msg);
     lines.push(msg);
   };
-  const report = (msg: string): void => {
-    lines.push(msg);
-  };
   // Load config
   const config: Config = await loadConfig(baseCtx.vaultPath).catch(
     (err: Error) => {
@@ -99,7 +96,7 @@ export async function runner(
     updateFile: fileOperations.updateFile,
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     vaultPath: baseCtx.vaultPath,
-    report,
+    report: log,
   };
   await ensureCommandFile(baseCtx, fileManager);
 
@@ -163,7 +160,10 @@ export async function runner(
     if (normalized !== original) {
       fileManager.stage(vaultFile, normalized);
       const diff = createPatch(vaultFile.absolutePath, original, normalized);
-      const entry = fileMeta.get(vaultFile.relativePath) ?? { diff: "", jobs: [] };
+      const entry = fileMeta.get(vaultFile.relativePath) ?? {
+        diff: "",
+        jobs: [],
+      };
       entry.diff = diff;
       fileMeta.set(vaultFile.relativePath, entry);
     }
@@ -189,9 +189,16 @@ export async function runner(
   // Sort by path for deterministic output
   const changes = await fileManager.commit(baseCtx.dryRun);
   if (baseCtx.dryRun) {
+    log(
+      `Dry-run mode: no files were written. Showing diffs for ${changes.length} changed file(s).\n`,
+    );
     if (changes.length > 0) {
       for (const change of changes) {
         const fullPath = change.vaultFile.absolutePath;
+        if (fullPath === alertFile?.absolutePath) {
+          log(change.content);
+          continue;
+        }
         let original = "";
         try {
           original = await fs.readFile(fullPath, "utf-8");

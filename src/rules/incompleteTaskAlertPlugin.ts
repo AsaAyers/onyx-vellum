@@ -5,6 +5,7 @@ import { visit } from "unist-util-visit";
 import { VaultFile } from "../engine/VaultFile.js";
 import { join } from "node:path";
 import { readFrontmatter } from "../engine/mergeFrontmatter.js";
+import type { List, ListItem } from "mdast";
 
 export const ALERT_FILE = "onyx_alert.md";
 
@@ -26,6 +27,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
     const frontmatter = readFrontmatter(tree);
     const priority = frontmatter?.priority ?? "medium";
     let numTasks = 0;
+    const alertItems: ListItem[] = [];
     visit(tree, "listItem", (node) => {
       if (node.checked === false) {
         const fields = getInlineFields(node);
@@ -39,14 +41,7 @@ export const incompleteTaskAlertPlugin = makePlugin(
         }
 
         numTasks++;
-        ctx.updateFile({
-          location: {
-            file: vaultFile,
-            header: file.relativePath,
-            position: "end",
-          },
-          content: node,
-        });
+        alertItems.push(node);
       }
     });
 
@@ -59,6 +54,20 @@ export const incompleteTaskAlertPlugin = makePlugin(
         },
         content: `* ${numTasks} tasks in ${file.relativePath.replace(ctx.vaultPath, "")}
             `,
+      });
+    } else if (alertItems.length > 0) {
+      ctx.updateFile({
+        location: {
+          file: vaultFile,
+          header: file.relativePath,
+          position: "end",
+        },
+        content: {
+          type: "list",
+          ordered: false,
+          spread: false,
+          children: alertItems,
+        } satisfies List,
       });
     }
     return;

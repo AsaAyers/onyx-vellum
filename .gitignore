@@ -8,3 +8,4 @@ coverage/
 tmp.md
 tmp/
 tests/.onyx-vellum-state/
+tests/test_vault/.onyx-watch-timestamp
