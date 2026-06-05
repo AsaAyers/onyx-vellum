@@ -132,4 +132,9 @@ export type PluginContext = {
   vaultPath: string;
   verbose?: boolean;
   report?: (msg: string) => void;
+  fileAlerts: Map<string, null | string[]>;
+  alertRunContext?: {
+    scheduledMinute?: string;
+    baseAlertSchedule?: string[];
+  };
 };

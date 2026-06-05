@@ -733,6 +733,9 @@ You can add frontmatter to the file being alerted to tune the behavior:
 ---
 alertIf: due<=today
 alertThreshold: 2
+alertSchedule:
+  - 08:00
+  - 09:00
 priority: low
 ---
 ```
@@ -744,6 +747,12 @@ resolver, so the current file can compare against values such as
 the date helper. `alertThreshold` defaults to `1` and controls how many
 qualifying tasks must exist before the file alerts. `priority` remains a
 separate presentation concern.
+
+`alertSchedule` applies only to scheduled watch alerts. Files with an
+`alertSchedule` are excluded from global watch schedule times and only alert at
+their own configured times. Files without `alertSchedule` continue to use the
+global `watch.alertSchedule` from `.onyx-vellum.json`. String values such as
+`"08:00, 09:00"` are normalized to a YAML array during normal `all` runs.
 
 If `rules.incompleteTaskAlert.alertUrl` is set in `.onyx-vellum.json`,
 performs an HTTP POST of the alert content to that URL with

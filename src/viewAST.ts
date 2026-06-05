@@ -40,6 +40,7 @@ export async function viewAST(absolutePath: string) {
     updateFile: fileOperations.updateFile,
     env: {},
     dryRun: true,
+    fileAlerts: new Map(),
   };
   const processor = createParseProcessor(config, ruleContext);
 

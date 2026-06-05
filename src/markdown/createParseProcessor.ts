@@ -72,6 +72,7 @@ export const createParseProcessor = (
       .use(repeatTasksPlugin)
       .use(removeEphemeralOverdueTasksPlugin)
       .use(moveDoneTasksPlugin)
+      .use(incompleteTaskAlertPlugin)
       .use(sortTasksSpecPlugin);
   } else if (ctx.mode === "alert") {
     debug("Creating processor in alert mode");

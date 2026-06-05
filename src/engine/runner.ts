@@ -49,7 +49,10 @@ const log = console.log.bind(console);
  *                 `report`  — everything printed to console during the run.
  */
 export async function runner(
-  baseCtx: Omit<PluginContext, "readFile" | "jobIdFactory" | "updateFile"> & {
+  baseCtx: Omit<
+    PluginContext,
+    "readFile" | "jobIdFactory" | "updateFile" | "fileAlerts"
+  > & {
     jobIdFactory?: PluginContext["jobIdFactory"];
   },
   fm?: FileWriteManager,
@@ -58,6 +61,7 @@ export async function runner(
   report: string;
   matchingFiles: VaultFile[];
   fileMeta: Map<string, { diff: string; jobs: Job[] }>;
+  fileAlerts: Map<string, null | string[]>;
 }> {
   const lines: string[] = [];
   const log = (msg: string): void => {
@@ -79,6 +83,7 @@ export async function runner(
 
   // Per-file metadata for the TUI: captures diffs and queued jobs
   const fileMeta: Map<string, { diff: string; jobs: Job[] }> = new Map();
+  const fileAlerts = new Map<string, null | string[]>();
   const originalQueueJob = baseCtx.queueJob;
   const wrappedQueueJob: PluginContext["queueJob"] = (job: Job) => {
     originalQueueJob(job);
@@ -97,8 +102,9 @@ export async function runner(
     jobIdFactory: baseCtx.jobIdFactory ?? buildJobId,
     vaultPath: baseCtx.vaultPath,
     report: log,
+    fileAlerts,
   };
-  await ensureCommandFile(baseCtx, fileManager);
+  await ensureCommandFile(ruleContext, fileManager);
 
   const processor = createParseProcessor(config, ruleContext);
   // Accepts array or single object for config.sources
@@ -125,6 +131,7 @@ export async function runner(
   const matchingFiles = (
     await walkMarkdownFiles(baseCtx.vaultPath, baseCtx.vaultPath)
   ).filter((file) => fileMatchesSources(file, globalGlobs));
+
   const alertFile =
     baseCtx.mode === "alert"
       ? new VaultFile({
@@ -237,7 +244,13 @@ export async function runner(
     }
   }
 
-  return { changes, report: lines.join("\n"), matchingFiles, fileMeta };
+  return {
+    changes,
+    report: lines.join("\n"),
+    matchingFiles,
+    fileMeta,
+    fileAlerts,
+  };
 }
 
 async function ensureCommandFile(
@@ -337,6 +350,7 @@ export async function normalizeFileContent({
       vaultPath,
       dryRun: true,
       env: {},
+      fileAlerts: new Map(),
     },
   );
 

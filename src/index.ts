@@ -58,6 +58,11 @@ if (!parsed.vaultPath) {
   process.exit(1);
 }
 const resolvedVaultPath = parsed.vaultPath;
+const baseRunnerArgs = {
+  vaultPath: resolvedVaultPath,
+  dryRun: parsed.dryRun,
+  env: process.env,
+};
 
 // ── Init mode (baseline vault) ─────────────────────────────
 if (parsed.init) {
@@ -77,10 +82,8 @@ if (parsed.init) {
   const dates = userLocalTime({ tz: cfg.timezone ?? "UTC" });
   await runner({
     mode: "all",
-    vaultPath: resolvedVaultPath,
+    ...baseRunnerArgs,
     queueJob: qJob,
-    dryRun: parsed.dryRun,
-    env: process.env,
     dates,
   }).catch((err: unknown) => {
     console.error("Fatal error:", (err as Error).message);
@@ -142,10 +145,9 @@ if (parsed.tui) {
       const { changes, fileMeta } = await runner(
         {
           mode: "all",
-          vaultPath: resolvedVaultPath,
+          ...baseRunnerArgs,
           queueJob,
           dryRun,
-          env: process.env,
           dates,
         },
         tuiFileManager,
@@ -158,10 +160,9 @@ if (parsed.tui) {
       const { changes, fileMeta } = await runner(
         {
           mode: "alert",
-          vaultPath: resolvedVaultPath,
+          ...baseRunnerArgs,
           queueJob,
           dryRun,
-          env: process.env,
           dates,
         },
         tuiFileManager,
@@ -174,11 +175,10 @@ if (parsed.tui) {
       const { changes, fileMeta } = await runner(
         {
           mode: "all",
-          vaultPath: resolvedVaultPath,
+          ...baseRunnerArgs,
           queueJob,
           dryRun,
           onlyGlob: [relPath],
-          env: process.env,
           dates,
         },
         tuiFileManager,
@@ -188,7 +188,7 @@ if (parsed.tui) {
 
     startWatching() {
       orchestrator = createWatchOrchestrator(resolvedVaultPath, config, {
-        run: async (runMode, glob) => {
+        run: async (runMode, glob, alertRunContext) => {
           if (runMode === "alert") {
             const dates = userLocalTime({
               tz: config.timezone ?? "UTC",
@@ -196,28 +196,27 @@ if (parsed.tui) {
             await runner(
               {
                 mode: "alert",
-                vaultPath: resolvedVaultPath,
+                ...baseRunnerArgs,
                 queueJob,
                 dryRun: tui.store.getState().dryRun,
-                env: process.env,
                 dates,
+                alertRunContext,
               },
               tuiFileManager,
             );
-            return;
+            return undefined;
           }
           tui.store.dispatch({ type: "debounce-fired" });
           const dates = userLocalTime({
             tz: config.timezone ?? "UTC",
           });
-          const { changes, fileMeta } = await runner(
+          const { changes, fileMeta, fileAlerts } = await runner(
             {
+              ...baseRunnerArgs,
               mode: runMode === "fast" ? "all" : runMode,
-              vaultPath: resolvedVaultPath,
               queueJob,
               dryRun: tui.store.getState().dryRun,
               onlyGlob: glob,
-              env: process.env,
               dates,
             },
             tuiFileManager,
@@ -226,6 +225,7 @@ if (parsed.tui) {
             type: "run-complete",
             result: mapChangesToResult(changes, fileMeta, "all"),
           });
+          return { fileAlerts };
         },
         onRawNotify: (relPath, _eventType, callCount) => {
           tui.store.dispatch({
@@ -250,11 +250,10 @@ if (parsed.tui) {
       const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
       const { changes } = await runner(
         {
+          ...baseRunnerArgs,
           mode: "all",
-          vaultPath: resolvedVaultPath,
           queueJob,
           dryRun,
-          env: process.env,
           dates,
         },
         tuiFileManager,
@@ -313,9 +312,10 @@ if (parsed.tui) {
   const consoleRun = async (
     runMode: PluginContext["mode"],
     glob?: string[],
+    alertRunContext?: PluginContext["alertRunContext"],
   ) => {
     const dates = userLocalTime({ tz: config.timezone ?? "UTC" });
-    const { changes, report } = await runner(
+    const { changes, report, fileAlerts } = await runner(
       {
         mode: runMode,
         vaultPath: resolvedVaultPath,
@@ -324,6 +324,7 @@ if (parsed.tui) {
         onlyGlob: glob,
         env: process.env,
         dates,
+        alertRunContext,
       },
       watchConsoleFileManager,
     );
@@ -358,14 +359,16 @@ if (parsed.tui) {
       });
       queuedJobs.length = 0;
     }
+
+    return { fileAlerts };
   };
 
   const orchestrator = createWatchOrchestrator(resolvedVaultPath, config, {
-    run: async (runMode, glob) => {
+    run: async (runMode, glob, alertRunContext) => {
       if (runMode === "alert") {
         log("[watch] Running scheduled alert...");
       }
-      await consoleRun(runMode, glob);
+      return consoleRun(runMode, glob, alertRunContext);
     },
     canWatch: (p) => watchConsoleFileManager.canWatch(p),
   });

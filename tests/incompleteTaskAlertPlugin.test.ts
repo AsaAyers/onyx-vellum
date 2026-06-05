@@ -5,6 +5,8 @@ import { createParseProcessor } from "../src/markdown/createParseProcessor.js";
 import { testDate } from "./testDate.js";
 import { ALERT_FILE } from "../src/rules/incompleteTaskAlertPlugin.js";
 import { join } from "node:path";
+import { readFrontmatter } from "../src/engine/mergeFrontmatter.js";
+import type { Root } from "mdast";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,8 +24,19 @@ const defaultConfig = {
 };
 
 /** Run the incompleteTaskAlert plugin over `content` and return collected ops. */
-async function runAlert(content: string, relPath = "notes/tasks.md") {
+async function runAlert(
+  content: string,
+  relPath = "notes/tasks.md",
+  options?: {
+    mode?: "all" | "alert";
+    alertRunContext?: {
+      scheduledMinute?: string;
+      baseAlertSchedule?: string[];
+    };
+  },
+) {
   const ops = new FileOperationExecutor();
+  const mode = options?.mode ?? "alert";
   const processor = createParseProcessor(
     {
       rules: {
@@ -36,9 +49,11 @@ async function runAlert(content: string, relPath = "notes/tasks.md") {
       queueJob: async () => {},
       jobIdFactory: () => "id",
       env: {},
-      mode: "alert",
+      mode,
       dates: testDate,
       dryRun: true,
+      fileAlerts: new Map(),
+      alertRunContext: options?.alertRunContext,
     },
   );
 
@@ -49,9 +64,9 @@ async function runAlert(content: string, relPath = "notes/tasks.md") {
     vaultPath,
   });
   const tree = processor.parse(vf);
-  await processor.run(tree, vf);
+  const processed = (await processor.run(tree, vf)) as Root;
 
-  return { ops, vf };
+  return { ops, vf, processed };
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +89,7 @@ describe("incompleteTaskAlertPlugin", () => {
       mode: "all",
       dates: testDate,
       dryRun: true,
+      fileAlerts: new Map(),
     });
 
     const vf = new VaultFile({
@@ -101,6 +117,7 @@ describe("incompleteTaskAlertPlugin", () => {
         mode: "alert",
         dates: testDate,
         dryRun: true,
+        fileAlerts: new Map(),
       },
     );
 
@@ -159,6 +176,7 @@ describe("incompleteTaskAlertPlugin", () => {
         mode: "alert",
         dates: testDate,
         dryRun: true,
+        fileAlerts: new Map(),
       },
     );
 
@@ -219,6 +237,7 @@ priority: low
         mode: "alert",
         dates: testDate,
         dryRun: true,
+        fileAlerts: new Map(),
       },
     );
 
@@ -270,6 +289,52 @@ alertThreshold: 3
     );
 
     expect(ops.fileOperations).toEqual({});
+  });
+
+  it("normalizes string alertSchedule to an array during all runs", async () => {
+    const { processed } = await runAlert(
+      `---
+alertSchedule: "08:00, 09:00   "
+---
+- [ ] task`,
+      "chores.md",
+      { mode: "all" },
+    );
+
+    const frontmatter = readFrontmatter(processed);
+    expect(frontmatter.alertSchedule).toEqual(["08:00", "09:00"]);
+  });
+
+  it("scheduled alert run excludes files without alertSchedule when base schedule does not match", async () => {
+    const { ops } = await runAlert("- [ ] task 1", "notes/tasks.md", {
+      mode: "alert",
+      alertRunContext: {
+        scheduledMinute: "09:00",
+        baseAlertSchedule: ["08:00"],
+      },
+    });
+    expect(ops.fileOperations).toEqual({});
+  });
+
+  it("scheduled alert run includes files whose alertSchedule matches the current minute", async () => {
+    const { ops } = await runAlert(
+      `---
+alertSchedule:
+  - "09:00"
+---
+- [ ] task 1`,
+      "notes/tasks.md",
+      {
+        mode: "alert",
+        alertRunContext: {
+          scheduledMinute: "09:00",
+          baseAlertSchedule: ["08:00"],
+        },
+      },
+    );
+
+    const opsFor = ops.fileOperations[ALERT_FILE] ?? [];
+    expect(opsFor).toHaveLength(1);
   });
 
   // -----------------------------------------------------------------------

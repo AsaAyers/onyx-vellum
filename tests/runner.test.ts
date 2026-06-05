@@ -195,6 +195,40 @@ alertThreshold: 2
     expect(alertChange!.content).not.toContain("Laundry");
   });
 
+  it("all mode collects per-file alertSchedule entries and normalizes string schedules", async () => {
+    const vaultPath = await createVault({
+      ".onyx-vellum.json": JSON.stringify({
+        rules: {
+          incompleteTaskAlert: {
+            alertUrl: "https://example.com/alert",
+            sources: [{ type: "glob", pattern: "**/*.md" }],
+          },
+        },
+      }),
+      "chores.md": `---
+alertSchedule: "08:00, 09:00   "
+---
+* [ ] Dishes
+`,
+    });
+
+    const result = await runner({
+      ...runnerBase,
+      vaultPath,
+      dryRun: true,
+      mode: "all",
+    });
+
+    expect([...result.fileAlerts.values()]).toContainEqual(["08:00", "09:00"]);
+    const choresChange = result.changes.find(
+      (c) => c.vaultFile.relativePath === "chores.md",
+    );
+    expect(choresChange).toBeDefined();
+    expect(choresChange!.content).toContain("alertSchedule:");
+    expect(choresChange!.content).toContain("- '08:00'");
+    expect(choresChange!.content).toContain("- '09:00'");
+  });
+
   it("alert mode with empty alert content logs 'No alerts to report.'", async () => {
     const vaultPath = await createVault({
       ".onyx-vellum.json": JSON.stringify({

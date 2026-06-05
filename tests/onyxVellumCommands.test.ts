@@ -31,6 +31,7 @@ async function processFile(
     {
       vaultPath,
       updateFile: ops.updateFile,
+      fileAlerts: new Map(),
       queueJob,
       jobIdFactory,
       env: {},
@@ -99,6 +100,7 @@ describe("onyxVellumCommands", () => {
         {
           vaultPath,
           updateFile: ops.updateFile,
+          fileAlerts: new Map(),
           queueJob,
           jobIdFactory,
           env: {},
@@ -132,6 +134,7 @@ describe("onyxVellumCommands", () => {
         {
           vaultPath,
           updateFile: ops.updateFile,
+          fileAlerts: new Map(),
           queueJob,
           jobIdFactory,
           env: {},
@@ -214,6 +217,7 @@ describe("onyxVellumCommands", () => {
         {
           vaultPath,
           updateFile: ops.updateFile,
+          fileAlerts: new Map(),
           queueJob,
           jobIdFactory,
           env: {},

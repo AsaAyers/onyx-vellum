@@ -32,6 +32,10 @@ Available rules:
                             alertIf uses the shared date resolver, so the
                             right-hand side can be today/yesterday/tomorrow or
                             a repeat-pattern shorthand.
+                            Files can also set alertSchedule. In watch mode,
+                            files with alertSchedule are scheduled only at
+                            those times and are excluded from global schedule
+                            times.
 
 Note:
   Task management works without Docker or GPU. The GPU worker is only
@@ -97,6 +101,9 @@ Config:
                              ---
                              alertIf: due<=today
                              alertThreshold: 2
+                             alertSchedule:
+                               - 08:00
+                               - 09:00
                              ---
 
 Examples:

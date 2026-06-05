@@ -72,6 +72,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
     env: process.env,
     mode: "normalize",
     dryRun: false,
+    fileAlerts: new Map(),
   };
 
   const writeManagers = new Map<string, FileWriteManager>();

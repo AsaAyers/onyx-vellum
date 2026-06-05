@@ -36,6 +36,7 @@ describe("FileOperationExecutor", () => {
       updateFile: fileOperator.updateFile,
       queueJob: async function () {},
       jobIdFactory: buildJobId,
+      fileAlerts: new Map(),
       env: {},
       mode: "normalize",
       dates: testDate,

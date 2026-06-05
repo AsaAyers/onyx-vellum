@@ -142,6 +142,7 @@ describe("round-trip: asterisks in non-emphasis contexts", () => {
       env: {},
       dryRun: true,
       updateFile: function () {},
+      fileAlerts: new Map(),
       mode: "all",
     }).parse(out);
     const para = tree.children[0] as Paragraph;

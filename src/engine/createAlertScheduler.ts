@@ -23,7 +23,8 @@ const log = console.log.bind(console);
  *                     alert should fire. Returning an empty array disables the
  *                     alert entirely.
  * @param onAlert      Async callback invoked when the current time is in the
- *                     schedule.  Errors are caught and logged to the console.
+ *                     schedule. Receives the matching minute in HH:MM form.
+ *                     Errors are caught and logged to the console.
  * @param intervalMs   Check period in milliseconds. Defaults to 60 000 (1 min).
  * @returns            A stop function — call it to cancel the interval.
  */
@@ -63,7 +64,7 @@ export function normalizeAlertSchedule(schedule: string[]): {
 
 export function createAlertScheduler(
   getSchedule: () => string[],
-  onAlert: () => Promise<void>,
+  onAlert: (currentMinute: string) => Promise<void>,
   tz: string,
   options?: {
     intervalMs?: number;
@@ -98,7 +99,7 @@ export function createAlertScheduler(
     if (firedKey !== lastFiredKey) {
       lastFiredKey = firedKey;
       log(`[watch] Alert schedule: firing at ${currentMinute}`);
-      onAlert().catch((err: unknown) => {
+      onAlert(currentMinute).catch((err: unknown) => {
         console.error(
           "[watch] Error running scheduled alert:",
           (err as Error).message,

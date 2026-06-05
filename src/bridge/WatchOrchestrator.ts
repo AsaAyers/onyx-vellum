@@ -6,8 +6,16 @@ import {
 import { CONFIG_FILENAME, loadConfig, type Config } from "../loadConfig.js";
 import type { PluginContext } from "../markdown/types.js";
 
+export type WatchRunResult = {
+  fileAlerts?: Map<string, null | string[]>;
+};
+
 export interface WatchOrchestratorCallbacks {
-  run: (mode: PluginContext["mode"], glob?: string[]) => Promise<void>;
+  run: (
+    mode: PluginContext["mode"],
+    glob?: string[],
+    alertRunContext?: PluginContext["alertRunContext"],
+  ) => Promise<WatchRunResult | void>;
   onRawNotify?: (
     relPath: string,
     eventType: string,
@@ -37,6 +45,7 @@ export function createWatchOrchestrator(
     config.watch?.alertSchedule ?? [],
   );
   let alertSchedule = initialSchedule.valid;
+  let fileAlerts = new Map<string, null | string[]>();
   let timezone = config.timezone ?? "UTC";
 
   let fullDebouncer: ReturnType<typeof createDebouncer> | null = null;
@@ -44,12 +53,26 @@ export function createWatchOrchestrator(
   let stopScheduler: (() => void) | null = null;
   let started = false;
 
-  async function onRun(mode: PluginContext["mode"], glob?: string[]) {
-    await callbacks.run(mode, glob);
+  async function onRun(
+    mode: PluginContext["mode"],
+    glob?: string[],
+    alertRunContext?: PluginContext["alertRunContext"],
+  ) {
+    const result = await callbacks.run(mode, glob, alertRunContext);
+    if (mode === "all" && result?.fileAlerts) {
+      fileAlerts = new Map(result.fileAlerts);
+    }
     if (mode === "fast") {
       fastCallCount = 0;
     }
   }
+
+  const getEffectiveSchedule = (): string[] => {
+    const fileSchedule = [...fileAlerts.values()]
+      .flatMap((times) => times ?? [])
+      .sort();
+    return [...new Set([...alertSchedule, ...fileSchedule])];
+  };
 
   return {
     start() {
@@ -105,9 +128,12 @@ export function createWatchOrchestrator(
       );
 
       stopScheduler = createAlertScheduler(
-        () => alertSchedule,
-        async () => {
-          await onRun("alert");
+        getEffectiveSchedule,
+        async (scheduledMinute) => {
+          await onRun("alert", undefined, {
+            scheduledMinute,
+            baseAlertSchedule: alertSchedule,
+          });
         },
         timezone,
       );

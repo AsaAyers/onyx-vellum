@@ -4,28 +4,58 @@ import { makePlugin } from "./makePlugin.js";
 import { visit } from "unist-util-visit";
 import { VaultFile } from "../engine/VaultFile.js";
 import { join } from "node:path";
-import { readFrontmatter } from "../engine/mergeFrontmatter.js";
+import {
+  mergeFrontmatter,
+  readFrontmatter,
+} from "../engine/mergeFrontmatter.js";
 import type { List, ListItem } from "mdast";
 import type { UserLocalTime } from "../engine/userLocalTime.js";
+import { normalizeAlertSchedule } from "../engine/createAlertScheduler.js";
 
 export const ALERT_FILE = "onyx_alert.md";
 
 export const incompleteTaskAlertPlugin = makePlugin(
   "incompleteTaskAlert",
   function ({ tree, ruleConfig, ctx, file, debug }) {
+    if (!ruleConfig) return;
+
+    const frontmatter = readFrontmatter(tree);
+    const fileSchedule = parseFileAlertSchedule(frontmatter?.alertSchedule);
+
+    if (ctx.mode === "all") {
+      const fileAlertTimes =
+        fileSchedule.valid.length > 0 ? fileSchedule.valid : null;
+      ctx.fileAlerts.set(file.relativePath, fileAlertTimes);
+      if (fileSchedule.hasSchedule && fileSchedule.valid.length === 0) {
+        ctx.report?.(
+          `[incompleteTaskAlert] ${file.relativePath} has alertSchedule but no valid times`,
+        );
+      }
+      if (fileSchedule.wasString) {
+        mergeFrontmatter(tree, {
+          alertSchedule: fileSchedule.normalizedEntries,
+        });
+      }
+      return;
+    }
+
     if (ctx.mode !== "alert") return;
-    if (!ruleConfig?.alertUrl) {
+    if (!ruleConfig.alertUrl) {
       debug("[incompleteTaskAlert] No alertUrl configured, skipping plugin");
       return;
     }
     if (file.relativePath === ALERT_FILE) return;
+
+    if (!isFileEligibleForCurrentAlertRun(fileSchedule, ctx)) {
+      return;
+    }
+
     const vaultFile = new VaultFile({
       absolutePath: join(ctx.vaultPath, ALERT_FILE),
       relativePath: ALERT_FILE,
       vaultPath: ctx.vaultPath,
     });
 
-    const frontmatter = readFrontmatter(tree);
     const priority = frontmatter?.priority ?? "medium";
     const alertIf = parseAlertIf(frontmatter?.alertIf);
     const alertThreshold = parseAlertThreshold(frontmatter?.alertThreshold);
@@ -112,6 +142,72 @@ export async function sendNotification(
       `incompleteTaskAlert HTTP ${response.status} ${response.statusText}${bodySuffix}`,
     );
   }
+}
+
+type ParsedFileSchedule = {
+  hasSchedule: boolean;
+  wasString: boolean;
+  normalizedEntries: string[];
+  valid: string[];
+};
+
+function parseFileAlertSchedule(value: unknown): ParsedFileSchedule {
+  if (value === undefined) {
+    return {
+      hasSchedule: false,
+      wasString: false,
+      normalizedEntries: [],
+      valid: [],
+    };
+  }
+
+  let normalizedEntries: string[] = [];
+  let wasString = false;
+
+  if (typeof value === "string") {
+    wasString = true;
+    normalizedEntries = value
+      .split(",")
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0);
+  } else if (Array.isArray(value)) {
+    normalizedEntries = value
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0);
+  }
+
+  const { valid } = normalizeAlertSchedule(normalizedEntries);
+  return {
+    hasSchedule: true,
+    wasString,
+    normalizedEntries,
+    valid,
+  };
+}
+
+function isFileEligibleForCurrentAlertRun(
+  fileSchedule: ParsedFileSchedule,
+  ctx: {
+    alertRunContext?: {
+      scheduledMinute?: string;
+      baseAlertSchedule?: string[];
+    };
+  },
+): boolean {
+  const scheduledMinute = ctx.alertRunContext?.scheduledMinute;
+  if (!scheduledMinute) {
+    return true;
+  }
+
+  if (fileSchedule.valid.length > 0) {
+    return fileSchedule.valid.includes(scheduledMinute);
+  }
+
+  const baseSchedule = normalizeAlertSchedule(
+    ctx.alertRunContext?.baseAlertSchedule ?? [],
+  ).valid;
+  return baseSchedule.includes(scheduledMinute);
 }
 
 type AlertIfCondition = {
