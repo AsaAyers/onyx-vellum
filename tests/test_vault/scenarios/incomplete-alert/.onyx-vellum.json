@@ -16,8 +16,7 @@
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
     "moveDoneTasks": {
-      "sources": [{ "type": "glob", "pattern": "**/*.transcript.md" }],
-      "dailyNotesFolder": "daily"
+      "sources": [{ "type": "glob", "pattern": "**/*.transcript.md" }]
     },
     "incompleteTaskAlert": {
       "sources": [

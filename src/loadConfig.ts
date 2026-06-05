@@ -45,11 +45,17 @@ const zBaseRuleConfig = z.object({
   sources: z.array(zSource).optional(),
 });
 
+const zCommandsConfig = zBaseRuleConfig.extend({
+  tasks: z
+    .object({
+      moveDoneTasks: z.string(),
+    })
+    .optional(),
+});
+
 export type BaseRuleConfig = z.infer<typeof zBaseRuleConfig>;
 
-const zMoveDoneTasks = zBaseRuleConfig.extend({
-  dailyNotesFolder: z.string().optional(),
-});
+const zMoveDoneTasks = zBaseRuleConfig;
 
 export const zAlertConfig = zBaseRuleConfig.extend({
   alertUrl: z.string().optional(),
@@ -75,7 +81,7 @@ const zKnownRuleConfig = z.strictObject({
   ensureAudioTranscripts: zBaseRuleConfig.optional(),
   normalizeTodayLiteral: zBaseRuleConfig.optional(),
   sortTasks: zBaseRuleConfig.optional(),
-  commands: zBaseRuleConfig.optional(),
+  commands: zCommandsConfig.optional(),
   obsidianProtections: zBaseRuleConfig.optional(),
   removeEphemeralOverdueTasks: zBaseRuleConfig.optional(),
 });

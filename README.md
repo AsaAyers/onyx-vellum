@@ -99,10 +99,7 @@ On first run, `onyx-vellum` creates a `.onyx-vellum.json` file in your vault roo
     "removeEphemeralOverdueTasks": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
-    "moveDoneTasks": {
-      "sources": [{ "type": "glob", "pattern": "**/*.transcript.md" }],
-      "dailyNotesFolder": "daily"
-    },
+    "moveDoneTasks": {},
     "sortTasks": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
@@ -705,11 +702,20 @@ on the next pipeline run.
 **Source:** `src/rules/moveDoneTasksPlugin.ts`
 
 Moves checked tasks with a `done:` date from their current note into the
-matching daily note (`daily/<done-date>.md`) when that daily file already
-exists on disk. Removes the task from the source file.
+path configured by the current file's frontmatter `moveDoneTasks` template
+when the destination file already exists on disk. Removes the task from the
+source file.
 
-Configure the daily notes folder via `rules.moveDoneTasks.dailyNotesFolder` in
-`.onyx-vellum.json` (default: `"daily"`).
+Example frontmatter:
+
+```yaml
+---
+moveDoneTasks: daily/{done}.md
+---
+```
+
+Template placeholders use the shared date resolver (`{today}`, `{tomorrow}`,
+`{s}`, etc.) and also support `{done}` for the task's `done:` date.
 
 ### sortTasks
 

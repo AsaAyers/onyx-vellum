@@ -20,7 +20,8 @@ Available rules:
                            uncheck them for the next cycle.
   moveDoneTasks
                             Move checked transcript tasks with done:<date> into
-                            existing daily notes (configurable folder).
+                            existing notes resolved from frontmatter
+                            moveDoneTasks template.
   sortTasks                Sort same-level task lists so incomplete tasks stay
                            on top and completed tasks are ordered newest-first.
   ensureAudioTranscripts   For embedded .m4a links, ensure sibling transcript

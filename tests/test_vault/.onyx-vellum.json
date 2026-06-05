@@ -16,16 +16,7 @@
     "removeEphemeralOverdueTasks": {
       "sources": [{ "type": "glob", "pattern": "**/*.md" }]
     },
-    "moveDoneTasks": {
-      "sources": [
-        { "type": "glob", "pattern": "**/*.transcript.md" },
-        {
-          "type": "path",
-          "value": "scenarios/move-transcript-source-override/notes/tasks.md"
-        }
-      ],
-      "dailyNotesFolder": "scenarios/move-transcript-daily-notes/daily"
-    },
+    "moveDoneTasks": {},
     "incompleteTaskAlert": {
       "sources": [
         {

@@ -5,8 +5,8 @@ import { runner } from "../src/engine/runner.js";
 import { testDate } from "./testDate.js";
 import { createTempDir } from "./createTempDir.js";
 
-describe("moveDoneTasks - config opt-in", () => {
-  it("does not move anything when dailyNotesFolder is not configured", async () => {
+describe("moveDoneTasks - frontmatter opt-in", () => {
+  it("does not move anything when moveDoneTasks frontmatter is not configured", async () => {
     const vaultPath = await createTempDir("onyx-vellum-transcript-rule-");
     await fs.mkdir(join(vaultPath, "audio"), { recursive: true });
     await fs.writeFile(

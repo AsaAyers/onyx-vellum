@@ -169,6 +169,11 @@ export const findTasks: JobWorker<FindTasksJob> = async function (ctx) {
 
   ctx.job.target.frontmatter ??= {};
   ctx.job.target.frontmatter.tasks = new Date().toISOString();
+  const moveDoneTasks = ctx.config.rules.commands?.tasks?.moveDoneTasks;
+  if (moveDoneTasks) {
+    ctx.job.target.frontmatter.moveDoneTasks = moveDoneTasks;
+  }
+
   ctx.job.target.content = list;
   ctx.fileOperations.updateFile(ctx.job.target);
 };

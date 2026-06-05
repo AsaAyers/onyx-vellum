@@ -1,1 +1,5 @@
+---
+moveDoneTasks: scenarios/move-transcript-daily-notes/daily/{done}.md
+---
+
 * [ ] Keep this line

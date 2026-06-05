@@ -86,9 +86,7 @@ describe("test vault config schema", () => {
     }
 
     // Sanity-check that known rule configs are parsed into their specific types.
-    expect(result.data.rules.moveDoneTasks?.dailyNotesFolder).toBe(
-      "scenarios/move-transcript-daily-notes/daily",
-    );
+    expect(result.data.rules.moveDoneTasks).toEqual({});
   });
 });
 

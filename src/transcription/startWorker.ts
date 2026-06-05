@@ -113,6 +113,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         detail: JSON.stringify(job),
       });
 
+      const config = await loadConfig(job.vaultPath);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jobArgs: Parameters<JobWorker<any>>[0] = {
         options,
@@ -121,6 +122,7 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
         debug: debug.extend(job.type),
         getProcessor,
         getWriteManager,
+        config,
       };
       switch (job.type) {
         case "transcribe":
