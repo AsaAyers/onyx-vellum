@@ -6,10 +6,7 @@ import { type FileWriteManager } from "./FileWriteManager.js";
 import path from "node:path";
 import micromatch from "micromatch";
 import type { Source } from "../rules/types.js";
-import {
-  zFileOperation,
-  type FileOperation,
-} from "../transcription/types.js";
+import { zFileOperation, type FileOperation } from "../transcription/types.js";
 import invariant from "tiny-invariant";
 import { applyFileOperations } from "./applyFileOperations.js";
 

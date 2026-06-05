@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { workerReducer, INITIAL_WORKER_STATE } from "../../src/tui/worker/workerMachine.js";
-import type { WorkerTuiState, WorkerTuiEvent } from "../../src/tui/worker/types.js";
+import {
+  workerReducer,
+  INITIAL_WORKER_STATE,
+} from "../../src/tui/worker/workerMachine.js";
+import type {
+  WorkerTuiState,
+  WorkerTuiEvent,
+} from "../../src/tui/worker/types.js";
 
 describe("workerReducer", () => {
   describe("initial state", () => {
@@ -25,7 +31,11 @@ describe("workerReducer", () => {
     });
 
     it("does nothing when not in starting state", () => {
-      const idle: WorkerTuiState = { ...INITIAL_WORKER_STATE, name: "idle", startedAt: 100 };
+      const idle: WorkerTuiState = {
+        ...INITIAL_WORKER_STATE,
+        name: "idle",
+        startedAt: 100,
+      };
       const ev: WorkerTuiEvent = { type: "started" };
       expect(workerReducer(idle, ev)).toBe(idle);
     });
@@ -39,7 +49,11 @@ describe("workerReducer", () => {
     });
 
     it("records recovery count in idle state", () => {
-      const idle: WorkerTuiState = { ...INITIAL_WORKER_STATE, name: "idle", startedAt: 100 };
+      const idle: WorkerTuiState = {
+        ...INITIAL_WORKER_STATE,
+        name: "idle",
+        startedAt: 100,
+      };
       const ev: WorkerTuiEvent = { type: "recovery-complete", recovered: 1 };
       const next = workerReducer(idle, ev);
       expect(next.recoveredCount).toBe(1);
@@ -48,7 +62,11 @@ describe("workerReducer", () => {
 
   describe("poll-idle", () => {
     it("returns state unchanged", () => {
-      const idle: WorkerTuiState = { ...INITIAL_WORKER_STATE, name: "idle", startedAt: 100 };
+      const idle: WorkerTuiState = {
+        ...INITIAL_WORKER_STATE,
+        name: "idle",
+        startedAt: 100,
+      };
       const ev: WorkerTuiEvent = { type: "poll-idle" };
       expect(workerReducer(idle, ev)).toBe(idle);
     });
@@ -56,7 +74,11 @@ describe("workerReducer", () => {
 
   describe("job-started", () => {
     it("transitions idle → busy with current job", () => {
-      const idle: WorkerTuiState = { ...INITIAL_WORKER_STATE, name: "idle", startedAt: 100 };
+      const idle: WorkerTuiState = {
+        ...INITIAL_WORKER_STATE,
+        name: "idle",
+        startedAt: 100,
+      };
       const before = Date.now();
       const ev: WorkerTuiEvent = {
         type: "job-started",
@@ -82,7 +104,12 @@ describe("workerReducer", () => {
         ...INITIAL_WORKER_STATE,
         name: "busy",
         startedAt: 100,
-        currentJob: { id: "job-1", type: "transcribe", detail: "{}", startedAt: 90 },
+        currentJob: {
+          id: "job-1",
+          type: "transcribe",
+          detail: "{}",
+          startedAt: 90,
+        },
       };
       const before = Date.now();
       const ev: WorkerTuiEvent = {
@@ -112,7 +139,12 @@ describe("workerReducer", () => {
         ...INITIAL_WORKER_STATE,
         name: "busy",
         startedAt: 100,
-        currentJob: { id: "job-2", type: "clean-transcription", detail: "{}", startedAt: 95 },
+        currentJob: {
+          id: "job-2",
+          type: "clean-transcription",
+          detail: "{}",
+          startedAt: 95,
+        },
       };
       const ev: WorkerTuiEvent = {
         type: "job-failed",
@@ -151,7 +183,9 @@ describe("workerReducer", () => {
         jobType: "transcribe",
         detail: "{}",
       };
-      expect(workerReducer(INITIAL_WORKER_STATE, ev)).toBe(INITIAL_WORKER_STATE);
+      expect(workerReducer(INITIAL_WORKER_STATE, ev)).toBe(
+        INITIAL_WORKER_STATE,
+      );
     });
 
     it("ignores job-failed when not busy", () => {
@@ -162,7 +196,9 @@ describe("workerReducer", () => {
         detail: "{}",
         error: "err",
       };
-      expect(workerReducer(INITIAL_WORKER_STATE, ev)).toBe(INITIAL_WORKER_STATE);
+      expect(workerReducer(INITIAL_WORKER_STATE, ev)).toBe(
+        INITIAL_WORKER_STATE,
+      );
     });
   });
 });

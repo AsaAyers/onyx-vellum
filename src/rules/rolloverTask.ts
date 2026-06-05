@@ -50,7 +50,12 @@ export function parseDateInTz(strDate: string, tz: string): Date | null {
     const parts = strDate.split("-");
     if (parts.length !== 3) return null;
     const [year, month, day] = parts.map(Number);
-    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+    if (
+      !Number.isFinite(year) ||
+      !Number.isFinite(month) ||
+      !Number.isFinite(day)
+    )
+      return null;
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     const date = toZonedTime(strDate, tz);
     date.setFullYear(year, month - 1, day);

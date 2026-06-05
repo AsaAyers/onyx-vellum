@@ -96,4 +96,10 @@ export type WorkerEvent =
   | { type: "poll-idle" }
   | { type: "job-started"; jobId: string; jobType: string; detail: string }
   | { type: "job-completed"; jobId: string; jobType: string; detail: string }
-  | { type: "job-failed"; jobId: string; jobType: string; detail: string; error: string };
+  | {
+      type: "job-failed";
+      jobId: string;
+      jobType: string;
+      detail: string;
+      error: string;
+    };

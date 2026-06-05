@@ -42,9 +42,7 @@ export function WorkerApp({
     }
 
     if (key.downArrow) {
-      setSelectedIndex((i) =>
-        Math.min(s.jobHistory.length - 1, i + 1),
-      );
+      setSelectedIndex((i) => Math.min(s.jobHistory.length - 1, i + 1));
       return;
     }
 
@@ -78,7 +76,8 @@ export function WorkerApp({
       </Box>
       <Box>
         <Text dimColor>
-          [↑↓] navigate  [Enter] expand  [d] {detailMode === "summary" ? "full JSON" : "summary"}  [q] quit
+          [↑↓] navigate [Enter] expand [d]{" "}
+          {detailMode === "summary" ? "full JSON" : "summary"} [q] quit
         </Text>
       </Box>
     </Box>

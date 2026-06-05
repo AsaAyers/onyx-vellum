@@ -52,7 +52,13 @@ export type MainEvent =
   | { type: "init-complete"; result: TuiInitResult }
   | { type: "run-error"; error: string }
   | { type: "toggle-watching" }
-  | { type: "file-changed"; files: string[]; delayMs: number; growthFactor: number; callCount: number }
+  | {
+      type: "file-changed";
+      files: string[];
+      delayMs: number;
+      growthFactor: number;
+      callCount: number;
+    }
   | { type: "debounce-fired" }
   | { type: "toggle-dry-run" }
   | { type: "open-picker" }

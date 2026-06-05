@@ -6,10 +6,7 @@ export function fuzzyMatch(query: string, target: string): boolean {
   return qi === query.length;
 }
 
-export function filterFiles(
-  files: string[],
-  query: string,
-): string[] {
+export function filterFiles(files: string[], query: string): string[] {
   if (query === "") return files;
   const lower = query.toLowerCase();
   return files.filter((f) => fuzzyMatch(lower, f.toLowerCase()));

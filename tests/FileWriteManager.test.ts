@@ -289,19 +289,13 @@ describe("FileWriteManager", () => {
         fwm.stage(vf, "content");
         await fwm.commit(true);
 
-        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(
-          false,
-        );
+        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(false);
 
         vi.advanceTimersByTime(999);
-        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(
-          false,
-        );
+        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(false);
 
         vi.advanceTimersByTime(1);
-        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(
-          true,
-        );
+        expect(fwm.canWatch("/tmp/vault/expire-test.md")).toBe(true);
       } finally {
         vi.useRealTimers();
       }

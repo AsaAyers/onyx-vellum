@@ -4,7 +4,10 @@ export function computeDebounceDelay(
   callCount: number,
   maxMs: number,
 ): number {
-  return Math.min(maxMs, Math.round(baseMs * Math.pow(growthFactor, callCount - 1)));
+  return Math.min(
+    maxMs,
+    Math.round(baseMs * Math.pow(growthFactor, callCount - 1)),
+  );
 }
 
 export function computeDebounceRemaining(

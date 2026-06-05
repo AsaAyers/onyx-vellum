@@ -25,10 +25,7 @@ function root(children: RootContent[]): Root {
 /**
  * Helper: build a stub location (only the fields resolveTarget reads).
  */
-const loc = (
-  header: string | null,
-  position: "start" | "end",
-) =>
+const loc = (header: string | null, position: "start" | "end") =>
   ({
     file: undefined as never,
     header,

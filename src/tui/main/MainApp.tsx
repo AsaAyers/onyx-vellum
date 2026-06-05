@@ -242,7 +242,12 @@ function SideBySideView({
   const cursorKey = state.fileViewCursor;
   const isSentinel = cursorKey === "__sentinel__";
 
-  const { title, content } = rightPanelContent(state, now, cursorKey, isSentinel);
+  const { title, content } = rightPanelContent(
+    state,
+    now,
+    cursorKey,
+    isSentinel,
+  );
 
   return (
     <Box width="100%" height="100%">

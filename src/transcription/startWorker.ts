@@ -52,7 +52,9 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
   const sleep = options.sleep ?? defaultSleep;
   const logger = options.logger ?? console;
   const emit = options.onEvent
-    ? (event: WorkerEvent) => { options.onEvent!(event); }
+    ? (event: WorkerEvent) => {
+        options.onEvent!(event);
+      }
     : () => {};
 
   emit({ type: "started" });

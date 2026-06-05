@@ -409,7 +409,8 @@ describe("vaultWatcher", () => {
   // -----------------------------------------------------------------------
 
   it("respects FileWriteManager.canWatch (skips when writing is in progress)", async () => {
-    const { FileWriteManager } = await import("../src/engine/FileWriteManager.js");
+    const { FileWriteManager } =
+      await import("../src/engine/FileWriteManager.js");
     const { VaultFile } = await import("../src/engine/VaultFile.js");
     const fwm = new FileWriteManager(vaultPath);
     const vf = new VaultFile({

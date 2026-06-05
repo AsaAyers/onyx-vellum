@@ -279,15 +279,23 @@ describe("mainReducer", () => {
 
   describe("file-changed", () => {
     const fc = (files: string[], delayMs: number) =>
-      ({ type: "file-changed", files, delayMs, growthFactor: 1.5, callCount: 1 }) as const;
+      ({
+        type: "file-changed",
+        files,
+        delayMs,
+        growthFactor: 1.5,
+        callCount: 1,
+      }) as const;
 
-    const debouncing = (overrides?: Partial<{
-      queuedFiles: string[];
-      since: number;
-      delayMs: number;
-      growthFactor: number;
-      callCount: number;
-    }>): MainState => ({
+    const debouncing = (
+      overrides?: Partial<{
+        queuedFiles: string[];
+        since: number;
+        delayMs: number;
+        growthFactor: number;
+        callCount: number;
+      }>,
+    ): MainState => ({
       ...INITIAL_STATE,
       name: "watching" as const,
       watchingSub: {
@@ -355,7 +363,10 @@ describe("mainReducer", () => {
       };
       const next = mainReducer(debouncing, { type: "debounce-fired" });
       expect(next.name).toBe("watching");
-      expect(next.watchingSub).toEqual({ name: "processing", filePaths: ["a.md"] });
+      expect(next.watchingSub).toEqual({
+        name: "processing",
+        filePaths: ["a.md"],
+      });
     });
 
     it("is ignored when watching/ready", () => {

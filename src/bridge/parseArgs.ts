@@ -30,7 +30,9 @@ export function parseArgs(): ParsedArgs {
   const viewAstIdx = args.indexOf("--view-ast");
   const isViewAst = viewAstIdx !== -1;
   const viewAstFile =
-    isViewAst && viewAstIdx + 1 < args.length && !args[viewAstIdx + 1].startsWith("-")
+    isViewAst &&
+    viewAstIdx + 1 < args.length &&
+    !args[viewAstIdx + 1].startsWith("-")
       ? args[viewAstIdx + 1]
       : undefined;
 

@@ -41,13 +41,15 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
       const cursor = state.fileViewCursor;
 
       // If user was viewing a file not in new results, keep it under a dimmed key
-      const staleKey = cursor !== SENTINEL && !newDetails[cursor] ? cursor : null;
+      const staleKey =
+        cursor !== SENTINEL && !newDetails[cursor] ? cursor : null;
 
       if (state.name === "running") {
         // If we're retaining a stale detail, keep it in fileDetails
-        const merged = staleKey && state.fileDetails[staleKey]
-          ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
-          : newDetails;
+        const merged =
+          staleKey && state.fileDetails[staleKey]
+            ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
+            : newDetails;
         return {
           ...state,
           name: "idle",
@@ -64,9 +66,10 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
             : state.watchingSub?.name === "ready"
               ? state.watchingSub.processedFiles
               : undefined;
-        const merged = staleKey && state.fileDetails[staleKey]
-          ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
-          : newDetails;
+        const merged =
+          staleKey && state.fileDetails[staleKey]
+            ? { [staleKey]: state.fileDetails[staleKey], ...newDetails }
+            : newDetails;
         return {
           ...state,
           lastRun: event.result,
@@ -82,8 +85,8 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
       if (state.name === "running") {
         const detectedMode =
           state.runMode === "all" ||
-            state.runMode === "alert" ||
-            state.runMode === "single"
+          state.runMode === "alert" ||
+          state.runMode === "single"
             ? state.runMode
             : "all";
         return {
@@ -135,9 +138,14 @@ export function mainReducer(state: MainState, event: MainEvent): MainState {
       if (currentIdx === -1) {
         return { ...state, fileViewCursor: SENTINEL };
       }
-      const nextIdx = event.direction === "up"
-        ? (currentIdx > 0 ? currentIdx - 1 : entries.length - 1)
-        : (currentIdx < entries.length - 1 ? currentIdx + 1 : 0);
+      const nextIdx =
+        event.direction === "up"
+          ? currentIdx > 0
+            ? currentIdx - 1
+            : entries.length - 1
+          : currentIdx < entries.length - 1
+            ? currentIdx + 1
+            : 0;
       return { ...state, fileViewCursor: entries[nextIdx] };
     }
 

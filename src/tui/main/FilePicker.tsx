@@ -61,7 +61,12 @@ export function FilePicker({
       return;
     }
 
-    if (key.backspace || key.delete || input === "\b" || (input && input.charCodeAt(0) === 127)) {
+    if (
+      key.backspace ||
+      key.delete ||
+      input === "\b" ||
+      (input && input.charCodeAt(0) === 127)
+    ) {
       setQuery((q) => q.slice(0, -1));
       setSelectedIndex(0);
       return;
@@ -87,7 +92,8 @@ export function FilePicker({
           visibleFiles.map((f, i) => (
             <Box key={f}>
               <Text inverse={i === clampedIndex} wrap="truncate">
-                {i === clampedIndex ? " > " : "   "}{f}
+                {i === clampedIndex ? " > " : "   "}
+                {f}
               </Text>
             </Box>
           ))

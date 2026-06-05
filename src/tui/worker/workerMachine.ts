@@ -33,9 +33,7 @@ export function workerReducer(
     }
 
     case "job-started": {
-      if (
-        state.name === "idle" || state.name === "busy"
-      ) {
+      if (state.name === "idle" || state.name === "busy") {
         return {
           ...state,
           name: "busy",

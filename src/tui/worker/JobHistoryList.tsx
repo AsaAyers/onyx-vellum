@@ -52,8 +52,7 @@ export function JobHistoryList({
             <Box>
               <Text bold={isSelected} inverse={isSelected} wrap="truncate">
                 {isSelected ? " > " : "   "}
-                <Text color={color}>{icon}</Text>
-                {" "}{entry.type}{" "}
+                <Text color={color}>{icon}</Text> {entry.type}{" "}
                 <Text dimColor>{elapsed}</Text>
               </Text>
             </Box>

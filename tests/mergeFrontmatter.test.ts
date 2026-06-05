@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { mergeFrontmatter, readFrontmatter } from "../src/engine/mergeFrontmatter.js";
+import {
+  mergeFrontmatter,
+  readFrontmatter,
+} from "../src/engine/mergeFrontmatter.js";
 import type { Root, RootContent, Yaml } from "mdast";
 
 function root(children: RootContent[]): Root {
@@ -27,7 +30,12 @@ describe("readFrontmatter", () => {
 
 describe("mergeFrontmatter", () => {
   it("creates yaml node when none exists", () => {
-    const tree = root([{ type: "paragraph", children: [{ type: "text", value: "body" }] } as RootContent]);
+    const tree = root([
+      {
+        type: "paragraph",
+        children: [{ type: "text", value: "body" }],
+      } as RootContent,
+    ]);
     mergeFrontmatter(tree, { tags: ["daily"] });
     expect(tree.children[0].type).toBe("yaml");
     expect((tree.children[0] as Yaml).value).toBe("tags:\n  - daily");
@@ -52,7 +60,9 @@ describe("mergeFrontmatter", () => {
     const tree = root([y("")]);
     mergeFrontmatter(tree, {});
     // js-yaml dump({}) => "{}" — not empty, so the node stays with "{}"
-    const yamlNode = tree.children.find((n) => n.type === "yaml") as Yaml | undefined;
+    const yamlNode = tree.children.find((n) => n.type === "yaml") as
+      | Yaml
+      | undefined;
     expect(yamlNode).toBeDefined();
     expect(yamlNode!.value).toBe("{}");
   });

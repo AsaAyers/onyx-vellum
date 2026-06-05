@@ -14,18 +14,14 @@ const BINDINGS: { key: string; desc: string }[] = [
 
 export function HelpOverlay() {
   return (
-    <Box
-      flexDirection="column"
-      paddingX={2}
-      paddingY={1}
-      borderStyle="round"
-    >
+    <Box flexDirection="column" paddingX={2} paddingY={1} borderStyle="round">
       <Text bold>Keyboard shortcuts</Text>
       <Box flexDirection="column" marginTop={1}>
         {BINDINGS.map(({ key, desc }) => (
           <Box key={key}>
             <Text bold wrap="truncate">
-              {"  "}{key.padEnd(5)}
+              {"  "}
+              {key.padEnd(5)}
             </Text>
             <Text>{desc}</Text>
           </Box>
