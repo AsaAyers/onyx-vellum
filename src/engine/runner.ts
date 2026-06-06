@@ -192,6 +192,23 @@ export async function runner(
     fileManager.stage(alertFile, content);
   }
 
+  if (baseCtx.mode === "fast") {
+    /**
+     * In fast mode only keep meaningful changes.
+     */
+    await Promise.all(
+      fileManager.stagedFiles().map(async (vaultFile) => {
+        const staged = await fileManager.read(vaultFile);
+        const original = await fs
+          .readFile(vaultFile.absolutePath, "utf-8")
+          .catch(() => "");
+        if (isWhitespaceOnlyChange(original, staged)) {
+          fileManager.stage(vaultFile, original);
+        }
+      }),
+    );
+  }
+
   // Sort by path for deterministic output
   const changes = await fileManager.commit(baseCtx.dryRun);
   if (baseCtx.dryRun) {
@@ -200,18 +217,16 @@ export async function runner(
     );
     if (changes.length > 0) {
       for (const change of changes) {
-        const fullPath = change.vaultFile.absolutePath;
-        if (fullPath === alertFile?.absolutePath) {
+        if (change.vaultFile.absolutePath === alertFile?.absolutePath) {
           log(change.content);
           continue;
         }
-        let original = "";
-        try {
-          original = await fs.readFile(fullPath, "utf-8");
-        } catch {
-          // new file — treat original as empty
-        }
-        log(createPatch(fullPath, original, change.content));
+        const original = await fs
+          .readFile(change.vaultFile.absolutePath, "utf-8")
+          .catch(() => "");
+        log(
+          createPatch(change.vaultFile.relativePath, original, change.content),
+        );
       }
     } else {
       log("No changes.");
@@ -368,3 +383,6 @@ export const EMPTY_CONFIG: Config = {
   sources: [{ type: "glob", pattern: "**/*.md" }],
   rules: {},
 };
+function isWhitespaceOnlyChange(original: string, staged: string) {
+  return original.replace(/\s/g, "") === staged.replace(/\s/g, "");
+}

@@ -43,6 +43,9 @@ export const moveDoneTasksPlugin = makePlugin(
             );
 
             if (!relativePath) {
+              debug(
+                `Could not resolve destination for done task with value "${fields.done}"`,
+              );
               return true;
             }
 
@@ -84,7 +87,7 @@ function resolveMoveDoneDestination(
   dates: UserLocalTime,
 ): string | null {
   let unresolved = false;
-  const resolved = template.replaceAll(/\{([^{}]+)\}/g, (_full, rawToken) => {
+  const resolved = template.replaceAll(/\{(-?[^{}]+)\}/g, (_full, rawToken) => {
     const token = String(rawToken).trim();
     if (token === "done") {
       return done;

@@ -17,6 +17,7 @@ const WEEKDAY_MAP = {
 type RepeatSchedule = {
   skipWeeks: number;
   days: Set<number>;
+  isNegative: boolean;
 };
 
 /**
@@ -36,16 +37,22 @@ type RepeatSchedule = {
  * Returns null if the string is not a valid repeat value.
  */
 export function parseRepeat(value: string): RepeatSchedule | null {
+  if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // Reject ISO date strings to avoid confusion with the daily shorthand.
+    return null;
+  }
+
   // Daily shorthand: optional skip-weeks prefix followed by exactly "d".
-  const dailyMatch = value.match(/^(\d+)?d$/);
+  const dailyMatch = value.match(/^-?(\d+)?d$/);
+  const isNegative = value.startsWith("-");
   if (dailyMatch) {
     const skipWeeks =
       dailyMatch[1] !== undefined ? parseInt(dailyMatch[1], 10) : 0;
-    return { skipWeeks, days: new Set([0, 1, 2, 3, 4, 5, 6]) };
+    return { skipWeeks, days: new Set([0, 1, 2, 3, 4, 5, 6]), isNegative };
   }
 
   // Explicit weekday form.
-  const match = value.match(/^(\d+)?([smtwhfa]+)$/);
+  const match = value.match(/^-?(\d+)?([smtwhfa]+)$/);
   if (!match) return null;
   const skipWeeks = match[1] !== undefined ? parseInt(match[1], 10) : 0;
   const days = new Set<number>();
@@ -53,7 +60,7 @@ export function parseRepeat(value: string): RepeatSchedule | null {
     days.add(WEEKDAY_MAP[ch]);
   }
   if (days.size === 0) return null;
-  return { skipWeeks, days };
+  return { skipWeeks, days, isNegative };
 }
 
 /**
@@ -80,10 +87,11 @@ export function formatDateStr(date: string | Date, _timezone?: string): string {
  * Mon/Wed/Fri ≥ Sunday = Monday (same weekday, ~1 week later).
  */
 export function computeNextDue(completionDate: Date, schedule: RepeatSchedule) {
-  const { skipWeeks, days } = schedule;
+  const { skipWeeks, days, isNegative } = schedule;
+  const direction = isNegative ? -1 : 1;
   const offset = skipWeeks === 0 ? 1 : skipWeeks * 7 - 1;
-  const minDate = addDays(completionDate, offset);
-  let candidate = new Date(minDate);
+  const nearDate = addDays(completionDate, offset * direction);
+  let candidate = new Date(nearDate);
   // 400 iterations is a safe upper bound: even with a single allowed weekday
   // the gap between occurrences is at most 6 days (< 7), so we will always
   // find a match well within 7 iterations.  400 is kept as a defensive limit.
@@ -91,8 +99,8 @@ export function computeNextDue(completionDate: Date, schedule: RepeatSchedule) {
     if (days.has(candidate.getDay())) {
       return candidate;
     }
-    candidate = addDays(candidate, 1);
+    candidate = addDays(candidate, direction);
   }
   // Safety fallback — should never be reached when days is non-empty.
-  return minDate;
+  return nearDate;
 }

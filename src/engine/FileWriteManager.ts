@@ -105,6 +105,17 @@ export class FileWriteManager {
     return true;
   }
 
+  stagedFiles() {
+    return Array.from(this.pending.keys()).map((relativePath) => {
+      return new VaultFile({
+        absolutePath: join(this.vaultPath, relativePath),
+        relativePath,
+        vaultPath: this.vaultPath,
+        value: this.pending.get(relativePath) ?? "",
+      });
+    });
+  }
+
   private markFileAsWritten(path: string) {
     this.recentFiles.add(path);
     setTimeout(() => {
